@@ -94,17 +94,6 @@ fi
 echo "New database password: $new_passwd"
 echo ""
 
-printf "Update database passwords? (y/N) "
-read -r REPLY
-case "$REPLY" in
-    [Yy])
-        ;;
-    *)
-        echo "Canceled. Not updating passwords."
-        exit 0
-        ;;
-esac
-
 echo "Updating passwords..."
 echo "Connecting to the database service container..."
 

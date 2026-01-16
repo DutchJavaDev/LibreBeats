@@ -27,7 +27,7 @@ COPY --from=builder /app/main /app/main
 WORKDIR /app
 
 # COPY sql scripts
-COPY scripts/script.sql ./scripts/script.sql
+COPY scripts/* ./scripts/
 
 # Run the binary
 CMD ["./main"]

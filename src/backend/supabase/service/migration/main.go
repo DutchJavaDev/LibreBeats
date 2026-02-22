@@ -14,7 +14,8 @@ func main() {
 	err := migration.Run()
 
 	if err != nil {
-		panic(err)
+		fmt.Println("Error applying migrations: " + err.Error())
+		return
 	}
 
 	fmt.Println("Migrations applied successfully")

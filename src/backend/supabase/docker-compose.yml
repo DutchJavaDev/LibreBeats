@@ -400,10 +400,22 @@ services:
       db:
         condition: service_healthy
     environment:
-      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
-      SUPABASE_URL: http://kong:8000
       POSTGRES_BACKEND_URL: postgresql://supabase_admin:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/postgres
-      JWT_SECRET: ${JWT_SECRET}
+
+  audio:
+    container_name: supabase-audio
+    build:
+      context: ./service/audio
+      dockerfile: Dockerfile
+    restart: "no"
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_BACKEND_URL: postgresql://supabase_admin:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/postgres
+      QUEUE_NAME: audiopipe-input
 
   # Comment out everything below this point if you are using an external Postgres database
   db:

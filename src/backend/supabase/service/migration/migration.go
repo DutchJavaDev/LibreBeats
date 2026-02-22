@@ -36,7 +36,13 @@ func NewMigrationInstance() IMaigration {
 
 func (m *Migration) Run() error {
 
-	lastAppliedMigrationId := m._LastAppliedMigrationId()
+	lastAppliedMigrationId, err := m._LastAppliedMigrationId()
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Last applied migration id:", lastAppliedMigrationId)
 
 	tx, err := m._connection.Begin(context.Background())
 
@@ -59,8 +65,10 @@ func (m *Migration) Run() error {
 
 	for _, dirEntry := range dirs {
 
+		fmt.Println("Processing migration file:", dirEntry.Name())
+
 		if dirEntry.IsDir() {
-			fmt.Println("Already applied skipping folder:", dirEntry.Name())
+			fmt.Println("Skipping directory:", dirEntry.Name())
 			continue
 		}
 
@@ -74,6 +82,7 @@ func (m *Migration) Run() error {
 		}
 
 		if migrationFileId <= lastAppliedMigrationId {
+			fmt.Println("Skipping already applied migration:", dirEntry.Name())
 			continue
 		}
 
@@ -90,7 +99,7 @@ func (m *Migration) Run() error {
 			return err
 		}
 
-		_, err = tx.Exec(context.Background(), "INSERT INTO librebeats.migrations (id, file_name, content, run_on) VALUES ($1, $2, $3, NOW())", migrationFileId, dirEntry.Name(), string(sqlScript))
+		_, err = tx.Exec(context.Background(), "INSERT INTO Librebeats.Migrations (id, fileName, content, runOn) VALUES ($1, $2, $3, NOW())", migrationFileId, dirEntry.Name(), string(sqlScript))
 
 		if err != nil {
 			defer tx.Rollback(context.Background())
@@ -109,15 +118,16 @@ func (m *Migration) Run() error {
 	return nil
 }
 
-func (m *Migration) _LastAppliedMigrationId() int {
+func (m *Migration) _LastAppliedMigrationId() (int, error) {
 
 	var lastAppliedMigrationId int
 
-	err := m._connection.QueryRow(context.Background(), "SELECT id FROM librebeats.migrations ORDER BY run_on DESC LIMIT 1").Scan(&lastAppliedMigrationId)
+	err := m._connection.QueryRow(context.Background(), "SELECT id FROM librebeats.migrations ORDER BY runon DESC LIMIT 1").Scan(&lastAppliedMigrationId)
 
 	if err != nil {
-		return -1
+		fmt.Println("Error fetching last applied migration id:", err.Error())
+		return -1, err
 	}
 
-	return lastAppliedMigrationId
+	return lastAppliedMigrationId, nil
 }

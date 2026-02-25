@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -27,8 +28,15 @@ func main() {
 		fmt.Printf("Received message from queue\n Message id: %d\n Message: %s\n", audioQueueMessage.Id, audioQueueMessage.Message)
 
 		// split off between playlist and single download
+		sourceUrl := string(audioQueueMessage.Message)
+		isPlaylist := strings.Contains(sourceUrl, "playlist?")
 
 		// check if url is a playlist or single video
+		if isPlaylist {
+			fmt.Println("Playlist download detected")
+		} else {
+			fmt.Println("Single video download detected")
+		}
 
 		// re-think way to handle playlist downloads,
 		// use old method in mvp where it writes the information to a file and then reads it back to update the database

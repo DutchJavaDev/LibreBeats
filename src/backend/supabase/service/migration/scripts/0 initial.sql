@@ -29,16 +29,19 @@ CREATE TABLE IF NOT EXISTS Librebeats.Audio (
     SourceName TEXT NOT NULL,
     StorageLocation TEXT,
     ThumbnailLocation TEXT,
-    ProgressState INT NOT NULL,
     DownloadCount INT NOT NULL DEFAULT 0,
     CreatedAtUtc TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS Librebeats.YtdlpOutputLog (
     Id INT PRIMARY KEY,
-    AudioId serial NOT NULL,
+    AudioId serial,
     Title TEXT NOT NULL,
-    OutputLogBase64 TEXT NOT NULL,
+    ProgressState INT NOT NULL,
+    OutputLogBase64 TEXT,
+    ErrorOutputLogBase64 TEXT,
     CreatedAtUtc TIMESTAMP NOT NULL DEFAULT NOW(),
     FinishedAtUtc TIMESTAMP
 );
+
+

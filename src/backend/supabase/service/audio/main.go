@@ -18,6 +18,8 @@ func main() {
 	// Create queue listener
 	var queueListener = *createQueueListener()
 
+	var logger = NewYtdlpLogger()
+
 	for true {
 		audioQueueMessage, _ := listenForMessage(&queueListener)
 
@@ -26,6 +28,14 @@ func main() {
 		}
 
 		fmt.Printf("Received message from queue\n Message id: %d\n Message: %s\n", audioQueueMessage.Id, audioQueueMessage.Message)
+
+		log, err := logger.CreateNewLog(string(audioQueueMessage.Message))
+
+		if err != nil {
+			fmt.Printf("Created log with id: %s\n", log.Id)
+		} else {
+			fmt.Errorf("Failed to create log for message id: %d, error: %s\n", audioQueueMessage.Id, err.Error())
+		}
 
 		// split off between playlist and single download
 		sourceUrl := string(audioQueueMessage.Message)

@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -73,6 +74,41 @@ func (base *BaseTable) InsertWithReturningId(query string, params ...any) (lastI
 	if err != nil {
 		transaction.Rollback(context.Background())
 		return -1, err
+	}
+
+	return lastInsertedId, nil
+}
+
+func (base *BaseTable) InsertWithReturningIdUUID(query string, params ...any) (lastInsertedId uuid.UUID, err error) {
+
+	if !strings.Contains(query, ReturningIdParameter) {
+		return uuid.Nil, errors.New("Query does not contain RETURNING keyword")
+	}
+
+	transaction, err := base.Pool.Begin(context.Background())
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	statement, err := transaction.Prepare(context.Background(), "", query)
+	if err != nil {
+		transaction.Rollback(context.Background())
+		return uuid.Nil, err
+	}
+	defer transaction.Conn().Close(context.Background())
+
+	err = transaction.QueryRow(context.Background(), statement.SQL, params...).Scan(&lastInsertedId)
+
+	if err != nil {
+		transaction.Rollback(context.Background())
+		return uuid.Nil, err
+	}
+
+	err = transaction.Commit(context.Background())
+
+	if err != nil {
+		transaction.Rollback(context.Background())
+		return uuid.Nil, err
 	}
 
 	return lastInsertedId, nil

@@ -42,8 +42,10 @@ class HomeScreen extends StatelessWidget {
               ),
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.notifications_off_rounded, color: LibreBeatsTheme.textSecondary),
-                  onPressed: () {},
+                  icon: const Icon(Icons.refresh, color: LibreBeatsTheme.textSecondary),
+                  onPressed: () async {
+                    await library.loadMyMusicData();
+                  },
                 ),
                 const SizedBox(width: 8),
               ],
@@ -141,24 +143,24 @@ class HomeScreen extends StatelessWidget {
               ),
 
             // Suggestions (from server mix)
-            SliverToBoxAdapter(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SectionHeader(
-                    title: 'Suggested',
-                    actionLabel: 'Refresh',
-                  ),
-                  _SuggestionNote(),
-                  ...library.suggestions.take(4).map((song) => SongTile(
-                        song: song,
-                        onTap: () => player.playSong(song),
-                        onMore: () => _showSongMenu(context, song, library),
-                      )),
-                  const SizedBox(height: 100),
-                ],
-              ),
-            ),
+            // SliverToBoxAdapter(
+            //   child: Column(
+            //     crossAxisAlignment: CrossAxisAlignment.start,
+            //     children: [
+            //       const SectionHeader(
+            //         title: 'Suggested',
+            //         actionLabel: 'Refresh',
+            //       ),
+            //       _SuggestionNote(),
+            //       ...library.suggestions.take(1).map((song) => SongTile(
+            //             song: song,
+            //             onTap: () => player.playSong(song),
+            //             onMore: () => _showSongMenu(context, song, library),
+            //           )),
+            //       const SizedBox(height: 100),
+            //     ],
+            //   ),
+            // ),
           ],
         );
       },

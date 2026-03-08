@@ -106,7 +106,7 @@ class Playlist {
 }
 
 // ─── Server ────────────────────────────────────────────────────────────────
-enum ServerType { subsonic, navidrome, jellyfin, emby }
+enum ServerType { librebeats }
 
 enum ServerStatus { unknown, online, offline, error }
 
@@ -127,7 +127,7 @@ class MusicServer {
     required this.url,
     this.username,
     this.password,
-    this.type = ServerType.navidrome,
+    this.type = ServerType.librebeats,
     this.status = ServerStatus.unknown,
     this.songCount,
     this.lastSynced,
@@ -135,14 +135,8 @@ class MusicServer {
 
   String get typeLabel {
     switch (type) {
-      case ServerType.navidrome:
-        return 'Navidrome';
-      case ServerType.subsonic:
-        return 'Subsonic';
-      case ServerType.jellyfin:
-        return 'Jellyfin';
-      case ServerType.emby:
-        return 'Emby';
+      case ServerType.librebeats:
+        return 'LibreBeats';
     }
   }
 
@@ -153,7 +147,7 @@ class MusicServer {
         username: json['username'],
         type: ServerType.values.firstWhere(
           (t) => t.name == json['type'],
-          orElse: () => ServerType.navidrome,
+          orElse: () => ServerType.librebeats,
         ),
       );
 

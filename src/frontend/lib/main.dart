@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 import 'package:provider/provider.dart';
 import 'providers/player_provider.dart';
 import 'providers/library_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/search_screen.dart';
-import 'screens/playlists_screen.dart';
+import 'screens/library_screen.dart';
 import 'screens/settings_screen.dart';
 import 'widgets/player_widgets.dart';
 import 'theme/app_theme.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -22,6 +23,11 @@ void main() {
     systemNavigationBarColor: Color(0xFF121212),
     systemNavigationBarIconBrightness: Brightness.light,
   ));
+   await JustAudioBackground.init(
+    androidNotificationChannelId: 'librebeats.audio',
+    androidNotificationChannelName: 'Audio playback',
+    androidNotificationOngoing: true,
+  );
   runApp(const LibreBeatsApp());
 }
 
@@ -58,7 +64,7 @@ class _MainShellState extends State<MainShell> {
   final _screens = const [
     HomeScreen(),
     SearchScreen(),
-    PlaylistsScreen(),
+    LibraryScreen(),
     SettingsScreen(),
   ];
 
@@ -76,10 +82,10 @@ class _MainShellState extends State<MainShell> {
             mainAxisSize: MainAxisSize.min,
             children: [
               // Mini player sits above nav bar
+              // Mini player sits above nav bar
               if (player.miniPlayerVisible)
-                GestureDetector(
+                  MiniPlayer(
                   onTap: () => FullPlayerSheet.show(context),
-                  child: const MiniPlayer(),
                 ),
 
               // Navigation bar

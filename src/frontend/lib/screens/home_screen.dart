@@ -42,33 +42,28 @@ class HomeScreen extends StatelessWidget {
               ),
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.notifications_none_rounded, color: LibreBeatsTheme.textSecondary),
+                  icon: const Icon(Icons.notifications_off_rounded, color: LibreBeatsTheme.textSecondary),
                   onPressed: () {},
-                ),
-                const CircleAvatar(
-                  radius: 16,
-                  backgroundColor: LibreBeatsTheme.accent,
-                  child: Text('U', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
                 ),
                 const SizedBox(width: 8),
               ],
             ),
 
             // Quick Filter Chips
-            SliverToBoxAdapter(
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: Row(
-                  children: [
-                    _FilterChip(label: 'All', selected: true),
-                    _FilterChip(label: 'Music'),
-                    _FilterChip(label: 'Podcasts'),
-                    _FilterChip(label: 'Mixes'),
-                  ],
-                ),
-              ),
-            ),
+            // SliverToBoxAdapter(
+            //   child: SingleChildScrollView(
+            //     scrollDirection: Axis.horizontal,
+            //     padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            //     child: Row(
+            //       children: [
+            //         _FilterChip(label: 'All', selected: true),
+            //         _FilterChip(label: 'Music'),
+            //         _FilterChip(label: 'Podcasts'),
+            //         _FilterChip(label: 'Mixes'),
+            //       ],
+            //     ),
+            //   ),
+            // ),
 
             // Last Played Banner
             if (library.lastPlayedSong != null)
@@ -84,15 +79,16 @@ class HomeScreen extends StatelessWidget {
               ),
 
             // Recently Played Playlists (grid)
-            SliverToBoxAdapter(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SectionHeader(title: 'Recently Played'),
-                  _RecentGrid(library: library, player: player),
-                ],
-              ),
-            ),
+            if (library.playlistsByLastPlayed.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SectionHeader(title: 'Recently Played'),
+                      _RecentGrid(library: library, player: player),
+                    ],
+                  ),
+                ),
 
             // Your Playlists
             SliverToBoxAdapter(

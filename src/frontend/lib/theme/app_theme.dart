@@ -1,29 +1,26 @@
-// TODO Implement this library.import 'package:flutter/material.dart';
-
-
 import 'package:flutter/material.dart';
 
 class LibreBeatsTheme {
-  // Core palette
-  static const Color background = Color(0xFF0F0F0F);
-  static const Color surface = Color(0xFF1A1A1A);
-  static const Color surfaceVariant = Color(0xFF242424);
-  static const Color card = Color(0xFF181818);
-  static const Color border = Color(0xFF2A2A2A);
+// Core palette
+static const Color background = Color(0xFF0A0F0A);
+static const Color surface = Color(0xFF111611);
+static const Color surfaceVariant = Color(0xFF181F18);
+static const Color card = Color(0xFF0F140F);
+static const Color border = Color(0xFF263026);
 
-  // Accent
-  static const Color accent = Color(0xFFFF4D4D);
-  static const Color accentDim = Color(0x22FF4D4D);
-  static const Color accentGlow = Color(0x55FF4D4D);
+// Accent (deep emerald)
+static const Color accent = Color(0xFF1DB954);
+static const Color accentDim = Color(0x221DB954);
+static const Color accentGlow = Color(0x441DB954);
 
-  // Text
-  static const Color textPrimary = Color(0xFFE8E8E8);
-  static const Color textSecondary = Color(0xFF888888);
-  static const Color textDim = Color(0xFF555555);
+// Text
+static const Color textPrimary = Color(0xFFE6EEE6);
+static const Color textSecondary = Color(0xFF8C968C);
+static const Color textDim = Color(0xFF566156);
 
-  // Status
-  static const Color online = Color(0xFF1DB954);
-  static const Color offline = Color(0xFF888888);
+// Status
+static const Color online = Color(0xFF1DB954);
+static const Color offline = Color(0xFF7A847A);
 
   static ThemeData get theme => ThemeData(
         brightness: Brightness.dark,

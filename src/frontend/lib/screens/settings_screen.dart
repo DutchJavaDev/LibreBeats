@@ -406,7 +406,7 @@ class _AddServerFormState extends State<_AddServerForm> {
   final _url = TextEditingController();
   final _user = TextEditingController();
   final _pass = TextEditingController();
-  ServerType _type = ServerType.navidrome;
+  ServerType _type = ServerType.librebeats;
   bool _obscure = true;
   bool _saving = false;
 

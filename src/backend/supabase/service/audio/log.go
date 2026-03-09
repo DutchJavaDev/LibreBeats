@@ -21,18 +21,18 @@ func NewYtdlpLogger() *YtdlpLogger {
 }
 
 func (l *YtdlpLogger) CreateNewLog(title string) (*YtdlpOutputLog, error) {
-	lastinsertedId, err := l.database.InsertWithReturningIdUUID("INSERT INTO YtdlpOutputLog (title, progressState) VALUES ($1, $2) RETURNING id", title, 0)
+	lastinsertedId, err := l.database.InsertWithReturningIdUUID("INSERT INTO YtdlpOutputLog (Title, ProgressState) VALUES ($1, $2) RETURNING id", title, Created)
 	if err != nil {
 		return nil, err
 	}
 	return &YtdlpOutputLog{
 		Id:            lastinsertedId,
-		ProgressState: 0,
+		ProgressState: int(Created),
 		Title:         &title,
 	}, nil
 }
 
 func (l *YtdlpLogger) UpdateLog(log *YtdlpOutputLog) error {
-	_, err := l.database.Pool.Exec(context.Background(), "UPDATE YtdlpOutputLog SET title = $1, outputlog = $2, erroroutputlog = $3, progressstate = $4 WHERE id = $5", log.Title, log.OutputLogBase64, log.ErrorOutputLogBase64, log.ProgressState, log.Id)
+	_, err := l.database.Pool.Exec(context.Background(), "UPDATE YtdlpOutputLog SET Title = $1, OutputBase64 = $2, ErrorOutputBase64 = $3, ProgressState = $4 WHERE id = $5", log.Title, log.OutputLogBase64, log.ErrorOutputLogBase64, log.ProgressState, log.Id)
 	return err
 }

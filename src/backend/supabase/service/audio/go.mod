@@ -17,6 +17,7 @@ require (
 	github.com/jackc/pgx/v5 v5.8.0 // indirect
 	github.com/jackc/puddle v1.1.3 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
+	github.com/supabase-community/storage-go v0.8.1 // indirect
 	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2 // indirect
 	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/text v0.29.0 // indirect

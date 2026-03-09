@@ -7,6 +7,16 @@ import (
 	"github.com/google/uuid"
 )
 
+type ProgressState int
+
+const (
+	Created     ProgressState = iota
+	InProgress  ProgressState = iota
+	Completed   ProgressState = iota
+	Downloading ProgressState = iota
+	Failed      ProgressState = iota
+)
+
 type AudioPipeQueueMessage struct {
 	Id      int64           `json:"msg_id"`
 	Message json.RawMessage `json:"message"`

@@ -119,13 +119,19 @@ func (m *Migration) Run() error {
 }
 
 func (m *Migration) _LastAppliedMigrationId() (int, error) {
+	var lastAppliedMigrationId int = -1
 
-	var lastAppliedMigrationId int
-
-	err := m._connection.QueryRow(context.Background(), "SELECT id FROM librebeats.migrations ORDER BY runon DESC LIMIT 1").Scan(&lastAppliedMigrationId)
+	err := m._connection.QueryRow(context.Background(), "SELECT Id FROM Librebeats.Migrations ORDER BY runon DESC LIMIT 1").Scan(&lastAppliedMigrationId)
 
 	if err != nil {
-		fmt.Println("Error fetching last applied migration id:", err.Error())
+		errorMessage := err.Error()
+		// If the error is because the migrations table does not exist, it means that no migrations have been applied yet, so we can return -1 without an error
+		if strings.Contains(errorMessage, "ERROR: relation \"librebeats.migrations\" does not exist (SQLSTATE 42P01)") {
+			fmt.Println("Migrations table does not exist, assuming no migrations have been applied yet.")
+			return -1, nil
+		}
+
+		fmt.Println("Error fetching last applied migrationId:", errorMessage)
 		return -1, err
 	}
 

@@ -45,11 +45,5 @@ func (ql *QueueListener) Pop() (*AudioPipeQueueMessage, error) {
 		return nil, err
 	}
 
-	// var keyValues map[string]interface{}
-
-	// if err := json.Unmarshal([]byte(result.Message), &keyValues); err != nil {
-	// 	return AudioPipeQueueMessage{}, err
-	// }
-
 	return &audioQueueMessage, nil
 }

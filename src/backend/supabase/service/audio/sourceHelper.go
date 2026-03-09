@@ -9,7 +9,6 @@ import (
 var cookiesPath = "/app/cookies.txt"
 
 func FlatPlaylistDownload(
-	archiveFileName string,
 	idsFileName string,
 	namesFileName string,
 	durationFileName string,
@@ -22,14 +21,15 @@ func FlatPlaylistDownload(
 	Stdout, err := os.Create(logOutput)
 
 	if err != nil {
-		fmt.Println(err)
-		panic(-65465465)
+		fmt.Println(err.Error())
+		return false
 	}
 
 	Stderr, err := os.Create(logOutputError)
 
 	if err != nil {
-		panic(-65324465)
+		fmt.Println(err.Error())
+		return false
 	}
 
 	proc, _err := os.StartProcess(
@@ -75,7 +75,8 @@ func FlatPlaylistDownload(
 }
 
 func FlatSingleDownload(
-	archiveFileName string,
+	//archiveFileName string,
+	outputLocation string,
 	idsFileName string,
 	namesFileName string,
 	durationFileName string,
@@ -84,20 +85,21 @@ func FlatSingleDownload(
 	url string,
 	logOutput string,
 	logOutputError string,
-	storageFolderName string,
 	fileExtension string,
 ) bool {
 
-	Stdout, err := os.OpenFile(logOutput, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	Stdout, err := os.Create(logOutput)
 
 	if err != nil {
-		panic(-65465465)
+		fmt.Println(err.Error())
+		return false
 	}
 
-	Stderr, err := os.OpenFile(logOutputError, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	Stderr, err := os.Create(logOutputError)
 
 	if err != nil {
-		panic(-65324465)
+		fmt.Println(err.Error())
+		return false
 	}
 
 	proc, _err := os.StartProcess(
@@ -117,13 +119,13 @@ func FlatSingleDownload(
 			"--print-to-file", "%(id)s", idsFileName,
 			"--print-to-file", "%(title)s", namesFileName,
 			"--print-to-file", "%(duration)s", durationFileName,
-			"--output", "/%(id)s.%(ext)s",
+			"--output", outputLocation + "/%(id)s.%(ext)s",
 			"--concurrent-fragments=20",
 			"--ignore-errors",
-			fmt.Sprintf("--download-archive=%s", archiveFileName),
+			// fmt.Sprintf("--download-archive=%s", archiveFileName), // not needed for now
 			"--extractor-args=youtube:player_js_variant=tv",
 			fmt.Sprintf("--cookies=%s", cookiesPath),
-			"--js-runtimes=deno:/home/admin/.deno/bin",
+			"--js-runtimes=deno:/root/.deno/bin",
 			"--remote-components=ejs:npm",
 			url,
 		},

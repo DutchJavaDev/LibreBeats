@@ -17,19 +17,19 @@ func FlatPlaylistDownload(
 	url string,
 	logOutput string,
 	logOutputError string,
-) bool {
+) (bool, error) {
 	Stdout, err := os.Create(logOutput)
 
 	if err != nil {
 		fmt.Println(err.Error())
-		return false
+		return false, err
 	}
 
 	Stderr, err := os.Create(logOutputError)
 
 	if err != nil {
 		fmt.Println(err.Error())
-		return false
+		return false, err
 	}
 
 	proc, _err := os.StartProcess(
@@ -68,10 +68,10 @@ func FlatPlaylistDownload(
 	state, err := proc.Wait()
 
 	if err != nil {
-		return false
+		return false, err
 	}
 
-	return state.Success()
+	return state.Success(), nil
 }
 
 func FlatSingleDownload(
@@ -86,20 +86,20 @@ func FlatSingleDownload(
 	logOutput string,
 	logOutputError string,
 	fileExtension string,
-) bool {
+) (bool, error) {
 
 	Stdout, err := os.Create(logOutput)
 
 	if err != nil {
 		fmt.Println(err.Error())
-		return false
+		return false, err
 	}
 
 	Stderr, err := os.Create(logOutputError)
 
 	if err != nil {
 		fmt.Println(err.Error())
-		return false
+		return false, err
 	}
 
 	proc, _err := os.StartProcess(
@@ -111,7 +111,7 @@ func FlatSingleDownload(
 			"--extract-audio",
 			"--audio-quality=0",
 			fmt.Sprintf("--audio-format=%s", fileExtension),
-			"--convert-thumbnails=jpg",
+			"--convert-thumbnails=jpeg",
 			"--force-ipv4",
 			"--downloader=aria2c",
 			"--no-keep-video",
@@ -137,15 +137,16 @@ func FlatSingleDownload(
 			},
 		},
 	)
+
 	if _err != nil {
-		log.Fatal(_err)
+		return false, _err
 	}
 
 	state, err := proc.Wait()
 
 	if err != nil {
-		return false
+		return false, err
 	}
 
-	return state.Success()
+	return state.Success(), nil
 }

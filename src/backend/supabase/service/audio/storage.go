@@ -49,7 +49,13 @@ func (s *StorageService) UploadAudioFile(filePath string, fileName string) (stor
 	defer file.Close()
 
 	// Upload the file to the specified bucket and path
-	response, err := s.client.UploadFile("audio-files", fileName, file)
+	contentType := "audio/ogg"
+	upsert := true
+	options := &storage.FileOptions{
+		ContentType: &contentType,
+		Upsert:      &upsert,
+	}
+	response, err := s.client.UploadFile("audio-files", fileName, file, *options)
 
 	if err != nil {
 		return storage.FileUploadResponse{}, err
@@ -66,7 +72,13 @@ func (s *StorageService) UploadImageFile(filePath string, fileName string) (stor
 	defer file.Close()
 
 	// Upload the file to the specified bucket and path
-	response, err := s.client.UploadFile("image-files", fileName, file)
+	contentType := "image/jpeg"
+	upsert := true
+	options := &storage.FileOptions{
+		ContentType: &contentType,
+		Upsert:      &upsert,
+	}
+	response, err := s.client.UploadFile("image-files", fileName, file, *options)
 
 	if err != nil {
 		return storage.FileUploadResponse{}, err

@@ -23,7 +23,7 @@ func main() {
 	// Storage
 	var storage = NewStorageService()
 
-	//var logger = NewYtdlpLogger()
+	var logger = NewYtdlpLogger()
 
 	for true {
 		audioQueueMessage, _ := listenForMessage(&queueListener)
@@ -36,7 +36,17 @@ func main() {
 
 		messageBody := map[string]interface{}{}
 
-		json.Unmarshal(audioQueueMessage.Message, &messageBody)
+		err := json.Unmarshal(audioQueueMessage.Message, &messageBody)
+
+		if err != nil {
+			log, _ := logger.CreateNewLog(fmt.Sprintf("Failed to unmarshal message body for message id: %d", audioQueueMessage.Id))
+			log.OutputLogBase64 = string(audioQueueMessage.Message)
+			log.ErrorOutputLogBase64 = fmt.Sprintf("Error: %s", err.Error())
+			log.ProgressState = int(Failed)
+			logger.UpdateLog(log)
+			fmt.Printf("Failed to unmarshal message body for message id: %d\n Error: %s\n", audioQueueMessage.Id, err.Error())
+			continue
+		}
 
 		// check if url is a playlist or single video
 		sourceUrl := string(messageBody["url"].(string))
@@ -52,22 +62,6 @@ func main() {
 		logOutput := fmt.Sprintf("%s/output.log", outputLocation)
 		logOutputError := fmt.Sprintf("%s/error.log", outputLocation)
 
-		if !pathExists(basePath) {
-			err := os.Mkdir(basePath, fs.ModePerm|fs.ModeDir)
-			if err != nil {
-				fmt.Println(err.Error())
-				panic("Failed to create base directory")
-			}
-		}
-
-		if !pathExists(outputLocation) {
-			err := os.Mkdir(outputLocation, fs.ModePerm|fs.ModeDir)
-			if err != nil {
-				fmt.Println(err.Error())
-				panic("Failed to create output directory")
-			}
-		}
-
 		filesToDelete := []string{
 			idsFile,
 			namesFile,
@@ -78,70 +72,93 @@ func main() {
 			logOutputError,
 			outputLocation,
 		}
+
+		if !pathExists(basePath) {
+			err := os.Mkdir(basePath, fs.ModePerm|fs.ModeDir)
+			if err != nil {
+				log, _ := logger.CreateNewLog(fmt.Sprintf("Failed to create base directory for message id: %d", audioQueueMessage.Id))
+				log.ErrorOutputLogBase64 = fmt.Sprintf("Error: %s", err.Error())
+				log.ProgressState = int(Failed)
+				log.FinishedAtUtc = time.Now()
+				logger.UpdateLog(log)
+				continue
+			}
+		}
+
+		if !pathExists(outputLocation) {
+			err := os.Mkdir(outputLocation, fs.ModePerm|fs.ModeDir)
+			if err != nil {
+				log, _ := logger.CreateNewLog(fmt.Sprintf("Failed to create output directory for message id: %d", audioQueueMessage.Id))
+				log.ErrorOutputLogBase64 = fmt.Sprintf("Error: %s", err.Error())
+				log.ProgressState = int(Failed)
+				log.FinishedAtUtc = time.Now()
+				logger.UpdateLog(log)
+				continue
+			}
+		}
+
 		// split off between playlist and single download
 		if !isPlaylist {
 			// Single
-			download := FlatSingleDownload(outputLocation, idsFile, namesFile, durationFile, playlistTitleFile, playlistIdFile, sourceUrl, logOutput, logOutputError, "opus")
+			_, err := FlatSingleDownload(outputLocation, idsFile, namesFile, durationFile, playlistTitleFile, playlistIdFile, sourceUrl, logOutput, logOutputError, "opus")
 
-			// Handle download result
-			if !download {
-				fmt.Println("Failed to download single video")
-			} else {
-				fmt.Println("Single video downloaded successfully")
-
-				ids, err := readLines(idsFile)
-
-				if err != nil {
-					fmt.Println("Failed to read IDs file")
-				}
-
-				audioFilePath := fmt.Sprintf("%s/%s.opus", outputLocation, ids[0])
-				imageFilePath := fmt.Sprintf("%s/%s.jpg", outputLocation, ids[0])
-
-				// Upload to storage
-				audioUploadResponse, err := storage.UploadAudioFile(audioFilePath, fmt.Sprintf("%s.opus", ids[0]))
-
-				if err != nil {
-					fmt.Println("Failed to upload audio file")
-				}
-
-				imageUploadResponse, err := storage.UploadImageFile(imageFilePath, fmt.Sprintf("%s.jpg", ids[0]))
-
-				if err != nil {
-					fmt.Println("Failed to upload image file")
-				}
-
-				fmt.Printf("Audio: %s\n", audioUploadResponse.Key)
-				fmt.Printf("Image: %s\n", imageUploadResponse.Key)
+			if err != nil {
+				log, _ := logger.CreateNewLog(fmt.Sprintf("Failed to download single video for message id: %d", audioQueueMessage.Id))
+				log.OutputLogBase64 = string(audioQueueMessage.Message)
+				log.ErrorOutputLogBase64 = fmt.Sprintf("Error: %s", err.Error())
+				log.ProgressState = int(Failed)
+				log.FinishedAtUtc = time.Now()
+				logger.UpdateLog(log)
+				fmt.Printf("Failed to download single video for message id: %d\n Error: %s\n", audioQueueMessage.Id, err.Error())
+				cleanUopFiles(filesToDelete)
+				continue
 			}
 
+			ids, err := readLines(idsFile)
+
+			if err != nil {
+				log, _ := logger.CreateNewLog(fmt.Sprintf("Failed to read IDs file for message id: %d", audioQueueMessage.Id))
+				log.ErrorOutputLogBase64 = fmt.Sprintf("Error: %s", err.Error())
+				log.ProgressState = int(Failed)
+				log.FinishedAtUtc = time.Now()
+				logger.UpdateLog(log)
+				cleanUopFiles(filesToDelete)
+				continue
+			}
+
+			audioFilePath := fmt.Sprintf("%s/%s.opus", outputLocation, ids[0])
+			imageFilePath := fmt.Sprintf("%s/%s.jpg", outputLocation, ids[0])
+
+			// Upload to storage
+			audioUploadResponse, err := storage.UploadAudioFile(audioFilePath, fmt.Sprintf("%s.opus", ids[0]))
+
+			if err != nil {
+				log, _ := logger.CreateNewLog(fmt.Sprintf("Failed to upload audio file %s for message id: %d", audioFilePath, audioQueueMessage.Id))
+				log.ErrorOutputLogBase64 = fmt.Sprintf("Error: %s", err.Error())
+				log.ProgressState = int(Failed)
+				log.FinishedAtUtc = time.Now()
+				logger.UpdateLog(log)
+			}
+
+			imageUploadResponse, err := storage.UploadImageFile(imageFilePath, fmt.Sprintf("%s.jpg", ids[0]))
+
+			if err != nil {
+				log, _ := logger.CreateNewLog(fmt.Sprintf("Failed to upload image file %s file for message id: %d", imageFilePath, audioQueueMessage.Id))
+				log.ErrorOutputLogBase64 = fmt.Sprintf("Error: %s", err.Error())
+				log.ProgressState = int(Failed)
+				log.FinishedAtUtc = time.Now()
+				logger.UpdateLog(log)
+			}
+
+			fmt.Printf("Audio storage location: %s\n", audioUploadResponse.Key)
+			fmt.Printf("Image storage location: %s\n", imageUploadResponse.Key)
 		} else {
 			// Playlist
 			// Get playlist Id
 		}
 
-		// re-think way to handle playlist downloads,
-		// use old method in mvp where it writes the information to a file and then reads it back to update the database
-
-		// Works ish
-		// download := FlatSingleDownload("archive.txt", "ids.txt", "names.txt", "duration.txt", "playlist_title.txt", "playlist_id.txt", "https://www.youtube.com/watch?v=s-uEFHxZ_nE", "output.log", "error.log", "opus")
-
-		// Handle download result
-		// if !download {
-		// 	fmt.Println("Failed to download playlist")
-		// } else {
-		// 	fmt.Println("Playlist downloaded successfully")
-		// }
-
 		// Clean up files
-		for _, file := range filesToDelete {
-			err := os.RemoveAll(file)
-			if err != nil {
-				fmt.Printf("Failed to delete file: %s\n", file)
-			} else {
-				fmt.Printf("Deleted: %s\n", file)
-			}
-		}
+		cleanUopFiles(filesToDelete)
 	}
 }
 
@@ -183,5 +200,16 @@ func sleep() {
 func HandleError(err error) {
 	if err != nil {
 		fmt.Println(err.Error())
+	}
+}
+
+func cleanUopFiles(files []string) {
+	for _, file := range files {
+		err := os.RemoveAll(file)
+		if err != nil {
+			fmt.Printf("Failed to delete file: %s\n", file)
+		} else {
+			fmt.Printf("Deleted: %s\n", file)
+		}
 	}
 }

@@ -419,6 +419,8 @@ services:
       QUEUE_NAME: audiopipe-input
       STORAGE_URL: http://kong:8000/storage/v1
       STORAGE_KEY: ${SERVICE_ROLE_KEY}
+      AUDIO_BUCKET_ID: audio-files
+      IMAGE_BUCKET_ID: image-files
 
   # Comment out everything below this point if you are using an external Postgres database
   db:

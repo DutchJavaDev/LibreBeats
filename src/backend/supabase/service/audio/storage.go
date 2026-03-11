@@ -7,13 +7,16 @@ import (
 )
 
 type IStorageService interface {
+	EnsureBucketsExists()
 	UploadAudioFile(filePath string, fileName string) (storage.FileUploadResponse, error)
 	UploadImageFile(filePath string, fileName string) (storage.FileUploadResponse, error)
 }
 
 type StorageService struct {
 	IStorageService
-	client *storage.Client
+	client        *storage.Client
+	audioBucketId string
+	imageBucketId string
 }
 
 func NewStorageService() *StorageService {
@@ -33,11 +36,35 @@ func NewStorageService() *StorageService {
 		panic("STORAGE_KEY environment variable is not set")
 	}
 
+	audioBucketId := os.Getenv("AUDIO_BUCKET_ID")
+
+	if audioBucketId == "" {
+		panic("AUDIO_BUCKET_ID environment variable is not set")
+	}
+
+	imageBucketId := os.Getenv("IMAGE_BUCKET_ID")
+
+	if imageBucketId == "" {
+		panic("IMAGE_BUCKET_ID environment variable is not set")
+	}
+
 	storageClient := storage.NewClient(storageUrl, storageKey, nil)
 
 	return &StorageService{
-		client: storageClient,
+		client:        storageClient,
+		audioBucketId: audioBucketId,
+		imageBucketId: imageBucketId,
 	}
+}
+
+func (s *StorageService) EnsureBucketsExists() {
+	options := storage.BucketOptions{
+		Public: true,
+	}
+	// This will fail incase bucket already existss after the first run
+	// move these into the database insetad????
+	s.client.CreateBucket(s.audioBucketId, options)
+	s.client.CreateBucket(s.imageBucketId, options)
 }
 
 func (s *StorageService) UploadAudioFile(filePath string, fileName string) (storage.FileUploadResponse, error) {
@@ -55,7 +82,7 @@ func (s *StorageService) UploadAudioFile(filePath string, fileName string) (stor
 		ContentType: &contentType,
 		Upsert:      &upsert,
 	}
-	response, err := s.client.UploadFile("audio-files", fileName, file, *options)
+	response, err := s.client.UploadFile(s.audioBucketId, fileName, file, *options)
 
 	if err != nil {
 		return storage.FileUploadResponse{}, err
@@ -78,7 +105,7 @@ func (s *StorageService) UploadImageFile(filePath string, fileName string) (stor
 		ContentType: &contentType,
 		Upsert:      &upsert,
 	}
-	response, err := s.client.UploadFile("image-files", fileName, file, *options)
+	response, err := s.client.UploadFile(s.imageBucketId, fileName, file, *options)
 
 	if err != nil {
 		return storage.FileUploadResponse{}, err

@@ -8,7 +8,9 @@ import (
 
 type IStorageService interface {
 	EnsureBucketsExists()
+	GetAudioPublicUrl(filename string) storage.SignedUrlResponse
 	UploadAudioFile(filePath string, fileName string) (storage.FileUploadResponse, error)
+	GetImagePublicUrl(filename string) storage.SignedUrlResponse
 	UploadImageFile(filePath string, fileName string) (storage.FileUploadResponse, error)
 }
 
@@ -57,14 +59,38 @@ func NewStorageService() *StorageService {
 	}
 }
 
-func (s *StorageService) EnsureBucketsExists() {
-	options := storage.BucketOptions{
-		Public: true,
+func (s *StorageService) GetAudioPublicUrl(filePath string) storage.SignedUrlResponse {
+	return getPublicUrl(s, s.audioBucketId, filePath)
+}
+
+func (s *StorageService) GetImagePublicUrl(filePath string) storage.SignedUrlResponse {
+	return getPublicUrl(s, s.imageBucketId, filePath)
+}
+
+func getPublicUrl(storageService *StorageService, bucketId string, filePath string) storage.SignedUrlResponse {
+	options := storage.UrlOptions{
+		Download: true,
 	}
+	return storageService.client.GetPublicUrl(bucketId, filePath, options)
+}
+
+func (s *StorageService) EnsureBucketsExists() {
+
 	// This will fail incase bucket already existss after the first run
 	// move these into the database insetad????
-	s.client.CreateBucket(s.audioBucketId, options)
-	s.client.CreateBucket(s.imageBucketId, options)
+	s.client.CreateBucket(s.audioBucketId, storage.BucketOptions{
+		Public: true,
+		AllowedMimeTypes: []string{
+			"audio/ogg",
+		},
+	})
+
+	s.client.CreateBucket(s.imageBucketId, storage.BucketOptions{
+		Public: true,
+		AllowedMimeTypes: []string{
+			"image/jpeg",
+		},
+	})
 }
 
 func (s *StorageService) UploadAudioFile(filePath string, fileName string) (storage.FileUploadResponse, error) {

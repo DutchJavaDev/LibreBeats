@@ -11,6 +11,7 @@ import (
 
 const (
 	SleepTimeInSeconds = 5
+	StorageLocation    = "/app/temp"
 )
 
 func main() {
@@ -22,6 +23,8 @@ func main() {
 
 	// Storage
 	var storage = NewStorageService()
+
+	storage.EnsureBucketsExists()
 
 	var logger = NewYtdlpLogger()
 
@@ -40,8 +43,8 @@ func main() {
 
 		if err != nil {
 			log, _ := logger.CreateNewLog(fmt.Sprintf("Failed to unmarshal message body for message id: %d", audioQueueMessage.Id))
-			log.OutputLogBase64 = string(audioQueueMessage.Message)
-			log.ErrorOutputLogBase64 = fmt.Sprintf("Error: %s", err.Error())
+			log.OutputLog = string(audioQueueMessage.Message)
+			log.ErrorOutputLog = fmt.Sprintf("Error: %s", err.Error())
 			log.ProgressState = int(Failed)
 			logger.UpdateLog(log)
 			fmt.Printf("Failed to unmarshal message body for message id: %d\n Error: %s\n", audioQueueMessage.Id, err.Error())
@@ -52,8 +55,7 @@ func main() {
 		sourceUrl := string(messageBody["url"].(string))
 		isPlaylist := strings.Contains(sourceUrl, "playlist?")
 
-		basePath := "/app/temp"
-		outputLocation := fmt.Sprintf("%s/%d", basePath, audioQueueMessage.Id)
+		outputLocation := fmt.Sprintf("%s/%d", StorageLocation, audioQueueMessage.Id)
 		idsFile := fmt.Sprintf("%s/ids.txt", outputLocation)
 		namesFile := fmt.Sprintf("%s/names.txt", outputLocation)
 		durationFile := fmt.Sprintf("%s/duration.txt", outputLocation)
@@ -73,11 +75,11 @@ func main() {
 			outputLocation,
 		}
 
-		if !pathExists(basePath) {
-			err := os.Mkdir(basePath, fs.ModePerm|fs.ModeDir)
+		if !pathExists(StorageLocation) {
+			err := os.Mkdir(StorageLocation, fs.ModePerm|fs.ModeDir)
 			if err != nil {
 				log, _ := logger.CreateNewLog(fmt.Sprintf("Failed to create base directory for message id: %d", audioQueueMessage.Id))
-				log.ErrorOutputLogBase64 = fmt.Sprintf("Error: %s", err.Error())
+				log.ErrorOutputLog = fmt.Sprintf("Error: %s", err.Error())
 				log.ProgressState = int(Failed)
 				log.FinishedAtUtc = time.Now()
 				logger.UpdateLog(log)
@@ -89,7 +91,7 @@ func main() {
 			err := os.Mkdir(outputLocation, fs.ModePerm|fs.ModeDir)
 			if err != nil {
 				log, _ := logger.CreateNewLog(fmt.Sprintf("Failed to create output directory for message id: %d", audioQueueMessage.Id))
-				log.ErrorOutputLogBase64 = fmt.Sprintf("Error: %s", err.Error())
+				log.ErrorOutputLog = fmt.Sprintf("Error: %s", err.Error())
 				log.ProgressState = int(Failed)
 				log.FinishedAtUtc = time.Now()
 				logger.UpdateLog(log)
@@ -104,8 +106,8 @@ func main() {
 
 			if err != nil {
 				log, _ := logger.CreateNewLog(fmt.Sprintf("Failed to download single video for message id: %d", audioQueueMessage.Id))
-				log.OutputLogBase64 = string(audioQueueMessage.Message)
-				log.ErrorOutputLogBase64 = fmt.Sprintf("Error: %s", err.Error())
+				log.OutputLog = string(audioQueueMessage.Message)
+				log.ErrorOutputLog = fmt.Sprintf("Error: %s", err.Error())
 				log.ProgressState = int(Failed)
 				log.FinishedAtUtc = time.Now()
 				logger.UpdateLog(log)
@@ -118,7 +120,7 @@ func main() {
 
 			if err != nil {
 				log, _ := logger.CreateNewLog(fmt.Sprintf("Failed to read IDs file for message id: %d", audioQueueMessage.Id))
-				log.ErrorOutputLogBase64 = fmt.Sprintf("Error: %s", err.Error())
+				log.ErrorOutputLog = fmt.Sprintf("Error: %s", err.Error())
 				log.ProgressState = int(Failed)
 				log.FinishedAtUtc = time.Now()
 				logger.UpdateLog(log)
@@ -127,31 +129,39 @@ func main() {
 			}
 
 			audioFilePath := fmt.Sprintf("%s/%s.opus", outputLocation, ids[0])
-			imageFilePath := fmt.Sprintf("%s/%s.jpg", outputLocation, ids[0])
+			imageFilePath := fmt.Sprintf("%s/%s.jpeg", outputLocation, ids[0])
 
 			// Upload to storage
 			audioUploadResponse, err := storage.UploadAudioFile(audioFilePath, fmt.Sprintf("%s.opus", ids[0]))
 
 			if err != nil {
 				log, _ := logger.CreateNewLog(fmt.Sprintf("Failed to upload audio file %s for message id: %d", audioFilePath, audioQueueMessage.Id))
-				log.ErrorOutputLogBase64 = fmt.Sprintf("Error: %s", err.Error())
+				log.OutputLog = audioUploadResponse.Message
+				log.ErrorOutputLog = fmt.Sprintf("Error: %s", err.Error())
 				log.ProgressState = int(Failed)
 				log.FinishedAtUtc = time.Now()
 				logger.UpdateLog(log)
+				cleanUopFiles(filesToDelete)
+				continue
 			}
 
-			imageUploadResponse, err := storage.UploadImageFile(imageFilePath, fmt.Sprintf("%s.jpg", ids[0]))
+			imageUploadResponse, err := storage.UploadImageFile(imageFilePath, fmt.Sprintf("%s.jpeg", ids[0]))
 
 			if err != nil {
 				log, _ := logger.CreateNewLog(fmt.Sprintf("Failed to upload image file %s file for message id: %d", imageFilePath, audioQueueMessage.Id))
-				log.ErrorOutputLogBase64 = fmt.Sprintf("Error: %s", err.Error())
+				log.OutputLog = imageUploadResponse.Error
+				log.ErrorOutputLog = fmt.Sprintf("Error: %s", err.Error())
 				log.ProgressState = int(Failed)
 				log.FinishedAtUtc = time.Now()
 				logger.UpdateLog(log)
+				cleanUopFiles(filesToDelete)
+				continue
 			}
 
 			fmt.Printf("Audio storage location: %s\n", audioUploadResponse.Key)
 			fmt.Printf("Image storage location: %s\n", imageUploadResponse.Key)
+
+			// update database with entry....
 		} else {
 			// Playlist
 			// Get playlist Id

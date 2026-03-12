@@ -33,6 +33,6 @@ func (l *YtdlpLogger) CreateNewLog(title string) (*YtdlpOutputLog, error) {
 }
 
 func (l *YtdlpLogger) UpdateLog(log *YtdlpOutputLog) error {
-	_, err := l.database.Pool.Exec(context.Background(), "UPDATE YtdlpOutputLog SET Title = $1, OutputBase64 = $2, ErrorOutputBase64 = $3, ProgressState = $4, FinishedAtUtc = $5 WHERE id = $6", log.Title, log.OutputLogBase64, log.ErrorOutputLogBase64, log.ProgressState, log.FinishedAtUtc, log.Id)
+	_, err := l.database.Pool.Exec(context.Background(), "UPDATE YtdlpOutputLog SET Title = $1, Output = $2, ErrorOutput = $3, ProgressState = $4, FinishedAtUtc = $5 WHERE id = $6", log.Title, log.OutputLog, log.ErrorOutputLog, log.ProgressState, log.FinishedAtUtc, log.Id)
 	return err
 }

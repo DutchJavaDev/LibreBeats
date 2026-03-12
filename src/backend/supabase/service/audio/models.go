@@ -27,21 +27,25 @@ type AudioProcessingMessage struct {
 }
 
 type Audio struct {
-	Id                uuid.UUID `db:"id"`
-	SourceId          string    `db:"source_id"`
-	SourceName        *string   `db:"source_name"` // nullable
-	StorageLocation   string    `db:"storage_location"`
-	ThumbnailLocation *string   `db:"thumbnail_location"` // nullable
-	DownloadCount     int       `db:"download_count"`
-	CreatedAtUtc      time.Time `db:"created_at_utc"`
+	Id                int       `json:"id" db:"id"`
+	Title             string    `json:"title" db:"title"`
+	Artist            string    `json:"artist" db:"artist"`
+	Album             string    `json:"album" db:"album"`
+	AudioLocation     string    `json:"audioLocation" db:"audio_location"`
+	ThumbnailLocation string    `json:"thumbnailLocation" db:"thumbnail_location"`
+	StreamingURL      string    `json:"streamingUrl" db:"streaming_url"`
+	ThumbnailURL      string    `json:"thumbnailUrl" db:"thumbnail_url"`
+	DownloadCount     int       `json:"downloadCount" db:"download_count"`
+	CreatedAtUTC      time.Time `json:"createdAtUtc" db:"created_at_utc"`
 }
 
 type YtdlpOutputLog struct {
-	Id                   uuid.UUID `db:"id"`
-	AudioId              uuid.UUID `db:"audio_id"`
-	ProgressState        int       `db:"progress_state"`
-	Title                *string   `db:"title"`            // nullable
-	OutputLogBase64      *string   `db:"output_log"`       // nullable
-	ErrorOutputLogBase64 *string   `db:"error_output_log"` // nullable
-	CreatedAtUtc         time.Time `db:"created_at_utc"`
+	Id             uuid.UUID `db:"id"`
+	AudioId        uuid.UUID `db:"audio_id"`
+	ProgressState  int       `db:"progress_state"`
+	Title          string    `db:"title"`            // nullable
+	OutputLog      string    `db:"output_log"`       // nullable
+	ErrorOutputLog string    `db:"error_output_log"` // nullable
+	CreatedAtUtc   time.Time `db:"created_at_utc"`
+	FinishedAtUtc  time.Time `db:"finished_at_utc"` // nullable
 }

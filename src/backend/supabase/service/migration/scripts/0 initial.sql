@@ -22,6 +22,7 @@ SELECT * FROM pgmq.create('audiopipe-input');
 
 CREATE TABLE IF NOT EXISTS Librebeats.Audio (
     Id SERIAL PRIMARY KEY,
+    Source TEXT NOT NULL,
     AudioLocation TEXT NOT NULL,
     ThumbnailLocation TEXT NOT NULL,
     DownloadCount INT NOT NULL DEFAULT 0,
@@ -35,11 +36,12 @@ CREATE TABLE IF NOT EXISTS Librebeats.Song (
     AudioId SERIAL NOT NULL REFERENCES Librebeats.Audio(Id) ON DELETE CASCADE,
     Title TEXT NOT NULL,
     Artist TEXT NOT NULL,
-    Album TEXT NOT NULL,
     Tags TEXT NOT NULL,
     StreamingUrl TEXT NOT NULL,
     ThumbnailUrl TEXT NOT NULL,
 );
+
+
 
 ALTER TABLE Librebeats.Song ENABLE ROW LEVEL SECURITY;
 
@@ -54,8 +56,8 @@ CREATE TABLE IF NOT EXISTS Librebeats.YtdlpOutputLog (
     Id INT PRIMARY KEY,
     Title TEXT NOT NULL,
     ProgressState INT NOT NULL,
-    OutputBase64 TEXT NOT NULL,
-    ErrorOutputBase64 TEXT,
+    Output TEXT NOT NULL,
+    ErrorOutput TEXT,
     StartedAtUtc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     FinishedAtUtc TIMESTAMP WITH TIME ZONE
 );

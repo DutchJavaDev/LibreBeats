@@ -23,7 +23,6 @@ type StorageService struct {
 
 func NewStorageService() *StorageService {
 	// Will throw an error if its missing a method implementation from interface
-	// will throw a compile time error
 	var _ IStorageService = (*StorageService)(nil)
 
 	storageUrl := os.Getenv("STORAGE_URL")

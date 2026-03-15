@@ -2,168 +2,98 @@ package main
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"os"
-	"strings"
+	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const ReturningIdParameter = "RETURNING"
-
-var DbInstancePool *pgxpool.Pool
-
-type BaseTable struct {
-	Pool *pgxpool.Pool
+type ILibreDb interface {
+	NewRawAudioEntry(source string, audioLocation string, thumbnailLocation string, durration int) (RawBeat, error)
+	NewBeatEntry(rawBeat *RawBeat, title string, arties string, tags string, streamingUrl string, thumbnailUrl string) error
 }
 
-func NewBaseTableInstance() BaseTable {
-	return BaseTable{
-		Pool: DbInstancePool,
+type LibreDb struct {
+	ILibreDb
+	ConnectionString string
+}
+
+func NewLibreDb() LibreDb {
+
+	var _ ILibreDb = (*LibreDb)(nil)
+
+	connectionString := os.Getenv("POSTGRES_BACKEND_URL")
+
+	if connectionString == "" {
+		panic("POSTGRES_BACKEND_URL environment variable is not set")
+	}
+	return LibreDb{
+		ConnectionString: connectionString,
 	}
 }
 
-func CreateConnectionPool() {
-	databaseUrl := os.Getenv("POSTGRES_BACKEND_URL")
+func (db *LibreDb) NewRawAudioEntry(source string, audioLocation string, thumbnailLocation string, durration int) (RawBeat, error) {
+	connection, err := pgx.Connect(context.Background(), db.ConnectionString)
 
-	pool, err := pgxpool.New(context.Background(), databaseUrl)
 	if err != nil {
-		panic(fmt.Sprintf("unable to create connection pool: %v", err))
+		return RawBeat{}, err
 	}
 
-	// Test connection
-	err = pool.Ping(context.Background())
+	statement, err := connection.Begin(context.Background())
+
 	if err != nil {
-		pool.Close()
-		panic(fmt.Sprintf("unable to ping database: %v", err))
+		return RawBeat{}, err
 	}
 
-	DbInstancePool = pool
+	lastinsertedId := -1
+
+	err = statement.QueryRow(context.Background(), "INSERT INTO Librebeats.RawBeat (Source, AudioLocation, ThumbnailLocation, Durration) VALUES($1, $2, $3, $4) RETURNING Id", source, audioLocation, thumbnailLocation, durration).
+		Scan(&lastinsertedId)
+
+	if err != nil {
+		return RawBeat{}, err
+	}
+
+	err = statement.Commit(context.Background())
+
+	if err != nil {
+		return RawBeat{}, err
+	}
+
+	return RawBeat{
+		Id:                lastinsertedId,
+		Source:            &source,
+		AudioLocation:     &audioLocation,
+		ThumbnailLocation: &thumbnailLocation,
+		DownloadCount:     0,
+		CreatedAtUtc:      time.Now(),
+	}, nil
 }
 
-func (base *BaseTable) InsertWithReturningId(query string, params ...any) (lastInsertedId int, err error) {
-
-	if !strings.Contains(query, ReturningIdParameter) {
-		return -1, errors.New("Query does not contain RETURNING keyword")
-	}
-
-	transaction, err := base.Pool.Begin(context.Background())
-	if err != nil {
-		return -1, err
-	}
-
-	statement, err := transaction.Prepare(context.Background(), "", query)
-	if err != nil {
-		transaction.Rollback(context.Background())
-		return -1, err
-	}
-	defer transaction.Conn().Close(context.Background())
-
-	err = transaction.QueryRow(context.Background(), statement.SQL, params...).Scan(&lastInsertedId)
-
-	if err != nil {
-		transaction.Rollback(context.Background())
-		return -1, err
-	}
-
-	err = transaction.Commit(context.Background())
-
-	if err != nil {
-		transaction.Rollback(context.Background())
-		return -1, err
-	}
-
-	return lastInsertedId, nil
-}
-
-func (base *BaseTable) InsertWithReturningIdUUID(query string, params ...any) (lastInsertedId uuid.UUID, err error) {
-
-	if !strings.Contains(query, ReturningIdParameter) {
-		return uuid.Nil, errors.New("Query does not contain RETURNING keyword")
-	}
-
-	transaction, err := base.Pool.Begin(context.Background())
-	if err != nil {
-		return uuid.Nil, err
-	}
-
-	statement, err := transaction.Prepare(context.Background(), "", query)
-	if err != nil {
-		transaction.Rollback(context.Background())
-		return uuid.Nil, err
-	}
-	defer transaction.Conn().Close(context.Background())
-
-	err = transaction.QueryRow(context.Background(), statement.SQL, params...).Scan(&lastInsertedId)
-
-	if err != nil {
-		transaction.Rollback(context.Background())
-		return uuid.Nil, err
-	}
-
-	err = transaction.Commit(context.Background())
-
-	if err != nil {
-		transaction.Rollback(context.Background())
-		return uuid.Nil, err
-	}
-
-	return lastInsertedId, nil
-}
-
-func (base *BaseTable) NonScalarQuery(query string, params ...any) (error error) {
-
-	transaction, err := base.Pool.Begin(context.Background())
+func (db *LibreDb) NewBeatEntry(rawBeat *RawBeat, title string, arties string, tags string, streamingUrl string, thumbnailUrl string) error {
+	connection, err := pgx.Connect(context.Background(), db.ConnectionString)
 
 	if err != nil {
 		return err
 	}
 
-	defer transaction.Conn().Close(context.Background())
-
-	statement, err := transaction.Prepare(context.Background(), "", query)
+	statement, err := connection.Begin(context.Background())
 
 	if err != nil {
-		transaction.Rollback(context.Background())
 		return err
 	}
 
-	_, err = transaction.Exec(context.Background(), statement.SQL, params...)
+	_, err = statement.Exec(context.Background(), "INSERT INTO Librebeats.Beat (RawBeatId, Title, Artist, Tags, StreamingUrl, ThumbnailUrl) VALUES($1, $2, $3, $4, $5, $6) RETURNING Id", rawBeat.Id, title, arties, tags, streamingUrl, thumbnailUrl)
 
 	if err != nil {
-		transaction.Rollback(context.Background())
 		return err
 	}
 
-	err = transaction.Commit(context.Background())
+	err = statement.Commit(context.Background())
 
 	if err != nil {
-		transaction.Rollback(context.Background())
 		return err
 	}
 
 	return nil
-}
-
-func (base *BaseTable) QueryRow(query string, params ...any) (pgx.Row, error) {
-	pool, err := base.Pool.Acquire(context.Background())
-
-	if err != nil {
-		return nil, err
-	}
-
-	return pool.QueryRow(context.Background(), query, params...), nil
-}
-
-func (base *BaseTable) QueryRows(query string) (pgx.Rows, error) {
-	pool, err := base.Pool.Acquire(context.Background())
-
-	if err != nil {
-		return nil, err
-	}
-
-	return pool.Query(context.Background(), query, nil)
 }

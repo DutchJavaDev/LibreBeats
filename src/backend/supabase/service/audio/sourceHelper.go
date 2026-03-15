@@ -33,7 +33,7 @@ func FlatPlaylistDownload(
 	}
 
 	proc, _err := os.StartProcess(
-		"/usr/local/bin/yt-dlp",
+		"/usr/bin/yt-dlp",
 		[]string{
 			"yt-dlp",
 			"--force-ipv4",
@@ -49,7 +49,7 @@ func FlatPlaylistDownload(
 			"--ignore-errors",
 			"--extractor-args=youtube:player_js_variant=tv",
 			fmt.Sprintf("--cookies=%s", cookiesPath),
-			"--js-runtimes=deno:/home/admin/.deno/bin",
+			"--js-runtimes=deno:/usr/bin",
 			"--remote-components=ejs:npm",
 			url,
 		},
@@ -80,22 +80,20 @@ func FlatSingleDownload(
 	idsFileName string,
 	namesFileName string,
 	durationFileName string,
-	playlistTitleFileName string,
-	playlistIdFileName string,
 	url string,
 	logOutput string,
 	logOutputError string,
 	fileExtension string,
 ) (bool, error) {
 
-	Stdout, err := os.Create(logOutput)
+	Stdout, err := os.OpenFile(logOutput, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 
 	if err != nil {
 		fmt.Println(err.Error())
 		return false, err
 	}
 
-	Stderr, err := os.Create(logOutputError)
+	Stderr, err := os.OpenFile(logOutputError, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 
 	if err != nil {
 		fmt.Println(err.Error())
@@ -103,7 +101,7 @@ func FlatSingleDownload(
 	}
 
 	proc, _err := os.StartProcess(
-		"/usr/local/bin/yt-dlp",
+		"/usr/bin/yt-dlp",
 		[]string{
 			"yt-dlp",
 			"--force-ipv4",
@@ -111,7 +109,7 @@ func FlatSingleDownload(
 			"--extract-audio",
 			"--audio-quality=0",
 			fmt.Sprintf("--audio-format=%s", fileExtension),
-			"--convert-thumbnails=jpeg",
+			"--convert-thumbnails=jpg",
 			"--force-ipv4",
 			"--downloader=aria2c",
 			"--no-keep-video",
@@ -125,7 +123,7 @@ func FlatSingleDownload(
 			// fmt.Sprintf("--download-archive=%s", archiveFileName), // not needed for now
 			"--extractor-args=youtube:player_js_variant=tv",
 			fmt.Sprintf("--cookies=%s", cookiesPath),
-			"--js-runtimes=deno:/root/.deno/bin",
+			"--js-runtimes=deno:/usr/bin/",
 			"--remote-components=ejs:npm",
 			url,
 		},

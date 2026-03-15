@@ -1,4 +1,5 @@
 -- 1. Schema Setup
+CREATE EXTENSION IF NOT EXISTS pgmq;
 CREATE SCHEMA IF NOT EXISTS Librebeats;
 
 -- 4. Internal Table
@@ -20,52 +21,65 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA Librebeats TO service_role;
 -- Create the audio processing queue
 SELECT * FROM pgmq.create('audiopipe-input');
 
-CREATE TABLE IF NOT EXISTS Librebeats.Audio (
+CREATE TABLE IF NOT EXISTS Librebeats.RawBeat (
     Id SERIAL PRIMARY KEY,
     Source TEXT NOT NULL,
     AudioLocation TEXT NOT NULL,
     ThumbnailLocation TEXT NOT NULL,
-    DownloadCount INT NOT NULL DEFAULT 0,
-    CreatedAtUtc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    DownloadCount INT NOT NULL DEFAULT 0,--?????????????????????
+    CreatedAtUtc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    Durration INTEGER NOT NULL,
+    CONSTRAINT unique_source UNIQUE (Source),
+    CONSTRAINT unique_audio_location UNIQUE (AudioLocation),
+    CONSTRAINT unique_thumbnail_location UNIQUE (ThumbnailLocation)
+
 );
 
-ALTER TABLE Librebeats.Audio ENABLE ROW LEVEL SECURITY;
+ALTER TABLE Librebeats.RawBeat ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE IF NOT EXISTS Librebeats.Song (
+CREATE TABLE IF NOT EXISTS Librebeats.Beat (
     Id SERIAL PRIMARY KEY,
-    AudioId SERIAL NOT NULL REFERENCES Librebeats.Audio(Id) ON DELETE CASCADE,
+    RawBeatId SERIAL NOT NULL REFERENCES Librebeats.RawBeat(Id) ON DELETE CASCADE,
     Title TEXT NOT NULL,
     Artist TEXT NOT NULL,
     Tags TEXT NOT NULL,
     StreamingUrl TEXT NOT NULL,
     ThumbnailUrl TEXT NOT NULL,
+    CONSTRAINT unique_streaming_url UNIQUE (StreamingUrl),
+    CONSTRAINT unique_thumbnail_url UNIQUE (ThumbnailUrl)
 );
 
-
-
-ALTER TABLE Librebeats.Song ENABLE ROW LEVEL SECURITY;
+ALTER TABLE Librebeats.Beat ENABLE ROW LEVEL SECURITY;
 
 -- ONLY authenticated users can access songs
-CREATE POLICY "Authenticated users can access all songs" ON Librebeats.Song
+CREATE POLICY "Authenticated users can access all songs" ON Librebeats.Beat
     FOR SELECT
     TO authenticated
     USING (true);
 
 
-CREATE TABLE IF NOT EXISTS Librebeats.YtdlpOutputLog (
-    Id INT PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS Librebeats.AudioOutputLog (
+    Id SERIAL PRIMARY KEY,
     Title TEXT NOT NULL,
     ProgressState INT NOT NULL,
-    Output TEXT NOT NULL,
+    Output TEXT NULL,
     ErrorOutput TEXT,
     StartedAtUtc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     FinishedAtUtc TIMESTAMP WITH TIME ZONE
 );
 
-ALTER TABLE Librebeats.YtdlpOutputLog ENABLE ROW LEVEL SECURITY;
+ALTER TABLE Librebeats.AudioOutputLog ENABLE ROW LEVEL SECURITY;
 
--- Only service role can access the YtdlpOutputLog table
-CREATE POLICY "Authenticated users can access YtdlpOutputLog" ON Librebeats.YtdlpOutputLog
+-- Only service role can access the AudioOutputLog table
+CREATE POLICY "Authenticated users can access AudioOutputLog" ON Librebeats.AudioOutputLog
     FOR SELECT
     TO authenticated
     USING (true);
+
+
+-- Index for foreign key performance
+CREATE INDEX IF NOT EXISTS idx_beat_rawbeat_id ON Librebeats.Beat(RawBeatId);
+
+
+-- Ensure future tables inherit grants
+ALTER DEFAULT PRIVILEGES IN SCHEMA Librebeats GRANT ALL ON TABLES TO service_role;

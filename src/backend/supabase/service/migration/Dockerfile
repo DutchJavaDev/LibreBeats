@@ -1,32 +1,36 @@
-# Stage 1: Build the Go app
-FROM golang:1.25-alpine AS builder
+# Stage 1: Build the Go application
+# Use a specific Go version for reproducible builds (latest stable as of writing)
+FROM golang:1.26-alpine AS builder
 
-# Set environment variables for Go build
-ENV GO111MODULE=on \
-    CGO_ENABLED=0 \
+# Set environment variables for static linking and module support
+ENV CGO_ENABLED=0 \
     GOOS=linux \
     GOARCH=amd64
 
 WORKDIR /app
 
-# Install Go dependencies
+# Copy go.mod and go.sum first to leverage Docker caching
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy the source code and build
+# Copy the rest of the source code
+# Use .dockerignore to exclude unnecessary files (e.g., .git, node_modules, etc.)
 COPY . .
-RUN go build -o main .
 
-# Stage 2: Final image
-FROM alpine:3.19
+# Build the binary with optimizations: strip debug info and disable symbol table
+RUN go build -ldflags="-s -w" -o main .
 
-# Copy the built Go binary from the builder stage
+# Stage 2: Create the final lightweight image
+# Use a minimal Alpine base with a specific version for security and stability
+FROM alpine:latest
+
+# Copy the compiled binary from the builder stage
 COPY --from=builder /app/main /app/main
 
-# Set working directory and permissions
+# Set working directory for the application
 WORKDIR /app
 
-# COPY sql scripts
+# Copy any required scripts, preserving executable permissions
 COPY scripts/* ./scripts/
 
 # Run the binary

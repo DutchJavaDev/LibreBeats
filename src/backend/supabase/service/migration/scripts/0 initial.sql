@@ -83,3 +83,4 @@ CREATE INDEX IF NOT EXISTS idx_beat_rawbeat_id ON Librebeats.Beat(RawBeatId);
 
 -- Ensure future tables inherit grants
 ALTER DEFAULT PRIVILEGES IN SCHEMA Librebeats GRANT ALL ON TABLES TO service_role;
+

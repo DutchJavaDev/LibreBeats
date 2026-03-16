@@ -77,28 +77,35 @@ func (s *StorageService) EnsureBucketsExists() {
 
 	// This will fail incase bucket already existss after the first run
 	// move these into the database insetad????
-	_, err := s.client.CreateBucket(s.audioBucketId, storage.BucketOptions{
-		Public: true,
-		AllowedMimeTypes: []string{
-			"audio/ogg",
-		},
-	})
+	_, err := s.client.GetBucket(s.audioBucketId)
 
 	if err != nil {
-		ErrorLog("Failed to create audio bucket", "", err.Error())
+		_, err = s.client.CreateBucket(s.audioBucketId, storage.BucketOptions{
+			Public: true,
+			AllowedMimeTypes: []string{
+				"audio/ogg",
+			},
+		})
+
+		if err != nil {
+			ErrorLog("Failed to create audio bucket", "EnsureBucketsExists", err.Error())
+		}
 	}
 
-	_, err = s.client.CreateBucket(s.imageBucketId, storage.BucketOptions{
-		Public: true,
-		AllowedMimeTypes: []string{
-			"image/jpeg",
-		},
-	})
+	_, err = s.client.GetBucket(s.imageBucketId)
 
 	if err != nil {
-		ErrorLog("Failed to create audio bucket", "", err.Error())
-	}
+		_, err = s.client.CreateBucket(s.imageBucketId, storage.BucketOptions{
+			Public: true,
+			AllowedMimeTypes: []string{
+				"image/jpeg",
+			},
+		})
 
+		if err != nil {
+			ErrorLog("Failed to create audio bucket", "EnsureBucketsExists", err.Error())
+		}
+	}
 }
 
 func (s *StorageService) UploadAudioFile(filePath string, fileName string) (storage.FileUploadResponse, error) {

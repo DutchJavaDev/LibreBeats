@@ -3,10 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
-	"time"
 )
 
 const (
@@ -56,6 +54,7 @@ func main() {
 		durationFile := fmt.Sprintf("%s/duration.txt", outputLocation)
 		playlistTitleFile := fmt.Sprintf("%s/playlist_title.txt", outputLocation)
 		playlistIdFile := fmt.Sprintf("%s/playlist_id.txt", outputLocation)
+		tags := fmt.Sprintf("%s/tags.txt", outputLocation)
 		logOutput := fmt.Sprintf("%s/output.log", outputLocation)
 		logOutputError := fmt.Sprintf("%s/error.log", outputLocation)
 
@@ -66,6 +65,7 @@ func main() {
 			playlistTitleFile,
 			playlistIdFile,
 			logOutput,
+			tags,
 			logOutputError,
 			outputLocation,
 		}
@@ -78,7 +78,7 @@ func main() {
 		// split off between playlist and single download
 		if !isPlaylist {
 			// Single
-			_, err := FlatSingleDownload(outputLocation, idsFile, namesFile, durationFile, sourceUrl, logOutput, logOutputError, "opus")
+			_, err := FlatSingleDownload(outputLocation, idsFile, namesFile, durationFile, sourceUrl, tags, logOutput, logOutputError, "opus")
 
 			if err != nil {
 				errorLog, _ := readFile(logOutputError)
@@ -100,14 +100,8 @@ func main() {
 			id, err := readFile(idsFile)
 			name, err := readFile(namesFile)
 			duration, err := readFile(durationFile)
-
-			fmt.Println(fmt.Sprintf("%s %s %s", id, name, duration))
-
 			audioFilePath := fmt.Sprintf("%s/%s.opus", outputLocation, id)
 			imageFilePath := fmt.Sprintf("%s/%s.jpg", outputLocation, id)
-
-			fmt.Println(audioFilePath)
-			fmt.Println(imageFilePath)
 
 			// Upload to storage
 			audioUploadResponse, err := storage.UploadAudioFile(audioFilePath, fmt.Sprintf("%s.opus", id))
@@ -139,7 +133,7 @@ func main() {
 			rawAudio, err := db.NewRawAudioEntry(sourceUrl, audioStorageLocation, imageStorageLocation, _dur)
 
 			if err != nil {
-				ErrorLog("Failed to create new RawAudio entry", "", err.Error())
+				ErrorLog("Failed to create new RawAudio entry", sourceUrl, err.Error())
 				cleanUopFiles(filesToDelete)
 				continue
 			}
@@ -150,7 +144,7 @@ func main() {
 			err = db.NewBeatEntry(&rawAudio, name, name, "", audioPublicUrl.SignedURL, thumbnailPublicUrl.SignedURL)
 
 			if err != nil {
-				ErrorLog("Failed to create a new Beat entry", "", err.Error())
+				ErrorLog("Failed to create a new Beat entry", sourceUrl, err.Error())
 				cleanUopFiles(filesToDelete)
 				continue
 			}
@@ -163,49 +157,4 @@ func main() {
 		// Clean up files
 		cleanUopFiles(filesToDelete)
 	}
-}
-
-func listenForMessage(queue *QueueListener) (*AudioPipeQueueMessage, error) {
-	audioQueueMessage, err := queue.Pop()
-
-	if err != nil || audioQueueMessage == nil {
-		//ErrorLog(err)
-		sleep()
-		return nil, err
-	}
-
-	return audioQueueMessage, nil
-}
-
-func createQueueListener() *QueueListener {
-	connectionString := os.Getenv("POSTGRES_BACKEND_URL")
-	queueName := os.Getenv("QUEUE_NAME")
-
-	if connectionString == "" {
-		panic("POSTGRES_BACKEND_URL environment variable is not set")
-	}
-
-	if queueName == "" {
-		panic("QUEUE_NAME environment variable is not set")
-	}
-
-	return &QueueListener{
-		ConnectionString: connectionString,
-		QueueName:        queueName,
-	}
-}
-
-func sleep() {
-	fmt.Printf("Sleeping for %d seconds...\n", SleepTimeInSeconds)
-	time.Sleep(SleepTimeInSeconds * time.Second)
-}
-
-func ErrorLog(title string, outputlog string, errorOutput string) {
-	log, _ := logger.CreateNewLog(fmt.Sprintf("Error: %s", title))
-	log.Output = &outputlog
-	log.ErrorOutput = &errorOutput
-	log.ProgressState = int(Failed)
-	log.FinishedAtUtc = time.Now()
-	logger.UpdateLog(&log)
-	fmt.Println(title)
 }

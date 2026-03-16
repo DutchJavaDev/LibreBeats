@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 func tryCreateDirectory(path string) bool {
 	err := ensureDir(path)
 
 	if err != nil {
-		ErrorLog("Failed to create directory", "", err.Error())
+		ErrorLog("Failed to create directory", "tryCreateDirectory", err.Error())
 		return false
 	}
 
@@ -87,4 +88,49 @@ func cleanUopFiles(files []string) {
 			fmt.Printf("Deleted: %s\n", file)
 		}
 	}
+}
+
+func listenForMessage(queue *QueueListener) (*AudioPipeQueueMessage, error) {
+	audioQueueMessage, err := queue.Pop()
+
+	if err != nil || audioQueueMessage == nil {
+		//ErrorLog(err)
+		sleep()
+		return nil, err
+	}
+
+	return audioQueueMessage, nil
+}
+
+func createQueueListener() *QueueListener {
+	connectionString := os.Getenv("POSTGRES_BACKEND_URL")
+	queueName := os.Getenv("QUEUE_NAME")
+
+	if connectionString == "" {
+		panic("POSTGRES_BACKEND_URL environment variable is not set")
+	}
+
+	if queueName == "" {
+		panic("QUEUE_NAME environment variable is not set")
+	}
+
+	return &QueueListener{
+		ConnectionString: connectionString,
+		QueueName:        queueName,
+	}
+}
+
+func sleep() {
+	fmt.Printf("Sleeping for %d seconds...\n", SleepTimeInSeconds)
+	time.Sleep(SleepTimeInSeconds * time.Second)
+}
+
+func ErrorLog(title string, outputlog string, errorOutput string) {
+	log, _ := logger.CreateNewLog(fmt.Sprintf("Error: %s", title))
+	log.Output = &outputlog
+	log.ErrorOutput = &errorOutput
+	log.ProgressState = int(Failed)
+	log.FinishedAtUtc = time.Now()
+	logger.UpdateLog(&log)
+	fmt.Println(title)
 }

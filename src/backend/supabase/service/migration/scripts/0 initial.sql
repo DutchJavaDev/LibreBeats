@@ -79,8 +79,26 @@ CREATE POLICY "Authenticated users can access AudioOutputLog" ON Librebeats.Audi
 
 -- Index for foreign key performance
 CREATE INDEX IF NOT EXISTS idx_beat_rawbeat_id ON Librebeats.Beat(RawBeatId);
-
+CREATE INDEX IF NOT EXISTS idx_beat_title ON Librebeats.Beat(Title);
+CREATE INDEX IF NOT EXISTS idx_beat_artist ON Librebeats.Beat(Artist);
+CREATE INDEX IF NOT EXISTS idx_beat_tags ON Librebeats.Beat(Tags);
 
 -- Ensure future tables inherit grants
 ALTER DEFAULT PRIVILEGES IN SCHEMA Librebeats GRANT ALL ON TABLES TO service_role;
+
+CREATE TABLE IF NOT EXISTS Librebeats.BeatMix (
+    Id SERIAL PRIMARY KEY,
+    Title TEXT NOT NULL,
+    ThumbnailUrl TEXT NOT NULL,
+    CreatedOn TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT unique_beatmix_title UNIQUE(Title)
+);
+
+CREATE INDEX IF NOT EXISTS idx_beatmix_title ON Librebeats.BeatMix(Title);
+
+CREATE TABLE IF NOT EXTENSION Librebeats.BeatMixBeat (
+    BeatId SERIAL NOT NULL REFERENCES Librebeats.Beat(Id) ON DELETE CASCADE,
+    BeatMixId SERIAL NOT NULL REFERENCES Librebeats.BeatMix(Id) ON DELETE CASCADE,
+    PRIMARY KEY (BeatMixId, BeatMixBeatId)
+);
 

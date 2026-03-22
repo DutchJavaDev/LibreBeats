@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS Librebeats.BeatMix (
     Id SERIAL PRIMARY KEY,
     Title TEXT NOT NULL,
     ThumbnailUrl TEXT NOT NULL,
+    Beatable BOOLEAN NOT NULL DEFAULT TRUE, -- indicates if a Beatmix is allowed to viewed on a client device, funny naming because why not
     CreatedOn TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     CONSTRAINT unique_beatmix_title UNIQUE(Title)
 );

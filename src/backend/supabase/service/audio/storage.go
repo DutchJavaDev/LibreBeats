@@ -76,7 +76,7 @@ func getPublicUrl(storageService *StorageService, bucketId string, filePath stri
 func (s *StorageService) EnsureBucketsExists() {
 
 	// This will fail incase bucket already existss after the first run
-	// move these into the database insetad????
+	// move these into the database instead????
 	_, err := s.client.GetBucket(s.audioBucketId)
 
 	if err != nil {

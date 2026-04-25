@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -11,11 +12,21 @@ const (
 	SleepTimeInSeconds = 5
 	StorageLocation    = "/app/sessions"
 	OutputType         = "opus"
+	ArchiveLocation    = "/etc/librebeats/46asd46as1das"
 )
 
 var logger AudioOutputLogger = NewYtdlpLogger()
 
 func main() {
+
+	if !fileExists(ArchiveLocation) {
+		err := os.WriteFile(ArchiveLocation, []byte(""), 0666)
+
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	// db
 	var db = NewLibreDb()
 
@@ -79,7 +90,7 @@ func main() {
 		// split off between playlist and single download
 		if !isPlaylist {
 			// Single
-			_, err := FlatSingleDownload(outputLocation, idsFile, namesFile, durationFile, sourceUrl, tagsFile, logOutput, logOutputError, OutputType)
+			_, err := FlatSingleDownload(ArchiveLocation, outputLocation, idsFile, namesFile, durationFile, sourceUrl, tagsFile, logOutput, logOutputError, OutputType)
 
 			if err != nil {
 				errorLog, _ := readFile(logOutputError)
@@ -174,21 +185,19 @@ func main() {
 				continue
 			}
 
-			ids, _ := readLines(idsFile)
-			// names, _ := readLines(namesFile)
-			// durations, _ := readLines(durationFile)
 			// playlistTitles, _ := readLines(playlistTitleFile)
 			// playlistIds, _ := readLines(playlistIdFile)
 
-			// Create / Check if beatmix exists
-			// Update if it already exist by rerunning
-			// In this case video archive would come in handy, or... filter out existing ones using inmem cache,db,file?
+			ids, _ := readLines(idsFile)
+			// names, _ := readLines(namesFile)
+			// durations, _ := readLines(durationFile)
 
+			// Create / Check if beatmix exists
 			for id := range ids {
 
 				sourceUrlPlaylist := fmt.Sprintf("https://www.youtube.com/watch?v=%s", ids[id])
 
-				_, err := FlatSingleDownload(outputLocation, idsFile, namesFile, durationFile, sourceUrlPlaylist, tagsFile, logOutput, logOutputError, OutputType)
+				_, err := FlatSingleDownload(ArchiveLocation, outputLocation, idsFile, namesFile, durationFile, sourceUrlPlaylist, tagsFile, logOutput, logOutputError, OutputType)
 
 				if err != nil {
 					errorLog, _ := readFile(logOutputError)
@@ -261,7 +270,7 @@ func main() {
 				}
 
 				// Update database
-				// BearMixBeat, insert BeatMixId, BeatMix
+				// BeatMixBeat, insert BeatMixId, BeatMix
 			}
 
 		}

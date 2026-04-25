@@ -134,3 +134,19 @@ func ErrorLog(title string, outputlog string, errorOutput string) {
 	logger.UpdateLog(&log)
 	fmt.Println(title)
 }
+
+func existInArchive(path string, id string) bool {
+	lines, err := readLines(path)
+
+	if err != nil {
+		panic(-654654)
+	}
+
+	for line := range lines {
+		if strings.Contains(lines[line], fmt.Sprintf("youtube %s", id)) {
+			return true
+		}
+	}
+
+	return false
+}

@@ -75,7 +75,7 @@ func FlatPlaylistDownload(
 }
 
 func FlatSingleDownload(
-	//archiveFileName string,
+	archiveFileName string,
 	outputLocation string,
 	idsFileName string,
 	namesFileName string,
@@ -122,7 +122,7 @@ func FlatSingleDownload(
 			"--output", outputLocation + "/%(id)s.%(ext)s",
 			"--concurrent-fragments=20",
 			"--ignore-errors",
-			// fmt.Sprintf("--download-archive=%s", archiveFileName), // not needed for now
+			fmt.Sprintf("--download-archive=%s", archiveFileName), // not needed for now of toch wel
 			"--extractor-args=youtube:player_js_variant=tv",
 			fmt.Sprintf("--cookies=%s", cookiesPath),
 			"--js-runtimes=deno:/usr/bin/",

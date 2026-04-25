@@ -47,7 +47,8 @@ func (db *LibreDb) NewRawAudioEntry(source string, audioLocation string, thumbna
 
 	lastinsertedId := -1
 
-	err = statement.QueryRow(context.Background(), "INSERT INTO Librebeats.RawBeat (Source, AudioLocation, ThumbnailLocation, Durration) VALUES($1, $2, $3, $4) RETURNING Id", source, audioLocation, thumbnailLocation, durration).
+	err = statement.QueryRow(context.Background(), "INSERT INTO Librebeats.RawBeat (Source, AudioLocation, ThumbnailLocation, Durration) VALUES($1, $2, $3, $4) RETURNING Id",
+		source, audioLocation, thumbnailLocation, durration).
 		Scan(&lastinsertedId)
 
 	if err != nil {
@@ -83,7 +84,8 @@ func (db *LibreDb) NewBeatEntry(rawBeat *RawBeat, title string, arties string, t
 		return err
 	}
 
-	_, err = statement.Exec(context.Background(), "INSERT INTO Librebeats.Beat (RawBeatId, Title, Artist, Tags, StreamingUrl, ThumbnailUrl) VALUES($1, $2, $3, $4, $5, $6) RETURNING Id", rawBeat.Id, title, arties, tags, streamingUrl, thumbnailUrl)
+	_, err = statement.Exec(context.Background(), "INSERT INTO Librebeats.Beat (RawBeatId, Title, Artist, Tags, StreamingUrl, ThumbnailUrl) VALUES($1, $2, $3, $4, $5, $6) RETURNING Id",
+		rawBeat.Id, title, arties, tags, streamingUrl, thumbnailUrl)
 
 	if err != nil {
 		return err

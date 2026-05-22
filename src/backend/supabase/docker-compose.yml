@@ -409,6 +409,8 @@ services:
       context: ./service/audio
       dockerfile: Dockerfile
     restart: "no"
+    volumes:
+      - db-config:/etc/librebeats
     depends_on:
       migrations:
         condition: service_completed_successfully

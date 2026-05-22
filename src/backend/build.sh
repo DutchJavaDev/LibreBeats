@@ -15,9 +15,6 @@ fi
 sudo rm -rf "$BUILD_DIRECTORY"
 
 # Create local backend folder if missing
-# Tree should look like this
-# ├── librebeats_api/build (output directory)
-# └── librebeats_api/supabase (git clone of supabase repo)
 
 if [ ! -d "$BUILD_DIRECTORY" ]; then
     mkdir "$BUILD_DIRECTORY"
@@ -35,6 +32,10 @@ else
     echo "Copying .env file."
     cp $_WORKING_DIR/supabase/.env.example "$BUILD_DIRECTORY/.env"
 fi
+
+# # # Switch to your project directory
+cd "$BUILD_DIRECTORY"
+docker compose build migrations
 
 # # # Switch to your project directory
 cd "$BUILD_DIRECTORY"

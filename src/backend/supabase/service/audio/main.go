@@ -154,7 +154,7 @@ func main() {
 			audioPublicUrl := storage.GetAudioPublicUrl(audioStorageLocation)
 			thumbnailPublicUrl := storage.GetImagePublicUrl(imageStorageLocation)
 
-			err = db.NewBeatEntry(&rawAudio, name, name, tags, audioPublicUrl.SignedURL, thumbnailPublicUrl.SignedURL)
+			err, _ = db.NewBeatEntry(&rawAudio, name, name, tags, audioPublicUrl.SignedURL, thumbnailPublicUrl.SignedURL)
 
 			if err != nil {
 				ErrorLog("Failed to create a new Beat entry", sourceUrl, err.Error())
@@ -185,19 +185,57 @@ func main() {
 				continue
 			}
 
-			// playlistTitles, _ := readLines(playlistTitleFile)
-			// playlistIds, _ := readLines(playlistIdFile)
-
 			ids, _ := readLines(idsFile)
-			// names, _ := readLines(namesFile)
-			// durations, _ := readLines(durationFile)
+			names, _ := readLines(namesFile)
+			durations, _ := readLines(durationFile)
+			playlistTitles, _ := readLines(playlistTitleFile)
+			playlistIds, _ := readLines(playlistIdFile)
 
-			// Create / Check if beatmix exists
+			// Check if beatmix exists
+			err, beatmix := db.GetBeatMixByName(playlistTitles[0])
+
+			if err != nil || beatmix.Id == -1 {
+				// Does not exists
+				// create instead
+				beatmix = BeatMix{}
+
+				beatmix.Title = playlistTitles[0]
+
+				// ??????
+				imageFilePath := fmt.Sprintf("/app/%s [%s].jpg", playlistTitles[0], playlistIds[0])
+
+				// upload
+				imageUploadResponse, err := storage.UploadImageFile(imageFilePath, fmt.Sprintf("%s.jpeg", playlistIds[0]))
+
+				// If this fails because its unable to download the file
+				// Use a placeholder
+				if err != nil {
+					ErrorLog(fmt.Sprintf("Failed to upload thumbnail file %s file for message id: %d", imageFilePath,
+						audioQueueMessage.Id),
+						imageUploadResponse.Error,
+						fmt.Sprintf("Error: %s", err.Error()))
+					beatmix.ThumbnailURL = "404" // TODO set a default,
+				} else {
+					beatmix.ThumbnailURL = storage.GetImagePublicUrl(imageUploadResponse.Key).SignedURL
+				}
+
+				// Insert BeatMixBeat,
+				err = db.NewBeatMixEntry(&beatmix)
+
+				if err != nil {
+					ErrorLog("Failed to insert new Beatmix", fmt.Sprintf("Insert failed: %s", sourceUrl), err.Error())
+					return
+				}
+			}
+
+			// Create
 			for id := range ids {
 
-				sourceUrlPlaylist := fmt.Sprintf("https://www.youtube.com/watch?v=%s", ids[id])
+				sourceUrlPlaylistItem := fmt.Sprintf("https://www.youtube.com/watch?v=%s", ids[id])
 
-				_, err := FlatSingleDownload(ArchiveLocation, outputLocation, idsFile, namesFile, durationFile, sourceUrlPlaylist, tagsFile, logOutput, logOutputError, OutputType)
+				outputLocationIsolated := fmt.Sprintf("%s/%s", outputLocation, strconv.Itoa(id))
+
+				_, err := FlatSingleDownload(ArchiveLocation, outputLocationIsolated, idsFile, namesFile, durationFile, sourceUrlPlaylistItem, tagsFile, logOutput, logOutputError, OutputType)
 
 				if err != nil {
 					errorLog, _ := readFile(logOutputError)
@@ -208,7 +246,8 @@ func main() {
 
 				if !fileExists(idsFile) ||
 					!fileExists(namesFile) ||
-					!fileExists(durationFile) {
+					!fileExists(durationFile) ||
+					!fileExists(tagsFile) {
 					// Failed to creat needed files, check errors
 					errorLog, _ := readFile(logOutputError)
 					ErrorLog("Error Ytdlp did not create needed files", fmt.Sprintf("Failed to download url: %s", sourceUrl), errorLog)
@@ -216,15 +255,12 @@ func main() {
 					continue
 				}
 
-				id, err := readFile(idsFile)
-				name, err := readFile(namesFile)
-				duration, err := readFile(durationFile)
-				audioFilePath := fmt.Sprintf("%s/%s.opus", outputLocation, id)
-				imageFilePath := fmt.Sprintf("%s/%s.jpg", outputLocation, id)
-				tags, err := readFile(tagsFile)
+				tags, err := readLines(tagsFile)
+				audioFilePath := fmt.Sprintf("%s/%s.opus", outputLocationIsolated, ids[id])
+				imageFilePath := fmt.Sprintf("%s/%s.jpg", outputLocationIsolated, ids[id])
 
 				// Upload to storage
-				audioUploadResponse, err := storage.UploadAudioFile(audioFilePath, fmt.Sprintf("%s.opus", id))
+				audioUploadResponse, err := storage.UploadAudioFile(audioFilePath, fmt.Sprintf("%s.opus", ids[id]))
 
 				if err != nil {
 					ErrorLog(fmt.Sprintf("Failed to upload audio file %s for message id: %d", audioFilePath, audioQueueMessage.Id),
@@ -234,7 +270,7 @@ func main() {
 					continue
 				}
 
-				imageUploadResponse, err := storage.UploadImageFile(imageFilePath, fmt.Sprintf("%s.jpeg", id))
+				imageUploadResponse, err := storage.UploadImageFile(imageFilePath, fmt.Sprintf("%s.jpeg", ids[id]))
 
 				if err != nil {
 					ErrorLog(fmt.Sprintf("Failed to upload image file %s file for message id: %d", imageFilePath,
@@ -249,11 +285,11 @@ func main() {
 				imageStorageLocation := imageUploadResponse.Key
 
 				// update database with entry....
-				_dur, err := strconv.Atoi(duration)
-				rawAudio, err := db.NewRawAudioEntry(sourceUrl, audioStorageLocation, imageStorageLocation, _dur)
+				_dur, err := strconv.Atoi(durations[id])
+				rawBeat, err := db.NewRawAudioEntry(sourceUrlPlaylistItem, audioStorageLocation, imageStorageLocation, _dur)
 
 				if err != nil {
-					ErrorLog("Failed to create new RawAudio entry", sourceUrl, err.Error())
+					ErrorLog("Failed to create new RawAudio entry", sourceUrlPlaylistItem, err.Error())
 					cleanUopFiles(filesToDelete)
 					continue
 				}
@@ -261,16 +297,33 @@ func main() {
 				audioPublicUrl := storage.GetAudioPublicUrl(audioStorageLocation)
 				thumbnailPublicUrl := storage.GetImagePublicUrl(imageStorageLocation)
 
-				err = db.NewBeatEntry(&rawAudio, name, name, tags, audioPublicUrl.SignedURL, thumbnailPublicUrl.SignedURL)
+				err, beatId := db.NewBeatEntry(&rawBeat, names[id], names[id], tags[id], audioPublicUrl.SignedURL, thumbnailPublicUrl.SignedURL)
 
-				if err != nil {
-					ErrorLog("Failed to create a new Beat entry", sourceUrl, err.Error())
+				if err != nil || beatId == -1 {
+					ErrorLog("Failed to create a new Beat entry", sourceUrlPlaylistItem, err.Error())
 					cleanUopFiles(filesToDelete)
 					continue
 				}
 
 				// Update database
-				// BeatMixBeat, insert BeatMixId, BeatMix
+				// Insert BeatMixId,
+				// Insert BeatMix
+
+				err, beatmix = db.GetBeatMixByName(playlistTitles[0])
+
+				if err != nil {
+					ErrorLog("Failed to fetch new Beatmix", fmt.Sprintf("Fetch failed: %s", sourceUrl), err.Error())
+					cleanUopFiles(filesToDelete)
+					continue
+				}
+
+				err = db.NewBeatMixBeatEntry(beatmix.Id, beatId)
+
+				if err != nil { // BUGGGGGGGGGGGGGG
+					ErrorLog(fmt.Sprintf("Failed to create a new BeatMixBeat entry %d %d", beatmix.Id, beatId), sourceUrlPlaylistItem, err.Error())
+					cleanUopFiles(filesToDelete)
+					continue
+				}
 			}
 
 		}

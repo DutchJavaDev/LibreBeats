@@ -99,7 +99,7 @@ func (m *Migration) Run() error {
 			return err
 		}
 
-		_, err = tx.Exec(context.Background(), "INSERT INTO Librebeats.Migrations (id, fileName, content, runOn) VALUES ($1, $2, $3, NOW())", migrationFileId, dirEntry.Name(), string(sqlScript))
+		_, err = tx.Exec(context.Background(), "INSERT INTO Librebeats.Migrations (migrationFileId, fileName, content, runOn) VALUES ($1, $2, $3, NOW())", migrationFileId, dirEntry.Name(), string(sqlScript))
 
 		if err != nil {
 			defer tx.Rollback(context.Background())

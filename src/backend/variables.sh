@@ -1,4 +1,4 @@
 #!/bin/bash
-PROJECT_DIR=~/librebeats_api
-BUILD_DIRECTORY=$PROJECT_DIR/build
+PROJECT_DIR=~/librebeats
+BUILD_DIRECTORY=$PROJECT_DIR/Herman
 GENERATE_KEYS=true

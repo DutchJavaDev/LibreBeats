@@ -9,6 +9,6 @@ cp -rf $_WORKING_DIR/supabase/* "$BUILD_DIRECTORY"
 cd "$BUILD_DIRECTORY/service/migration" || exit 1
 
 docker compose build audio
-docker compose up audio -d
+docker compose up -d
 
 # --force-recreate

@@ -12,6 +12,9 @@ type IStorageService interface {
 	UploadAudioFile(filePath string, fileName string) (storage.FileUploadResponse, error)
 	GetImagePublicUrl(filename string) storage.SignedUrlResponse
 	UploadImageFile(filePath string, fileName string) (storage.FileUploadResponse, error)
+
+	uploadFile(filePath string, fileName string, contentType string, bucketId string) (storage.FileUploadResponse, error)
+	getPublicUrl(bucketId string, filePath string) storage.SignedUrlResponse
 }
 
 type StorageService struct {
@@ -59,18 +62,18 @@ func NewStorageService() *StorageService {
 }
 
 func (s *StorageService) GetAudioPublicUrl(filePath string) storage.SignedUrlResponse {
-	return getPublicUrl(s, s.audioBucketId, filePath)
+	return s.getPublicUrl(s.audioBucketId, filePath)
 }
 
 func (s *StorageService) GetImagePublicUrl(filePath string) storage.SignedUrlResponse {
-	return getPublicUrl(s, s.imageBucketId, filePath)
+	return s.getPublicUrl(s.imageBucketId, filePath)
 }
 
-func getPublicUrl(storageService *StorageService, bucketId string, filePath string) storage.SignedUrlResponse {
+func (s *StorageService) getPublicUrl(bucketId string, filePath string) storage.SignedUrlResponse {
 	options := storage.UrlOptions{
 		Download: true,
 	}
-	return storageService.client.GetPublicUrl(bucketId, filePath, options)
+	return s.client.GetPublicUrl(bucketId, filePath, options)
 }
 
 func (s *StorageService) EnsureBucketsExists() {
@@ -106,6 +109,28 @@ func (s *StorageService) EnsureBucketsExists() {
 			ErrorLog("Failed to create audio bucket", "EnsureBucketsExists", err.Error())
 		}
 	}
+}
+
+func (s *StorageService) uploadFile(filePath string, fileName string, contentType string, bucketId string) (storage.FileUploadResponse, error) {
+	// Open the file you want to upload
+	file, err := os.Open(filePath)
+	if err != nil {
+		return storage.FileUploadResponse{}, err
+	}
+	defer file.Close()
+
+	// Upload the file to the specified bucket and path
+	upsert := true
+	options := &storage.FileOptions{
+		ContentType: &contentType,
+		Upsert:      &upsert,
+	}
+	response, err := s.client.UploadFile(bucketId, fileName, file, *options)
+
+	if err != nil {
+		return storage.FileUploadResponse{}, err
+	}
+	return response, nil
 }
 
 func (s *StorageService) UploadAudioFile(filePath string, fileName string) (storage.FileUploadResponse, error) {

@@ -12,10 +12,9 @@ else
     echo "Project directory already exists, skipping mkdir."
 fi
 
+sudo rm -rf "$BUILD_DIRECTORY"
+
 # Create local backend folder if missing
-# Tree should look like this
-# ├── librebeats_api/build (output directory)
-# └── librebeats_api/supabase (git clone of supabase repo)
 
 if [ ! -d "$BUILD_DIRECTORY" ]; then
     mkdir "$BUILD_DIRECTORY"
@@ -36,9 +35,10 @@ fi
 
 # # # Switch to your project directory
 cd "$BUILD_DIRECTORY"
+docker compose build migrations
 
-# # # Pull the latest images
-docker compose pull
+# # # Switch to your project directory
+cd "$BUILD_DIRECTORY"
 
 # # # To generate and apply all secrets at once you can run: https://supabase.com/docs/guides/self-hosting/docker#quick-setup-experimental
 if [ "$GENERATE_KEYS" = true ]; then

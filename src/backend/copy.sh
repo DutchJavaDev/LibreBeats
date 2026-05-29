@@ -8,5 +8,7 @@ cp -rf $_WORKING_DIR/supabase/* "$BUILD_DIRECTORY"
 # # # Switch to your project directory
 cd "$BUILD_DIRECTORY/service/migration" || exit 1
 
-docker compose build migrations
-docker compose up migrations -d --force-recreate
+docker compose build audio
+docker compose up -d
+
+# --force-recreate

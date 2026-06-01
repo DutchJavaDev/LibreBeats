@@ -1,4 +1,3 @@
-// TODO Implement this library.import 'package:flutter/material.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/library_provider.dart';
@@ -32,7 +31,7 @@ class HomeScreen extends StatelessWidget {
                     child: const Icon(Icons.music_note_rounded, color: Colors.white, size: 16),
                   ),
                   const SizedBox(width: 10),
-                  const Text('LibreBeats',
+                  const Text('Librebeats',
                       style: TextStyle(
                           color: LibreBeatsTheme.textPrimary,
                           fontSize: 20,
@@ -44,7 +43,6 @@ class HomeScreen extends StatelessWidget {
                 IconButton(
                   icon: const Icon(Icons.refresh, color: LibreBeatsTheme.textSecondary),
                   onPressed: () async {
-                    await library.loadMyMusicData();
                   },
                 ),
                 const SizedBox(width: 8),

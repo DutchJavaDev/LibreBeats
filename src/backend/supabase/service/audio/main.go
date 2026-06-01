@@ -1,11 +1,9 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 )
 
 const (
@@ -15,9 +13,11 @@ const (
 	ArchiveLocation    = "/etc/librebeats/46asd46as1das"
 )
 
-var logger AudioOutputLogger = NewYtdlpLogger()
+var logger IAudioOutputLogger
 
 func main() {
+	l := NewYtdlpLogger()
+	logger = &l
 
 	if !fileExists(ArchiveLocation) {
 		err := os.WriteFile(ArchiveLocation, []byte(""), 0666)
@@ -47,18 +47,14 @@ func main() {
 
 		fmt.Printf("Received message from queue\n Message id: %d\n Message: %s\n", audioQueueMessage.Id, audioQueueMessage.Message)
 
-		messageBody := map[string]interface{}{}
-
-		err := json.Unmarshal(audioQueueMessage.Message, &messageBody)
+		sourceUrl, err := parseAudioPipeURL(audioQueueMessage.Message)
 
 		if err != nil {
 			ErrorLog(fmt.Sprintf("Failed to unmarshal message body for message id: %d", audioQueueMessage.Id), string(audioQueueMessage.Message), fmt.Sprintf("Error: %s", err.Error()))
 			continue
 		}
 
-		// check if url is a playlist or single video
-		sourceUrl := string(messageBody["url"].(string))
-		isPlaylist := strings.Contains(sourceUrl, "playlist?")
+		isPlaylist := isYouTubePlaylistURL(sourceUrl)
 
 		outputLocation := fmt.Sprintf("%s/run_%d", StorageLocation, audioQueueMessage.Id)
 		idsFile := fmt.Sprintf("%s/ids.txt", outputLocation)

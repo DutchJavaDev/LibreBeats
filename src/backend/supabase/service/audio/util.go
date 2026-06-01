@@ -21,22 +21,17 @@ func tryCreateDirectory(path string) bool {
 }
 
 func ensureDir(dirName string) error {
-	err := os.Mkdir(dirName, os.ModeDir)
+	info, err := os.Stat(dirName)
 	if err == nil {
-		return nil
-	}
-	if os.IsExist(err) {
-		// check that the existing path is a directory
-		info, err := os.Stat(dirName)
-		if err != nil {
-			return err
-		}
 		if !info.IsDir() {
 			return errors.New("path exists but is not a directory")
 		}
 		return nil
 	}
-	return err
+	if !os.IsNotExist(err) {
+		return err
+	}
+	return os.MkdirAll(dirName, 0o755)
 }
 
 func fileExists(path string) bool {
@@ -126,12 +121,12 @@ func sleep() {
 }
 
 func ErrorLog(title string, outputlog string, errorOutput string) {
-	log, _ := logger.CreateNewLog(fmt.Sprintf("Error: %s", title))
+	log, _ := getLogger().CreateNewLog(fmt.Sprintf("Error: %s", title))
 	log.Output = &outputlog
 	log.ErrorOutput = &errorOutput
 	log.ProgressState = int(Failed)
 	log.FinishedAtUtc = time.Now()
-	logger.UpdateLog(&log)
+	getLogger().UpdateLog(&log)
 	fmt.Println(title)
 }
 

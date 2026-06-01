@@ -18,6 +18,14 @@ type AudioOutputLogger struct {
 	ConnectionString string
 }
 
+func getLogger() IAudioOutputLogger {
+	if logger == nil {
+		l := NewYtdlpLogger()
+		logger = &l
+	}
+	return logger
+}
+
 func NewYtdlpLogger() AudioOutputLogger {
 	// Will throw an error if its missing a method implementation from interface
 	// will throw a compile time error

@@ -40,8 +40,8 @@ class LibraryProvider extends ChangeNotifier {
     ];
 
     _servers = [
-      MusicServer(id: 'srv1', name: 'Navidrome Home', url: 'http://192.168.1.10:4533', username: 'admin', type: ServerType.navidrome, status: ServerStatus.online, songCount: 1204),
-      MusicServer(id: 'srv2', name: 'Jellyfin Media', url: 'http://media.local:8096', username: 'user', type: ServerType.jellyfin, status: ServerStatus.online, songCount: 3891),
+      MusicServer(id: 'srv1', name: 'Navidrome Home', url: 'http://192.168.1.10:4533', username: 'admin', type: ServerType.librebeats, status: ServerStatus.online, songCount: 1204),
+      MusicServer(id: 'srv2', name: 'Jellyfin Media', url: 'http://media.local:8096', username: 'user', type: ServerType.librebeats, status: ServerStatus.online, songCount: 3891),
     ];
 
     _lastPlayedSong = songs.first;

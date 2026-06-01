@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio_background/just_audio_background.dart';
+import 'package:librebeats/init.dart';
 import 'package:provider/provider.dart';
 import 'providers/player_provider.dart';
 import 'providers/library_provider.dart';
@@ -12,6 +13,7 @@ import 'widgets/player_widgets.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
+  await ensureInitialized();
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -42,7 +44,7 @@ class LibreBeatsApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => PlayerProvider()),
       ],
       child: MaterialApp(
-        title: 'LibreBeats',
+        title: "Librebeats",
         debugShowCheckedModeBanner: false,
         theme: LibreBeatsTheme.theme,
         home: const MainShell(),
@@ -85,7 +87,7 @@ class _MainShellState extends State<MainShell> {
               // Mini player sits above nav bar
               if (player.miniPlayerVisible)
                   MiniPlayer(
-                  onTap: () => FullPlayerSheet.show(context),
+                  // onTap: () => FullPlayerSheet.show(context),
                 ),
 
               // Navigation bar

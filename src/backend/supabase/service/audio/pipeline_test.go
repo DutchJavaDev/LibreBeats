@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 )
 
@@ -38,6 +39,9 @@ func TestParseAudioPipeURL(t *testing.T) {
 			if tt.wantErr {
 				if err == nil {
 					t.Fatalf("parseAudioPipeURL(%s) expected error", tt.message)
+				}
+				if !errors.Is(err, ErrPermanentMessage) {
+					t.Fatalf("expected ErrPermanentMessage, got %v", err)
 				}
 				return
 			}

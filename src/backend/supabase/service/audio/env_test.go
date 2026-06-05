@@ -1,10 +1,22 @@
 package main
 
 import (
+	"context"
 	"testing"
 )
 
+func TestInitDBPoolRequiresEnv(t *testing.T) {
+	CloseDBPool()
+	t.Setenv("POSTGRES_BACKEND_URL", "")
+
+	err := InitDBPool(context.Background())
+	if err == nil {
+		t.Fatal("expected error when POSTGRES_BACKEND_URL is missing")
+	}
+}
+
 func TestCreateQueueListenerRequiresEnv(t *testing.T) {
+	CloseDBPool()
 	t.Setenv("POSTGRES_BACKEND_URL", "")
 	t.Setenv("QUEUE_NAME", "")
 
@@ -17,24 +29,28 @@ func TestCreateQueueListenerRequiresEnv(t *testing.T) {
 }
 
 func TestCreateQueueListenerWithEnv(t *testing.T) {
+	CloseDBPool()
 	t.Setenv("POSTGRES_BACKEND_URL", "postgres://localhost:5432/postgres")
 	t.Setenv("QUEUE_NAME", "audiopipe-input")
 
+	if err := InitDBPool(context.Background()); err != nil {
+		t.Fatalf("InitDBPool: %v", err)
+	}
+	defer CloseDBPool()
+
 	ql := createQueueListener()
-	if ql.ConnectionString == "" || ql.QueueName != "audiopipe-input" {
+	if ql.pool == nil || ql.QueueName != "audiopipe-input" {
 		t.Fatalf("unexpected listener: %+v", ql)
 	}
 }
 
-func TestNewLibreDbRequiresEnv(t *testing.T) {
-	t.Setenv("POSTGRES_BACKEND_URL", "")
+func TestNewLibreDbRequiresPool(t *testing.T) {
+	CloseDBPool()
 
-	defer func() {
-		if recover() == nil {
-			t.Fatal("expected panic when POSTGRES_BACKEND_URL is missing")
-		}
-	}()
-	NewLibreDb()
+	_, err := NewLibreDb()
+	if err == nil {
+		t.Fatal("expected error when pool is not initialized")
+	}
 }
 
 func TestNewStorageServiceRequiresEnv(t *testing.T) {

@@ -8,14 +8,31 @@ import (
 type ProgressState int
 
 const (
-	Failed      ProgressState = iota
-	Created     ProgressState = iota
-	Downloading ProgressState = iota
-	Completed   ProgressState = iota
+	Failed ProgressState = iota
+	Created
+	Downloading
+	Completed
 )
+
+// String returns the value stored in AudioOutputLog.ProgressState (matches DB CHECK).
+func (s ProgressState) String() string {
+	switch s {
+	case Failed:
+		return "failed"
+	case Created:
+		return "created"
+	case Downloading:
+		return "donwloading"
+	case Completed:
+		return "completed"
+	default:
+		return "failed"
+	}
+}
 
 type AudioPipeQueueMessage struct {
 	Id      int64           `json:"msg_id"`
+	ReadCT  int64           `json:"read_ct"`
 	Message json.RawMessage `json:"message"`
 }
 
@@ -54,7 +71,7 @@ type BeatMix struct {
 type AudioOutput struct {
 	Id            int        `json:"id" db:"id" gorm:"primaryKey;autoIncrement"`
 	Title         *string    `json:"title" db:"title" gorm:"not null"`
-	ProgressState int        `json:"progress_state" db:"progress_state" gorm:"not null"`
+	ProgressState ProgressState `json:"progress_state" db:"progress_state" gorm:"not null"`
 	Output        *string    `json:"output,omitempty" db:"output" gorm:"default:null"`             // nullable
 	ErrorOutput   *string    `json:"error_output,omitempty" db:"error_output" gorm:"default:null"` // nullable
 	StartedAtUtc  *time.Time `json:"started_at_utc" db:"started_at_utc" gorm:"not null;default:now()"`

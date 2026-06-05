@@ -157,7 +157,7 @@ Defined in [`0 initial.sql`](src/backend/supabase/service/migration/scripts/0%20
 | `AudioOutputLog` | Ingest / processing log | Service role only |
 | `Migrations` | Applied migration tracking | Service role only |
 
-**PGMQ** queue: `audiopipe-input` — message shape `{ "url": "https://..." }`.
+**PGMQ** queues: `audiopipe-input` (work), `audiopipe-dlq` (failed jobs) — message shape `{ "url": "https://..." }`. The audio worker uses **visibility timeout** (`pgmq.read`); messages are only deleted on success (`pgmq.delete`). Transient failures retry until `QUEUE_MAX_READ_COUNT`; poison or exhausted messages move to the DLQ.
 
 ### Audio pipeline
 
@@ -220,8 +220,10 @@ flutter run
 | Catalog | Read `Beat` / `BeatMix` from Supabase | Mock data in app |
 | Auth | Supabase Auth in Flutter | Not wired |
 | Music servers | LibreBeats / Navidrome / Jellyfin | Settings UI + fake status checks |
-| Ingest | Queue YouTube URLs → catalog | Worker implemented; app not connected |
+| Ingest | Queue YouTube URLs → catalog | Worker with VT + DLQ; app not connected |
 | Tests | CI + integration tests for DB/queue | Go unit tests only |
+
+Audio worker env (optional): `QUEUE_VISIBILITY_TIMEOUT_SEC` (default 600), `QUEUE_MAX_READ_COUNT` (default 5), `QUEUE_DLQ_NAME` (default `audiopipe-dlq`). Container `restart: unless-stopped`.
 
 ## License & upstream
 

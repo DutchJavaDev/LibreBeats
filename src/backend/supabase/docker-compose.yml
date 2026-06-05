@@ -408,7 +408,7 @@ services:
     build:
       context: ./service/audio
       dockerfile: Dockerfile
-    restart: "no"
+    restart: unless-stopped
     volumes:
       - db-config:/etc/librebeats
     depends_on:
@@ -421,6 +421,9 @@ services:
     environment:
       POSTGRES_BACKEND_URL: postgresql://supabase_admin:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/postgres
       QUEUE_NAME: audiopipe-input
+      QUEUE_DLQ_NAME: audiopipe-dlq
+      QUEUE_VISIBILITY_TIMEOUT_SEC: "600"
+      QUEUE_MAX_READ_COUNT: "5"
       STORAGE_URL: http://kong:8000/storage/v1
       STORAGE_KEY: ${SERVICE_ROLE_KEY}
       AUDIO_BUCKET_ID: audio-files

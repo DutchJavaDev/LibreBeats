@@ -42,3 +42,22 @@ func TestProgressStateValues(t *testing.T) {
 		t.Fatalf("Completed = %d, want 3", Completed)
 	}
 }
+
+func TestProgressStateString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		state ProgressState
+		want  string
+	}{
+		{Failed, "failed"},
+		{Created, "created"},
+		{Downloading, "donwloading"},
+		{Completed, "completed"},
+	}
+	for _, tt := range tests {
+		if got := tt.state.String(); got != tt.want {
+			t.Fatalf("%v.String() = %q, want %q", tt.state, got, tt.want)
+		}
+	}
+}

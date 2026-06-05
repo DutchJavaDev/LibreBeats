@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
-	"os"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type ILibreDb interface {
@@ -18,50 +19,37 @@ type ILibreDb interface {
 
 type LibreDb struct {
 	ILibreDb
-	ConnectionString string
+	pool *pgxpool.Pool
 }
 
-func NewLibreDb() LibreDb {
-
+func NewLibreDb() (LibreDb, error) {
 	var _ ILibreDb = (*LibreDb)(nil)
 
-	connectionString := os.Getenv("POSTGRES_BACKEND_URL")
-
-	if connectionString == "" {
-		panic("POSTGRES_BACKEND_URL environment variable is not set")
+	pool, err := requireDBPool()
+	if err != nil {
+		return LibreDb{}, err
 	}
-	return LibreDb{
-		ConnectionString: connectionString,
-	}
+	return LibreDb{pool: pool}, nil
 }
 
 func (db *LibreDb) NewRawAudioEntry(source string, audioLocation string, thumbnailLocation string, duration int) (RawBeat, error) {
-	connection, err := pgx.Connect(context.Background(), db.ConnectionString)
-	defer connection.Close(context.Background())
-
+	ctx := context.Background()
+	tx, err := db.pool.Begin(ctx)
 	if err != nil {
 		return RawBeat{}, err
 	}
+	defer tx.Rollback(ctx)
 
-	statement, err := connection.Begin(context.Background())
-
-	if err != nil {
-		return RawBeat{}, err
-	}
-
-	lastinsertedId := -1
-
-	err = statement.QueryRow(context.Background(), "INSERT INTO Librebeats.RawBeat (Source, AudioLocation, ThumbnailLocation, Duration) VALUES($1, $2, $3, $4) RETURNING Id",
+	var lastinsertedId int
+	err = tx.QueryRow(ctx,
+		"INSERT INTO Librebeats.RawBeat (Source, AudioLocation, ThumbnailLocation, Duration) VALUES($1, $2, $3, $4) RETURNING Id",
 		source, audioLocation, thumbnailLocation, duration).
 		Scan(&lastinsertedId)
-
 	if err != nil {
 		return RawBeat{}, err
 	}
 
-	err = statement.Commit(context.Background())
-
-	if err != nil {
+	if err := tx.Commit(ctx); err != nil {
 		return RawBeat{}, err
 	}
 
@@ -72,33 +60,28 @@ func (db *LibreDb) NewRawAudioEntry(source string, audioLocation string, thumbna
 		ThumbnailLocation: &thumbnailLocation,
 		DownloadCount:     0,
 		CreatedAtUtc:      time.Now(),
+		Duration:          duration,
 	}, nil
 }
 
-func (db *LibreDb) NewBeatEntry(rawBeat *RawBeat, title string, arties string, tags string, streamingUrl string, thumbnailUrl string) (err error, insertedId int) {
-	connection, err := pgx.Connect(context.Background(), db.ConnectionString)
-	defer connection.Close(context.Background())
+func (db *LibreDb) NewBeatEntry(rawBeat *RawBeat, title string, arties string, tags string, streamingUrl string, thumbnailUrl string) (error, int) {
+	ctx := context.Background()
+	tx, err := db.pool.Begin(ctx)
+	if err != nil {
+		return err, -1
+	}
+	defer tx.Rollback(ctx)
 
+	var insertedId int
+	err = tx.QueryRow(ctx,
+		"INSERT INTO Librebeats.Beat (RawBeatId, Title, Artist, Tags, StreamingUrl, ThumbnailUrl) VALUES($1, $2, $3, $4, $5, $6) RETURNING Id",
+		rawBeat.Id, title, arties, tags, streamingUrl, thumbnailUrl).
+		Scan(&insertedId)
 	if err != nil {
 		return err, -1
 	}
 
-	statement, err := connection.Begin(context.Background())
-
-	if err != nil {
-		return err, -1
-	}
-
-	err = statement.QueryRow(context.Background(), "INSERT INTO Librebeats.Beat (RawBeatId, Title, Artist, Tags, StreamingUrl, ThumbnailUrl) VALUES($1, $2, $3, $4, $5, $6) RETURNING Id",
-		rawBeat.Id, title, arties, tags, streamingUrl, thumbnailUrl).Scan(&insertedId)
-
-	if err != nil {
-		return err, -1
-	}
-
-	err = statement.Commit(context.Background())
-
-	if err != nil {
+	if err := tx.Commit(ctx); err != nil {
 		return err, -1
 	}
 
@@ -106,80 +89,56 @@ func (db *LibreDb) NewBeatEntry(rawBeat *RawBeat, title string, arties string, t
 }
 
 func (db *LibreDb) NewBeatMixEntry(beatMix *BeatMix) error {
-	connection, err := pgx.Connect(context.Background(), db.ConnectionString)
-	defer connection.Close(context.Background())
+	ctx := context.Background()
+	tx, err := db.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
 
+	err = tx.QueryRow(ctx,
+		"INSERT INTO Librebeats.BeatMix (Title, ThumbnailUrl) VALUES($1, $2) RETURNING Id",
+		beatMix.Title, beatMix.ThumbnailURL).
+		Scan(&beatMix.Id)
 	if err != nil {
 		return err
 	}
 
-	statement, err := connection.Begin(context.Background())
-
-	if err != nil {
-		return err
-	}
-
-	err = statement.QueryRow(context.Background(), "INSERT INTO Librebeats.BeatMix (Title, ThumbnailUrl) VALUES($1, $2) RETURNING Id",
-		beatMix.Title, beatMix.ThumbnailURL).Scan(&beatMix.Id)
-
-	if err != nil {
-		return err
-	}
-
-	err = statement.Commit(context.Background())
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (db *LibreDb) NewBeatMixBeatEntry(beatId int, beatMixId int) error {
+	ctx := context.Background()
+	tx, err := db.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
 
-	connection, err := pgx.Connect(context.Background(), db.ConnectionString)
-	defer connection.Close(context.Background())
-
+	_, err = tx.Exec(ctx,
+		"INSERT INTO Librebeats.BeatMixBeat (BeatId, BeatMixId) VALUES($1, $2)",
+		beatId, beatMixId)
 	if err != nil {
 		return err
 	}
 
-	statement, err := connection.Begin(context.Background())
-
-	if err != nil {
-		return err
-	}
-
-	_, err = statement.Exec(context.Background(), "INSERT INTO Librebeats.BeatMixBeat (BeatId, BeatMixId) VALUES($1, $2)", beatMixId, beatId)
-
-	if err != nil {
-		return err
-	}
-
-	err = statement.Commit(context.Background())
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (db *LibreDb) GetBeatMixByName(name string) (error, BeatMix) {
-	connection, err := pgx.Connect(context.Background(), db.ConnectionString)
-	defer connection.Close(context.Background())
+	ctx := context.Background()
 	var beatMix BeatMix
 	beatMix.Id = -1
 
-	if err != nil {
+	err := db.pool.QueryRow(ctx,
+		"SELECT Id, Title, ThumbnailUrl FROM Librebeats.BeatMix WHERE Title = $1",
+		name).
+		Scan(&beatMix.Id, &beatMix.Title, &beatMix.ThumbnailURL)
+
+	if errors.Is(err, pgx.ErrNoRows) {
 		return err, beatMix
 	}
-
-	query := "SELECT Id, Title, ThumbnailUrl FROM Librebeats.BeatMix WHERE Title = $1"
-
-	err = connection.QueryRow(context.Background(), query, name).Scan(&beatMix.Id, &beatMix.Title, &beatMix.ThumbnailURL)
-
-	if err != nil || beatMix.Id == -1 {
+	if err != nil {
 		return err, beatMix
 	}
 

@@ -7,19 +7,26 @@ import (
 	"strings"
 )
 
+// ErrPermanentMessage marks queue payloads that should not be retried (sent to DLQ).
+var ErrPermanentMessage = errors.New("permanent queue message error")
+
+func isPermanentQueueError(err error) bool {
+	return errors.Is(err, ErrPermanentMessage)
+}
+
 // parseAudioPipeURL extracts the YouTube URL from a queue message body.
 func parseAudioPipeURL(message json.RawMessage) (string, error) {
 	var body map[string]interface{}
 	if err := json.Unmarshal(message, &body); err != nil {
-		return "", fmt.Errorf("unmarshal queue message: %w", err)
+		return "", fmt.Errorf("%w: unmarshal queue message: %v", ErrPermanentMessage, err)
 	}
 	rawURL, ok := body["url"]
 	if !ok {
-		return "", errors.New("queue message missing url field")
+		return "", fmt.Errorf("%w: queue message missing url field", ErrPermanentMessage)
 	}
 	url, ok := rawURL.(string)
 	if !ok || url == "" {
-		return "", errors.New("queue message url must be a non-empty string")
+		return "", fmt.Errorf("%w: queue message url must be a non-empty string", ErrPermanentMessage)
 	}
 	return url, nil
 }

@@ -1,6 +1,7 @@
 // TODO Implement this library.import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:librebeats/data/models.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 const _uuid = Uuid();
 
@@ -17,7 +18,45 @@ class LibraryProvider extends ChangeNotifier {
 
   // Mock data on init
   LibraryProvider() {
-    _loadMockData();
+    //_loadMockData();
+    //_loadLibreBeats();
+  }
+
+Future<void> loadLibreBeats() async {
+    
+    // REMOVEVEVEVEVEE!!!!:))))))
+    _playlists.clear();
+    
+    final beatmixs = (await Supabase.instance.client.schema("librebeats").from("beatmix").select());
+    final beatmixbeat = (await Supabase.instance.client.schema("librebeats").from("beatmixbeat").select());
+    final beats = (await Supabase.instance.client.schema("librebeats").from("beat").select());
+
+    for (final beatmix in beatmixs)
+    {
+      final songIds = beatmixbeat.where((i) => i.containsValue(beatmix["id"]));
+
+      final _beats = beats.where((bi) => songIds.any((si) => si["beatid"] == bi["id"]))
+      .map((bt) => Song(id: bt["id"].toString(), title: bt["title"], artist: bt["artist"], album: bt["thumbnailurl"], duration: const Duration(minutes: 3, seconds: 42)))
+      .toList();
+
+      beatmix["thumbnailurl"] = beatmix["thumbnailurl"].toString().split("?download=true")[0];
+
+      _playlists.add(Playlist(id: beatmix["id"].toString(), name: beatmix["title"], songs: _beats, coverArtUrl: beatmix["thumbnailurl"], lastPlayed: DateTime.now().subtract(const Duration(hours: 1))));
+    }
+
+
+
+// FAKE
+    _servers = [
+      MusicServer(id: 'srv1', name: 'Navidrome Home', url: 'http://192.168.1.10:4533', username: 'admin', type: ServerType.librebeats, status: ServerStatus.online, songCount: 1204),
+      MusicServer(id: 'srv2', name: 'Jellyfin Media', url: 'http://media.local:8096', username: 'user', type: ServerType.librebeats, status: ServerStatus.online, songCount: 3891),
+    ];
+
+    _lastPlayedSong = _playlists.first.songs.first;
+    _lastPlayedPlaylist = _playlists.first;
+    _localStorageUsedMb = 247;
+
+    notifyListeners();
   }
 
   void _loadMockData() {

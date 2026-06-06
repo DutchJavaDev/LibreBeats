@@ -145,10 +145,12 @@ class PlaylistCard extends StatelessWidget {
                     ),
                   ),
                   child: Center(
-                    child: Text(
-                      playlist.isServer ? '📡' : '🎵',
-                      style: TextStyle(fontSize: width * 0.35),
-                    ),
+                    child: playlist.isServer ? Text('📡' ,
+                      style: const TextStyle(fontSize: 20)) : Image.network(playlist.coverArtUrl ?? ""),
+                    // child: Text(
+                    //   playlist.isServer ? '📡' : '🎵',
+                    //   style: TextStyle(fontSize: width * 0.35),
+                    // ),
                   ),
                 ),
                 if (playlist.isServer)

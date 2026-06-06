@@ -43,6 +43,7 @@ class HomeScreen extends StatelessWidget {
                 IconButton(
                   icon: const Icon(Icons.refresh, color: LibreBeatsTheme.textSecondary),
                   onPressed: () async {
+                    await library.loadLibreBeats();
                   },
                 ),
                 const SizedBox(width: 8),
@@ -296,7 +297,7 @@ class _LastPlayedBanner extends StatelessWidget {
                 color: LibreBeatsTheme.accent.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Center(child: Text('🎵', style: TextStyle(fontSize: 26))),
+              child: Center(child: Image.network("${song.album}")),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -383,8 +384,10 @@ class _RecentGrid extends StatelessWidget {
                       borderRadius: const BorderRadius.horizontal(left: Radius.circular(8)),
                     ),
                     child: Center(
-                      child: Text(pl.isServer ? '📡' : '🎵',
-                          style: const TextStyle(fontSize: 20)),
+                      child: pl.isServer ? Text('📡' ,
+                      style: const TextStyle(fontSize: 20)) : Image.network(pl.coverArtUrl ?? ""),
+                      // child: Text(pl.isServer ? '📡' : '🎵',
+                      //     style: const TextStyle(fontSize: 20)),
                     ),
                   ),
                   const SizedBox(width: 10),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/track.dart';
+import '../providers/catalog_provider.dart';
 import '../providers/player_provider.dart';
 import '../widgets/album_card.dart';
 import '../widgets/track_tile.dart';
@@ -19,11 +19,15 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final player = context.watch<PlayerProvider>();
+    final catalog = context.watch<CatalogProvider>();
     final topInset = MediaQuery.of(context).padding.top;
+    final tracks = catalog.tracks;
+    final albums = catalog.albums;
+    final isInitialLoad = catalog.isLoading && tracks.isEmpty;
 
     return CustomScrollView(
       slivers: [
-        // 1. Header with greeting + quick-picks grid.
+        // 1. Header with greeting + quick-picks grid (fetched via CatalogProvider).
         SliverToBoxAdapter(
           child: Container(
             padding: EdgeInsets.fromLTRB(16, topInset + 16, 16, 24),
@@ -42,88 +46,108 @@ class HomeScreen extends StatelessWidget {
                   style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white),
                 ),
                 const SizedBox(height: 16),
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                    childAspectRatio: 3.5,
-                  ),
-                  itemCount: sampleTracks.length.clamp(0, 6),
-                  itemBuilder: (context, i) {
-                    final t = sampleTracks[i];
-                    final isActive = player.currentTrack?.id == t.id;
-                    return Material(
-                      color: Colors.white.withOpacity(isActive ? 0.2 : 0.1),
-                      borderRadius: BorderRadius.circular(6),
-                      child: InkWell(
+                if (isInitialLoad)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(child: CircularProgressIndicator(color: Color(0xFF1ED760))),
+                  )
+                else
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 8,
+                      crossAxisSpacing: 8,
+                      childAspectRatio: 3.5,
+                    ),
+                    itemCount: tracks.length.clamp(0, 6),
+                    itemBuilder: (context, i) {
+                      final t = tracks[i];
+                      final isActive = player.currentTrack?.id == t.id;
+                      return Material(
+                        color: Colors.white.withOpacity(isActive ? 0.2 : 0.1),
                         borderRadius: BorderRadius.circular(6),
-                        onTap: () => player.playTrack(t),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 48,
-                              height: 48,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                gradient: t.color,
-                                borderRadius: const BorderRadius.horizontal(left: Radius.circular(6)),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(6),
+                          onTap: () => player.playTrack(t),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 48,
+                                height: 48,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  gradient: t.color,
+                                  borderRadius: const BorderRadius.horizontal(left: Radius.circular(6)),
+                                ),
+                                child: Text(
+                                  t.title.isNotEmpty ? t.title[0] : '?',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                                ),
                               ),
-                              child: Text(
-                                t.title.isNotEmpty ? t.title[0] : '?',
-                                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  t.title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                t.title,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                          ],
+                              const SizedBox(width: 8),
+                            ],
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                ),
+                      );
+                    },
+                  ),
               ],
             ),
           ),
         ),
+        // Error banner (e.g. if a real Supabase fetch fails later).
+        if (catalog.error != null)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Text(
+                'Could not load catalog: ${catalog.error}',
+                style: const TextStyle(color: Color(0xFFA7A7A7), fontSize: 12),
+              ),
+            ),
+          ),
         // 2. Recently played header.
         SliverToBoxAdapter(child: _sectionHeader('Recently played')),
         // 3. Horizontal albums row.
         SliverToBoxAdapter(
           child: SizedBox(
             height: 196,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: sampleAlbums.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
-              itemBuilder: (context, i) {
-                final album = sampleAlbums[i];
-                return SizedBox(
-                  width: 140,
-                  child: AlbumCard(
-                    album: album,
-                    onPlay: () {
-                      final track = sampleTracks.firstWhere(
-                        (t) => t.album == album.title,
-                        orElse: () => sampleTracks[0],
+            child: isInitialLoad
+                ? const Center(child: CircularProgressIndicator(color: Color(0xFF1ED760)))
+                : ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: albums.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    itemBuilder: (context, i) {
+                      final album = albums[i];
+                      return SizedBox(
+                        width: 140,
+                        child: AlbumCard(
+                          album: album,
+                          onPlay: () {
+                            if (tracks.isEmpty) return;
+                            final track = tracks.firstWhere(
+                              (t) => t.album == album.title,
+                              orElse: () => tracks.first,
+                            );
+                            player.playTrack(track);
+                          },
+                        ),
                       );
-                      player.playTrack(track);
                     },
                   ),
-                );
-              },
-            ),
           ),
         ),
         // 4. Liked songs header.
@@ -132,7 +156,7 @@ class HomeScreen extends StatelessWidget {
         SliverList(
           delegate: SliverChildBuilderDelegate(
             (context, i) {
-              final t = sampleTracks[i];
+              final t = tracks[i];
               final isActive = player.currentTrack?.id == t.id;
               return TrackTile(
                 track: t,
@@ -141,7 +165,7 @@ class HomeScreen extends StatelessWidget {
                 onTap: () => player.playTrack(t),
               );
             },
-            childCount: sampleTracks.length,
+            childCount: tracks.length,
           ),
         ),
         // 6. Trailing spacer.

@@ -4,7 +4,7 @@
 
 **LibreBeats** is a self-hosted music streaming platform: a Spotify-style client you run yourself, backed by your own catalog and infrastructure instead of a commercial subscription.
 
-The Flutter app tagline: *“Owning a music streaming service is a dream for many, dream arrived.”*
+The Flutter app description: *“An open source music player — Liberated Beats.”*
 
 ## Table of contents
 
@@ -22,16 +22,16 @@ The Flutter app tagline: *“Owning a music streaming service is a dream for man
 
 | Part | Path | Role |
 |------|------|------|
-| **Frontend** | [`src/frontend`](src/frontend) | Cross-platform Flutter app (Home, Search, Library, Settings, player UI) |
+| **Frontend** | [`src/frontend`](src/frontend) | Cross-platform Flutter app (Home, Search, Library, Liked, Settings + mini/full player UI) |
 | **Backend** | [`src/backend`](src/backend) | Self-hosted [Supabase](https://supabase.com/docs/guides/self-hosting/docker) + Go services for SQL migrations and audio ingest |
 
-**Current state:** The UI is largely built with mock data and a simulated player. The backend can ingest YouTube URLs into Postgres and Supabase Storage via a queue worker, but the app is not yet wired to Supabase or real playback.
+**Current state:** The Flutter client is a self-contained UI prototype built with sample data and a simulated player (Spotify-style shell, not wired to any backend). The backend can ingest YouTube URLs into Postgres and Supabase Storage via a queue worker, but the app is not yet wired to Supabase or real playback.
 
 ### Prerequisites
 
 | Tool | Used for |
 |------|----------|
-| [Flutter](https://docs.flutter.dev/get-started/install) SDK `^3.10.7` | Mobile/desktop client |
+| [Flutter](https://docs.flutter.dev/get-started/install) SDK — Dart `>=3.0.0 <4.0.0` | Mobile/desktop client |
 | [Docker](https://docs.docker.com/get-docker/) & Docker Compose | Self-hosted Supabase stack |
 | [Go](https://go.dev/dl/) `1.25+` | Migration and audio services (build + unit tests) |
 | Bash | `src/backend/*.sh` helper scripts (Linux/macOS/WSL) |
@@ -41,10 +41,10 @@ The Flutter app tagline: *“Owning a music streaming service is a dream for man
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  Flutter app (src/frontend)                                 │
-│  Home · Search · Library · Settings · mini player           │
-│  Provider state · mock library today                        │
+│  Home · Search · Library · Liked · Settings · player        │
+│  Provider state · sample data · simulated playback          │
 └───────────────────────────┬─────────────────────────────────┘
-                            │  planned: supabase_flutter, just_audio
+                            │  planned: Supabase auth + real audio (not wired)
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  Self-hosted Supabase (src/backend/supabase)                │
@@ -68,7 +68,7 @@ The Flutter app tagline: *“Owning a music streaming service is a dream for man
 1. **Ingest** — URLs are enqueued on `audiopipe-input`; the Go **audio** worker downloads via **yt-dlp**, uploads to Storage, and writes catalog rows.
 2. **Catalog** — Authenticated clients read `Beat` and `BeatMix` records (streaming URLs, metadata).
 3. **Play** — The Flutter app streams from those URLs (optional offline cache via planned `sqflite` / local storage).
-4. **Personal library** — User playlists and optional external music servers (Settings UI references Navidrome/Jellyfin-style endpoints as placeholders).
+4. **Personal library** — User playlists and optional external music servers (the current Settings screen is a static prototype; no server endpoints are wired yet).
 
 ## Project structure
 
@@ -78,12 +78,12 @@ LibreBeats/
 └── src/
     ├── frontend/
     │   └── lib/
-    │       ├── main.dart              # App shell, navigation, providers
-    │       ├── init.dart              # App bootstrap (Supabase TBD)
-    │       ├── data/models.dart
-    │       ├── providers/             # LibraryProvider, PlayerProvider
-    │       ├── screens/
-    │       └── widgets/
+    │       ├── main.dart              # Entry point: bindings, system chrome, runApp
+    │       ├── app.dart               # MaterialApp + Material 3 dark theme
+    │       ├── models/track.dart      # Track/Album/Playlist models + sample data
+    │       ├── providers/             # PlayerProvider (simulated playback)
+    │       ├── screens/               # main_scaffold, home, search, library, liked, settings
+    │       └── widgets/               # mini_player, full_player, album_card, track_tile
     └── backend/
         ├── build.sh                   # Build Supabase + custom images
         ├── run.sh                     # Start stack
@@ -114,19 +114,20 @@ Flutter app with a dark, Spotify-like shell.
 
 | Screen | Purpose |
 |--------|---------|
-| **Home** | Last played, suggestions, recent playlists |
-| **Search** | Search songs and playlists (in-memory mock data today) |
-| **Library** | Playlists and playlist detail |
-| **Settings** | Music servers, local storage, about |
+| **Home** | Greeting, quick-picks grid, recently-played albums, track list |
+| **Search** | Live filtering of sample tracks + browse-category grid |
+| **Library** | Filter chips, Liked Songs entry, playlist list |
+| **Liked** | Liked Songs hero header + track list |
+| **Settings** | Grouped setting cards: audio, downloads, notifications, display, privacy, about |
 
-**Key dependencies:** `provider`, `just_audio`, `just_audio_background`, `supabase_flutter`, `sqflite`, `cached_network_image`, `http` — see [`pubspec.yaml`](src/frontend/pubspec.yaml).
+**Key dependencies:** `provider` (state) and `google_fonts` (Plus Jakarta Sans) are the only packages used in code today. `shared_preferences`, `just_audio`, `audio_service`, `cached_network_image`, and `path_provider` are declared for planned audio/persistence work but are not yet imported — see [`pubspec.yaml`](src/frontend/pubspec.yaml).
 
 **Implementation status:**
 
-- `LibraryProvider` — hardcoded songs, playlists, and sample servers.
-- `PlayerProvider` — simulated playback (timers), not real audio yet.
-- `init.dart` — empty; Supabase not initialized.
-- `main.dart` — background audio notification channel configured for future use.
+- Rebuilt as a self-contained UI prototype — Flutter package `liberated_beats`, app title “Liberated Beats”, dark Material 3 theme. No Supabase or backend wiring.
+- Sample data (`sampleTracks`, `sampleAlbums`, `samplePlaylists`) lives in `models/track.dart`; all artwork is a gradient with the title's first letter (no image assets).
+- `PlayerProvider` — a single in-memory `ChangeNotifier` holding all playback state; playback is simulated (no real audio engine, and `tick()` is not yet driven by a timer).
+- `main.dart` — locks portrait orientation, sets the system UI overlay, and runs the app through a `provider` `MultiProvider`.
 
 ## Backend (`src/backend`)
 
@@ -219,7 +220,7 @@ flutter run
 | Playback | Stream from Storage / signed URLs | Simulated player |
 | Catalog | Read `Beat` / `BeatMix` from Supabase | Mock data in app |
 | Auth | Supabase Auth in Flutter | Not wired |
-| Music servers | LibreBeats / Navidrome / Jellyfin | Settings UI + fake status checks |
+| Music servers | LibreBeats / Navidrome / Jellyfin | Static settings prototype (no server UI) |
 | Ingest | Queue YouTube URLs → catalog | Worker with VT + DLQ; app not connected |
 | Tests | CI + integration tests for DB/queue | Go unit tests only |
 

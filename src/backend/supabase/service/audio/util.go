@@ -21,22 +21,17 @@ func tryCreateDirectory(path string) bool {
 }
 
 func ensureDir(dirName string) error {
-	err := os.Mkdir(dirName, os.ModeDir)
+	info, err := os.Stat(dirName)
 	if err == nil {
-		return nil
-	}
-	if os.IsExist(err) {
-		// check that the existing path is a directory
-		info, err := os.Stat(dirName)
-		if err != nil {
-			return err
-		}
 		if !info.IsDir() {
 			return errors.New("path exists but is not a directory")
 		}
 		return nil
 	}
-	return err
+	if !os.IsNotExist(err) {
+		return err
+	}
+	return os.MkdirAll(dirName, 0o755)
 }
 
 func fileExists(path string) bool {
@@ -91,32 +86,33 @@ func cleanUopFiles(files []string) {
 }
 
 func listenForMessage(queue *QueueListener) (*AudioPipeQueueMessage, error) {
-	audioQueueMessage, err := queue.Pop()
-
-	if err != nil || audioQueueMessage == nil {
-		//ErrorLog(err)
-		sleep()
+	msg, err := queue.Read()
+	if err != nil {
 		return nil, err
 	}
-
-	return audioQueueMessage, nil
+	if msg == nil {
+		sleep()
+	}
+	return msg, nil
 }
 
 func createQueueListener() *QueueListener {
-	connectionString := os.Getenv("POSTGRES_BACKEND_URL")
-	queueName := os.Getenv("QUEUE_NAME")
-
-	if connectionString == "" {
-		panic("POSTGRES_BACKEND_URL environment variable is not set")
+	cfg, err := loadQueueConfig()
+	if err != nil {
+		panic(err.Error())
 	}
 
-	if queueName == "" {
-		panic("QUEUE_NAME environment variable is not set")
+	pool, err := requireDBPool()
+	if err != nil {
+		panic(err.Error())
 	}
 
 	return &QueueListener{
-		ConnectionString: connectionString,
-		QueueName:        queueName,
+		pool:                 pool,
+		QueueName:            cfg.queueName,
+		dlqName:              cfg.dlqName,
+		visibilityTimeoutSec: cfg.visibilityTimeoutSec,
+		maxReadCount:         cfg.maxReadCount,
 	}
 }
 
@@ -126,12 +122,12 @@ func sleep() {
 }
 
 func ErrorLog(title string, outputlog string, errorOutput string) {
-	log, _ := logger.CreateNewLog(fmt.Sprintf("Error: %s", title))
+	log, _ := getLogger().CreateNewLog(fmt.Sprintf("Error: %s", title))
 	log.Output = &outputlog
 	log.ErrorOutput = &errorOutput
-	log.ProgressState = int(Failed)
+	log.ProgressState = Failed
 	log.FinishedAtUtc = time.Now()
-	logger.UpdateLog(&log)
+	getLogger().UpdateLog(&log)
 	fmt.Println(title)
 }
 

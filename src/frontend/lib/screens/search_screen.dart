@@ -1,11 +1,26 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:librebeats/data/models.dart';
 import 'package:provider/provider.dart';
-import '../providers/library_provider.dart';
+
+import '../models/track.dart';
 import '../providers/player_provider.dart';
-import '../widgets/shared_widgets.dart';
-import '../theme/app_theme.dart';
+import '../widgets/track_tile.dart';
+
+/// Browse categories shown when the query is empty. Each entry is a
+/// (label, color) record.
+const List<(String, Color)> _categories = [
+  ('Podcasts', Color(0xFF1DB954)),
+  ('Live Events', Color(0xFFE91429)),
+  ('Made For You', Color(0xFF509BF5)),
+  ('New Releases', Color(0xFFFF6437)),
+  ('Hip-Hop', Color(0xFFAF2896)),
+  ('Electronic', Color(0xFFE8C32E)),
+  ('Indie', Color(0xFF148A08)),
+  ('Rock', Color(0xFFBC5900)),
+  ('Pop', Color(0xFF1DB954)),
+  ('Jazz', Color(0xFFE91429)),
+  ('Classical', Color(0xFF509BF5)),
+  ('R&B', Color(0xFFFF6437)),
+];
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -15,260 +30,133 @@ class SearchScreen extends StatefulWidget {
 }
 
 class _SearchScreenState extends State<SearchScreen> {
-  final _controller = TextEditingController();
-  List<SearchResult> _results = [];
-  bool _loading = false;
-  Timer? _debounce;
-  String _lastQuery = '';
+  final TextEditingController _controller = TextEditingController();
+  String _query = '';
 
   @override
   void dispose() {
     _controller.dispose();
-    _debounce?.cancel();
     super.dispose();
   }
 
-  void _onChanged(String q) {
-    _debounce?.cancel();
-    if (q.isEmpty) {
-      setState(() { _results = []; _loading = false; });
-      return;
-    }
-    setState(() => _loading = true);
-    _debounce = Timer(const Duration(milliseconds: 350), () async {
-      final library = context.read<LibraryProvider>();
-      final res = await library.search(q);
-      if (mounted) setState(() { _results = res; _loading = false; _lastQuery = q; });
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
+    final player = context.watch<PlayerProvider>();
+    final topInset = MediaQuery.of(context).padding.top;
+    final q = _query.toLowerCase();
+    final filtered = _query.isEmpty
+        ? <Track>[]
+        : sampleTracks
+            .where((t) => t.title.toLowerCase().contains(q) || t.artist.toLowerCase().contains(q))
+            .toList();
+
     return CustomScrollView(
       slivers: [
-        SliverAppBar(
-          floating: true,
-          pinned: true,
-          backgroundColor: LibreBeatsTheme.background,
-          title: const Text('Search'),
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(60),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: TextField(
-                controller: _controller,
-                onChanged: _onChanged,
-                autofocus: false,
-                style: const TextStyle(color: LibreBeatsTheme.textPrimary, fontSize: 15),
-                decoration: InputDecoration(
-                  hintText: 'Songs, artists, albums...',
-                  prefixIcon: const Icon(Icons.search, color: LibreBeatsTheme.textSecondary, size: 20),
-                  suffixIcon: _controller.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.close, size: 18, color: LibreBeatsTheme.textSecondary),
-                          onPressed: () {
-                            _controller.clear();
-                            _onChanged('');
-                          },
-                        )
-                      : null,
+        // Header + search field.
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(16, topInset + 16, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Search',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white),
                 ),
-              ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _controller,
+                  onChanged: (v) => setState(() => _query = v),
+                  style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w500),
+                  decoration: InputDecoration(
+                    hintText: 'Artists, songs, or podcasts',
+                    hintStyle: const TextStyle(color: Colors.black54),
+                    prefixIcon: const Icon(Icons.search, color: Colors.black54),
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
-
-        if (_controller.text.isEmpty)
-          const SliverToBoxAdapter(child: _BrowseCategories()),
-
-        if (_loading)
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.all(40),
-              child: Center(child: CircularProgressIndicator(color: LibreBeatsTheme.accent, strokeWidth: 2)),
-            ),
-          ),
-
-        if (!_loading && _controller.text.isNotEmpty && _results.isEmpty)
+        // Results / categories.
+        if (_query.isNotEmpty && filtered.isEmpty)
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.all(40),
-              child: Column(
-                children: [
-                  const Icon(Icons.search_off, color: LibreBeatsTheme.textDim, size: 48),
-                  const SizedBox(height: 12),
-                  Text('No results for "$_lastQuery"',
-                      style: const TextStyle(color: LibreBeatsTheme.textSecondary, fontSize: 15)),
-                ],
+              padding: const EdgeInsets.all(32),
+              child: Center(
+                child: Text(
+                  'No results for "$_query"',
+                  style: const TextStyle(color: Color(0xFFA7A7A7)),
+                ),
               ),
             ),
-          ),
-
-        if (!_loading && _results.isNotEmpty) ...[
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text('${_results.length} results for "$_lastQuery"',
-                  style: const TextStyle(color: LibreBeatsTheme.textSecondary, fontSize: 13)),
-            ),
-          ),
+          )
+        else if (_query.isNotEmpty)
           SliverList(
             delegate: SliverChildBuilderDelegate(
-              (context, i) => _ResultTile(result: _results[i]),
-              childCount: _results.length,
+              (context, i) {
+                final t = filtered[i];
+                final isActive = player.currentTrack?.id == t.id;
+                return TrackTile(
+                  track: t,
+                  isActive: isActive,
+                  isPlaying: isActive && player.isPlaying,
+                  onTap: () => player.playTrack(t),
+                );
+              },
+              childCount: filtered.length,
+            ),
+          )
+        else ...[
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text(
+                'Browse categories',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
+              ),
             ),
           ),
-          const SliverToBoxAdapter(child: SizedBox(height: 100)),
-        ],
-      ],
-    );
-  }
-}
-
-class _ResultTile extends StatelessWidget {
-  final SearchResult result;
-  const _ResultTile({required this.result});
-
-  @override
-  Widget build(BuildContext context) {
-    final player = context.read<PlayerProvider>();
-    final icon = result.type == SearchResultType.song
-        ? Icons.music_note_rounded
-        : result.type == SearchResultType.playlist
-            ? Icons.queue_music_rounded
-            : result.type == SearchResultType.artist
-                ? Icons.person_rounded
-                : Icons.album_rounded;
-
-    return InkWell(
-      onTap: () {
-        if (result.type == SearchResultType.song && result.data is Song) {
-          player.playSong(result.data as Song);
-        }
-        // TODO: navigate to playlist/album/artist
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: LibreBeatsTheme.surface,
-                borderRadius: BorderRadius.circular(
-                    result.type == SearchResultType.artist ? 24 : 8),
-              ),
-              child: Icon(icon, color: LibreBeatsTheme.textSecondary, size: 22),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(result.title,
-                      style: const TextStyle(
-                          color: LibreBeatsTheme.textPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                  Row(
-                    children: [
-                      ChipTag(
-                        label: result.type.name.toUpperCase(),
-                        color: result.type == SearchResultType.song
-                            ? LibreBeatsTheme.accent
-                            : result.type == SearchResultType.playlist
-                                ? const Color(0xFF1DB954)
-                                : LibreBeatsTheme.textSecondary,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(result.subtitle,
-                            style: const TextStyle(
-                                color: LibreBeatsTheme.textSecondary, fontSize: 12),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            if (result.type == SearchResultType.song)
-              IconButton(
-                icon: const Icon(Icons.more_vert, size: 18),
-                color: LibreBeatsTheme.textSecondary,
-                onPressed: () {},
-                splashRadius: 20,
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BrowseCategories extends StatelessWidget {
-  const _BrowseCategories();
-
-  static const _cats = [
-    ('Trending', '🔥', Color(0xFF8B1A1A)),
-    ('Electronic', '⚡', Color(0xFF1A3A5A)),
-    ('Indie', '🎸', Color(0xFF3A2A1A)),
-    ('Focus', '🎯', Color(0xFF1A3A2A)),
-    ('Hip-Hop', '🎤', Color(0xFF2A1A3A)),
-    ('Ambient', '🌊', Color(0xFF1A2A3A)),
-    ('Rock', '🤘', Color(0xFF3A1A1A)),
-    ('Jazz', '🎷', Color(0xFF2A3A1A)),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SectionHeader(title: 'Browse by genre'),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverGrid.count(
               crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
               childAspectRatio: 2.0,
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
+              children: [
+                for (final c in _categories)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Material(
+                      color: c.$2,
+                      child: InkWell(
+                        onTap: () {},
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Align(
+                            alignment: Alignment.topLeft,
+                            child: Text(
+                              c.$1,
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            itemCount: _cats.length,
-            itemBuilder: (_, i) {
-              final (name, emoji, color) = _cats[i];
-              return GestureDetector(
-                onTap: () {},
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  padding: const EdgeInsets.all(14),
-                  child: Row(
-                    children: [
-                      Text(emoji, style: const TextStyle(fontSize: 24)),
-                      const SizedBox(width: 10),
-                      Text(name,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700)),
-                    ],
-                  ),
-                ),
-              );
-            },
           ),
-        ),
-        const SizedBox(height: 100),
+        ],
+        const SliverToBoxAdapter(child: SizedBox(height: 16)),
       ],
     );
   }

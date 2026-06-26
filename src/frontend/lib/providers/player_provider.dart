@@ -1,123 +1,92 @@
-// TODO Implement this library.import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-import 'package:librebeats/data/models.dart';
+import 'package:flutter/foundation.dart';
 
+import '../models/track.dart';
+
+enum RepeatMode { off, all, one }
+
+/// Holds all (simulated) playback state. There is no real audio engine wired
+/// up — every value here lives in memory and is mutated by the UI.
 class PlayerProvider extends ChangeNotifier {
-  Song? _currentSong;
-  Playlist? _currentPlaylist;
-  List<Song> _queue = [];
-  int _queueIndex = 0;
-
+  Track? _currentTrack;
   bool _isPlaying = false;
-  bool _isLoading = false;
-  Duration _position = Duration.zero;
-  Duration _duration = Duration.zero;
-  double _volume = 1.0;
-  RepeatMode _repeat = RepeatMode.none;
-  ShuffleMode _shuffle = ShuffleMode.off;
+  double _progress = 0.0;
+  bool _shuffle = false;
+  RepeatMode _repeatMode = RepeatMode.off;
+  double _volume = 0.7;
 
-  bool _miniPlayerVisible = false;
-  bool _fullPlayerVisible = false;
-
-  // Getters
-  Song? get currentSong => _currentSong;
-  Playlist? get currentPlaylist => _currentPlaylist;
-  List<Song> get queue => _queue;
+  Track? get currentTrack => _currentTrack;
   bool get isPlaying => _isPlaying;
-  bool get isLoading => _isLoading;
-  Duration get position => _position;
-  Duration get duration => _duration;
+  double get progress => _progress;
+  bool get shuffle => _shuffle;
+  RepeatMode get repeatMode => _repeatMode;
   double get volume => _volume;
-  RepeatMode get repeat => _repeat;
-  ShuffleMode get shuffle => _shuffle;
-  bool get miniPlayerVisible => _miniPlayerVisible;
-  bool get fullPlayerVisible => _fullPlayerVisible;
-  double get progress => _duration.inSeconds > 0
-      ? _position.inSeconds / _duration.inSeconds
-      : 0.0;
 
-  // Play a song
-  Future<void> playSong(Song song, {Playlist? playlist, List<Song>? queue}) async {
-    _currentSong = song;
-    _currentPlaylist = playlist;
-    if (queue != null) {
-      _queue = queue;
-      _queueIndex = queue.indexWhere((s) => s.id == song.id);
-    } else {
-      _queue = [song];
-      _queueIndex = 0;
-    }
-    _isPlaying = true;
-    _isLoading = true;
-    _miniPlayerVisible = true;
-    _position = Duration.zero;
-    _duration = song.duration;
-    notifyListeners();
-
-    // Simulate loading
-    await Future.delayed(const Duration(milliseconds: 500));
-    _isLoading = false;
-    notifyListeners();
-
-    // Simulate playback progress
-    _simulatePlayback();
+  /// Elapsed time, derived by scaling the current track's duration by [progress].
+  Duration get elapsed {
+    final track = _currentTrack;
+    if (track == null) return Duration.zero;
+    return track.duration * _progress;
   }
 
-  void _simulatePlayback() async {
-    while (_isPlaying && _currentSong != null) {
-      await Future.delayed(const Duration(seconds: 1));
-      if (_isPlaying) {
-        _position += const Duration(seconds: 1);
-        if (_position >= _duration) {
-          await skipNext();
-          return;
-        }
-        notifyListeners();
-      }
-    }
-  }
-
-  void togglePlayPause() {
-    _isPlaying = !_isPlaying;
-    if (_isPlaying) _simulatePlayback();
-    notifyListeners();
-  }
-
-  Future<void> skipNext() async {
-    if (_queue.isEmpty) return;
-    if (_repeat == RepeatMode.one) {
-      await playSong(_currentSong!, playlist: _currentPlaylist, queue: _queue);
+  void playTrack(Track track) {
+    // Tapping the already-current track toggles play/pause instead of restarting.
+    if (_currentTrack?.id == track.id) {
+      togglePlay();
       return;
     }
-    int next = _queueIndex + 1;
-    if (next >= _queue.length) {
-      if (_repeat == RepeatMode.all) {
-        next = 0;
-      } else {
-        _isPlaying = false;
-        notifyListeners();
-        return;
-      }
-    }
-    _queueIndex = next;
-    await playSong(_queue[next], playlist: _currentPlaylist, queue: _queue);
+    _currentTrack = track;
+    _progress = 0;
+    _isPlaying = true;
+    notifyListeners();
   }
 
-  Future<void> skipPrev() async {
-    if (_position.inSeconds > 3) {
-      _position = Duration.zero;
+  void togglePlay() {
+    _isPlaying = !_isPlaying;
+    notifyListeners();
+  }
+
+  void seek(double value) {
+    _progress = value.clamp(0.0, 1.0);
+    notifyListeners();
+  }
+
+  void nextTrack(List<Track> tracks) {
+    if (_currentTrack == null || tracks.isEmpty) return;
+    final idx = tracks.indexWhere((t) => t.id == _currentTrack!.id);
+    final next = (idx + 1) % tracks.length;
+    _currentTrack = tracks[next];
+    _progress = 0;
+    _isPlaying = true;
+    notifyListeners();
+  }
+
+  void prevTrack(List<Track> tracks) {
+    if (_currentTrack == null || tracks.isEmpty) return;
+    // If we're more than 5% into the track, "previous" restarts it instead.
+    if (_progress > 0.05) {
+      _progress = 0;
       notifyListeners();
       return;
     }
-    if (_queue.isEmpty) return;
-    int prev = _queueIndex - 1;
-    if (prev < 0) prev = _queue.length - 1;
-    _queueIndex = prev;
-    await playSong(_queue[prev], playlist: _currentPlaylist, queue: _queue);
+    final idx = tracks.indexWhere((t) => t.id == _currentTrack!.id);
+    final prev = (idx - 1 + tracks.length) % tracks.length;
+    _currentTrack = tracks[prev];
+    _progress = 0;
+    _isPlaying = true;
+    notifyListeners();
   }
 
-  void seek(double ratio) {
-    _position = Duration(seconds: (_duration.inSeconds * ratio).round());
+  void toggleShuffle() {
+    _shuffle = !_shuffle;
+    notifyListeners();
+  }
+
+  void cycleRepeat() {
+    _repeatMode = switch (_repeatMode) {
+      RepeatMode.off => RepeatMode.all,
+      RepeatMode.all => RepeatMode.one,
+      RepeatMode.one => RepeatMode.off,
+    };
     notifyListeners();
   }
 
@@ -126,31 +95,18 @@ class PlayerProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleRepeat() {
-    _repeat = RepeatMode.values[(_repeat.index + 1) % RepeatMode.values.length];
-    notifyListeners();
-  }
-
-  void toggleShuffle() {
-    _shuffle = _shuffle == ShuffleMode.off ? ShuffleMode.on : ShuffleMode.off;
-    notifyListeners();
-  }
-
-  void showFullPlayer() {
-    _fullPlayerVisible = true;
-    notifyListeners();
-  }
-
-  void hideFullPlayer() {
-    _fullPlayerVisible = false;
-    notifyListeners();
-  }
-
-  void stopAndHide() {
-    _isPlaying = false;
-    _miniPlayerVisible = false;
-    _fullPlayerVisible = false;
-    _currentSong = null;
+  /// Advances [progress] by [delta]. Intended to be driven by a ticker/audio
+  /// callback; nothing in the current codebase calls this yet, so progress only
+  /// changes when the user drags a slider.
+  void tick(Duration delta) {
+    if (!_isPlaying || _currentTrack == null) return;
+    final totalMs = _currentTrack!.duration.inMilliseconds;
+    if (totalMs == 0) return;
+    _progress = (_progress + delta.inMilliseconds / totalMs).clamp(0.0, 1.0);
+    if (_progress >= 1.0) {
+      _progress = 0;
+      _isPlaying = false;
+    }
     notifyListeners();
   }
 }

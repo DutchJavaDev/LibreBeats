@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"strconv"
-	"strings"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -74,7 +72,7 @@ func (m *Migration) Run() error {
 
 		sqlScriptPath := path.Join(migrationFolderPath, dirEntry.Name())
 
-		migrationFileId, err := strconv.Atoi(strings.Split(dirEntry.Name(), " ")[0])
+		migrationFileId, err := parseMigrationFileID(dirEntry.Name())
 
 		if err != nil {
 			defer tx.Rollback(context.Background())
@@ -124,14 +122,12 @@ func (m *Migration) _LastAppliedMigrationId() (int, error) {
 	err := m._connection.QueryRow(context.Background(), "SELECT Id FROM Librebeats.Migrations ORDER BY runon DESC LIMIT 1").Scan(&lastAppliedMigrationId)
 
 	if err != nil {
-		errorMessage := err.Error()
-		// If the error is because the migrations table does not exist, it means that no migrations have been applied yet, so we can return -1 without an error
-		if strings.Contains(errorMessage, "ERROR: relation \"librebeats.migrations\" does not exist (SQLSTATE 42P01)") {
+		if isMigrationsTableMissingErr(err) {
 			fmt.Println("Migrations table does not exist, assuming no migrations have been applied yet.")
 			return -1, nil
 		}
 
-		fmt.Println("Error fetching last applied migrationId:", errorMessage)
+		fmt.Println("Error fetching last applied migrationId:", err.Error())
 		return -1, err
 	}
 

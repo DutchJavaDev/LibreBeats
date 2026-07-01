@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../models/track.dart';
+import '../models/beat_models.dart';
 
 class LibraryScreen extends StatelessWidget {
   const LibraryScreen({super.key});
@@ -24,7 +24,7 @@ class LibraryScreen extends StatelessWidget {
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white),
                 ),
                 Material(
-                  color: Colors.white.withOpacity(0.1),
+                  color: Colors.white.withValues(alpha: 0.1),
                   shape: const CircleBorder(),
                   child: IconButton(
                     icon: const Icon(Icons.add, color: Colors.white),
@@ -108,7 +108,7 @@ class LibraryScreen extends StatelessWidget {
                   child: const Icon(Icons.queue_music, color: Color(0xFFA7A7A7), size: 24),
                 ),
                 title: Text(
-                  pl.name,
+                  pl.title,
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14),
                 ),
                 subtitle: Text(

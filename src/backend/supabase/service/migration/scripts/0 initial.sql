@@ -38,6 +38,13 @@ CREATE TABLE IF NOT EXISTS Librebeats.RawBeat (
 ALTER TABLE Librebeats.RawBeat ENABLE ROW LEVEL SECURITY;
 -- only service_role
 
+-- Needed to fetch duration from RawBeat for Beat creation, but no other access
+GRANT SELECT ON librebeats.rawbeat TO authenticated;
+
+-- SELECT policy for authenticated users (no INSERT/UPDATE/DELETE)
+CREATE POLICY "authenticated_select_rawbeat" ON Librebeats.RawBeat
+    FOR SELECT TO authenticated USING (true);
+
 -- 6. Beat table – authenticated can SELECT only
 CREATE TABLE IF NOT EXISTS Librebeats.Beat (
     Id INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,

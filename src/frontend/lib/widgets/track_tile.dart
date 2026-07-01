@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../models/track.dart';
+import '../models/beat_models.dart';
 
 /// Reusable list row for a track. Shows the gradient "art", title, artist and
 /// duration; when [isActive] it overlays a play/pause glyph on the art and
 /// tints the title green.
 class TrackTile extends StatelessWidget {
-  final Track track;
+  final Beat track;
   final bool isActive;
   final bool isPlaying;
   final VoidCallback onTap;
@@ -50,7 +50,7 @@ class TrackTile extends StatelessWidget {
               child: Container(
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.45),
+                  color: Colors.black.withValues(alpha: 0.45),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(

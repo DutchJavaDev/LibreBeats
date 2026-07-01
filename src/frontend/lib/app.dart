@@ -32,7 +32,7 @@ class LiberatedBeatsApp extends StatelessWidget {
       scaffoldBackgroundColor: const Color(0xFF121212),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: Colors.black,
-        indicatorColor: const Color(0xFF1ED760).withOpacity(0.18),
+        indicatorColor: const Color(0xFF1ED760).withValues(alpha: 0.18),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
           return GoogleFonts.plusJakartaSans(

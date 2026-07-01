@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:liberated_beats/main.dart';
+import 'package:liberated_beats/providers/catalog_provider.dart';
+import 'package:liberated_beats/widgets/search_result_tile.dart';
 import 'package:provider/provider.dart';
 
-import '../models/track.dart';
+import '../models/beat_models.dart';
 import '../providers/player_provider.dart';
 import '../widgets/track_tile.dart';
 
@@ -41,14 +44,9 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final player = context.watch<PlayerProvider>();
+    //final player = context.watch<PlayerProvider>();
+    final catalog = context.watch<CatalogProvider>();
     final topInset = MediaQuery.of(context).padding.top;
-    final q = _query.toLowerCase();
-    final filtered = _query.isEmpty
-        ? <Track>[]
-        : sampleTracks
-            .where((t) => t.title.toLowerCase().contains(q) || t.artist.toLowerCase().contains(q))
-            .toList();
 
     return CustomScrollView(
       slivers: [
@@ -61,13 +59,20 @@ class _SearchScreenState extends State<SearchScreen> {
               children: [
                 const Text(
                   'Search',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white),
+                  style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white),
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _controller,
-                  onChanged: (v) => setState(() => _query = v),
-                  style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w500),
+                  onChanged: (v) =>
+                      v.isEmpty ? setState(() => _query = v) : null,
+                  onEditingComplete: () =>
+                      setState(() => _query = _controller.text),
+                  style: const TextStyle(
+                      color: Colors.black, fontWeight: FontWeight.w500),
                   decoration: InputDecoration(
                     hintText: 'Artists, songs, or podcasts',
                     hintStyle: const TextStyle(color: Colors.black54),
@@ -86,33 +91,47 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
         ),
         // Results / categories.
-        if (_query.isNotEmpty && filtered.isEmpty)
+        // if (_query.isNotEmpty && filtered.isEmpty)
+        //   SliverToBoxAdapter(
+        //     child: Padding(
+        //       padding: const EdgeInsets.all(32),
+        //       child: Center(
+        //         child: Text(
+        //           'No results for "$_query"',
+        //           style: const TextStyle(color: Color(0xFFA7A7A7)),
+        //         ),
+        //       ),
+        //     ),
+        //   )
+        // else
+         if (_query.isNotEmpty)
           SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Center(
-                child: Text(
-                  'No results for "$_query"',
-                  style: const TextStyle(color: Color(0xFFA7A7A7)),
-                ),
-              ),
-            ),
-          )
-        else if (_query.isNotEmpty)
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, i) {
-                final t = filtered[i];
-                final isActive = player.currentTrack?.id == t.id;
-                return TrackTile(
-                  track: t,
-                  isActive: isActive,
-                  isPlaying: isActive && player.isPlaying,
-                  onTap: () => player.playTrack(t),
-                );
-              },
-              childCount: filtered.length,
-            ),
+            child: StreamBuilder<List<SearchResult>>(
+              stream: catalog.findAllByTitle(_query),
+              builder: (context, snapshot) {
+
+                if(snapshot.hasError){
+                  PrintLog("StreamError: ${snapshot.error.toString()}");
+                }
+
+                if (snapshot.connectionState == ConnectionState.done) {
+
+                  if (snapshot.hasData) {
+                    final searchResults = snapshot.data!;
+
+                    if(searchResults.isEmpty){
+                      return const Center(child: Text("No results found", style: TextStyle(color: Colors.white),));
+                    }
+
+                    return Column(
+                      children: searchResults.map((search) => SearchTile(search: search, onTap: () {}, isActive: false, isPlaying: false)).toList(),
+                    );
+                  } else {
+                    return const Center(child: Text("No results found", style: TextStyle(color: Colors.white),));
+                  }
+                }
+                return const  Center(child: CircularProgressIndicator());
+              })
           )
         else ...[
           const SliverToBoxAdapter(
@@ -120,7 +139,10 @@ class _SearchScreenState extends State<SearchScreen> {
               padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: Text(
                 'Browse categories',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white),
               ),
             ),
           ),
@@ -145,7 +167,10 @@ class _SearchScreenState extends State<SearchScreen> {
                             alignment: Alignment.topLeft,
                             child: Text(
                               c.$1,
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14),
                             ),
                           ),
                         ),

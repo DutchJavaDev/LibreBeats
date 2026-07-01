@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:provider/provider.dart';
 
 import '../providers/player_provider.dart';
@@ -62,7 +62,7 @@ class _FullPlayerState extends State<FullPlayer> {
                         width: 40,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.3),
+                          color: Colors.white.withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -78,7 +78,7 @@ class _FullPlayerState extends State<FullPlayer> {
                               children: [
                                 Text(
                                   'Playing from',
-                                  style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.6)),
+                                  style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.6)),
                                 ),
                                 Text(
                                   track.album,
@@ -110,7 +110,7 @@ class _FullPlayerState extends State<FullPlayer> {
                             borderRadius: BorderRadius.circular(16),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.5),
+                                color: Colors.black.withValues(alpha: 0.5),
                                 blurRadius: 32,
                                 offset: const Offset(0, 16),
                               ),
@@ -159,7 +159,7 @@ class _FullPlayerState extends State<FullPlayer> {
                       SliderTheme(
                         data: SliderTheme.of(context).copyWith(
                           activeTrackColor: Colors.white,
-                          inactiveTrackColor: Colors.white.withOpacity(0.2),
+                          inactiveTrackColor: Colors.white.withValues(alpha: 0.2),
                           thumbColor: Colors.white,
                           thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
                           overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
@@ -225,7 +225,7 @@ class _FullPlayerState extends State<FullPlayer> {
                             child: SliderTheme(
                               data: SliderTheme.of(context).copyWith(
                                 activeTrackColor: Colors.white,
-                                inactiveTrackColor: Colors.white.withOpacity(0.2),
+                                inactiveTrackColor: Colors.white.withValues(alpha: 0.2),
                                 thumbColor: Colors.white,
                                 thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
                                 trackHeight: 3,

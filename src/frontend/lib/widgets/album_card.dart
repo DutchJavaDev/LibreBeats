@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../models/track.dart';
+import '../models/beat_models.dart';
 
 /// Album tile with a gradient cover, the title's first letter, and a green
 /// play button anchored bottom-right.
@@ -17,7 +17,7 @@ class AlbumCard extends StatefulWidget {
 class _AlbumCardState extends State<AlbumCard> {
   // Intended for desktop/web hover affordance — declared but never read.
   // ignore: unused_field
-  bool _hovered = false;
+  final bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +44,7 @@ class _AlbumCardState extends State<AlbumCard> {
                       borderRadius: BorderRadius.circular(8),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.4),
+                          color: Colors.black.withValues(alpha: 0.4),
                           blurRadius: 12,
                           offset: const Offset(0, 6),
                         ),

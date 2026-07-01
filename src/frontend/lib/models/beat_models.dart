@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 /// A single song. All artwork is rendered as [color] with the title's first
 /// letter drawn on top — there are no image assets in this prototype.
-class Track {
-  final String id;
+class Beat {
+  final int id;
   final String title;
   final String artist;
   final String album;
@@ -16,7 +16,7 @@ class Track {
   /// Reserved for a real audio source; never set in sample data, never read.
   final String? audioUrl;
 
-  const Track({
+  const Beat({
     required this.id,
     required this.title,
     required this.artist,
@@ -44,18 +44,25 @@ class Album {
   });
 }
 
-class Playlist {
-  final String id;
-  final String name;
-  final String owner;
+class BeatMix {
+  final int id;
+  final String title;
+  final String thumbnailUrl;
   final int trackCount;
 
-  const Playlist({
+  const BeatMix({
     required this.id,
-    required this.name,
-    required this.owner,
+    required this.title,
+    required this.thumbnailUrl,
     required this.trackCount,
   });
+}
+
+class SearchResult {
+  final Beat? beat;
+  final BeatMix? beatMix;
+
+  SearchResult({this.beat, this.beatMix});
 }
 
 // ---------------------------------------------------------------------------
@@ -107,9 +114,9 @@ const LinearGradient _g7 = LinearGradient(
 // Sample data
 // ---------------------------------------------------------------------------
 
-const List<Track> sampleTracks = [
-  Track(
-    id: 't1',
+const List<Beat> sampleTracks = [
+  Beat(
+    id: 1,
     title: 'Resonance',
     artist: 'Home',
     album: 'Odyssey',
@@ -117,8 +124,8 @@ const List<Track> sampleTracks = [
     color: _g0,
     addedDate: 'Jun 1, 2026',
   ),
-  Track(
-    id: 't2',
+  Beat(
+    id: 2,
     title: 'Midnight City',
     artist: 'M83',
     album: "Hurry Up, We're Dreaming",
@@ -126,8 +133,8 @@ const List<Track> sampleTracks = [
     color: _g1,
     addedDate: 'May 28, 2026',
   ),
-  Track(
-    id: 't3',
+  Beat(
+    id: 3,
     title: 'Let It Happen',
     artist: 'Tame Impala',
     album: 'Currents',
@@ -135,8 +142,8 @@ const List<Track> sampleTracks = [
     color: _g2,
     addedDate: 'May 20, 2026',
   ),
-  Track(
-    id: 't4',
+  Beat(
+    id: 4,
     title: 'Electric Feel',
     artist: 'MGMT',
     album: 'Oracular Spectacular',
@@ -144,8 +151,8 @@ const List<Track> sampleTracks = [
     color: _g3,
     addedDate: 'May 15, 2026',
   ),
-  Track(
-    id: 't5',
+  Beat(
+    id: 5,
     title: 'Crystalised',
     artist: 'The xx',
     album: 'xx',
@@ -153,8 +160,8 @@ const List<Track> sampleTracks = [
     color: _g4,
     addedDate: 'May 10, 2026',
   ),
-  Track(
-    id: 't6',
+  Beat(
+    id: 6,
     title: 'Do I Wanna Know?',
     artist: 'Arctic Monkeys',
     album: 'AM',
@@ -162,8 +169,8 @@ const List<Track> sampleTracks = [
     color: _g5,
     addedDate: 'May 5, 2026',
   ),
-  Track(
-    id: 't7',
+  Beat(
+    id: 7,
     title: 'Feels Like We Only Go Backwards',
     artist: 'Tame Impala',
     album: 'Lonerism',
@@ -171,8 +178,8 @@ const List<Track> sampleTracks = [
     color: _g6,
     addedDate: 'Apr 28, 2026',
   ),
-  Track(
-    id: 't8',
+  Beat(
+    id: 8,
     title: 'Heat Waves',
     artist: 'Glass Animals',
     album: 'Dreamland',
@@ -191,11 +198,11 @@ const List<Album> sampleAlbums = [
   Album(id: 'a6', title: 'Lonerism', artist: 'Tame Impala', year: 2012, color: _g6),
 ];
 
-const List<Playlist> samplePlaylists = [
-  Playlist(id: 'pl1', name: 'Late Night Drives', owner: 'You', trackCount: 24),
-  Playlist(id: 'pl2', name: 'Indie Focus', owner: 'You', trackCount: 18),
-  Playlist(id: 'pl3', name: 'Chillwave Essentials', owner: 'You', trackCount: 32),
-  Playlist(id: 'pl4', name: 'Workout Mix', owner: 'You', trackCount: 15),
-  Playlist(id: 'pl5', name: 'Study Beats', owner: 'You', trackCount: 41),
-  Playlist(id: 'pl6', name: 'Weekend Vibes', owner: 'You', trackCount: 27),
+const List<BeatMix> samplePlaylists = [
+  BeatMix(id: 1, title: 'Late Night Drives', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 24),
+  BeatMix(id: 2, title: 'Indie Focus', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 18),
+  BeatMix(id: 3, title: 'Chillwave Essentials', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 32),
+  BeatMix(id: 4, title: 'Workout Mix', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 15),
+  BeatMix(id: 5, title: 'Study Beats', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 41),
+  BeatMix(id: 6, title: 'Weekend Vibes', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 27),
 ];

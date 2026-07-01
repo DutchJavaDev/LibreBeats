@@ -66,7 +66,7 @@ class HomeScreen extends StatelessWidget {
                       final t = tracks[i];
                       final isActive = player.currentTrack?.id == t.id;
                       return Material(
-                        color: Colors.white.withOpacity(isActive ? 0.2 : 0.1),
+                        color: Colors.white.withValues(alpha: isActive ? 0.2 : 0.1),
                         borderRadius: BorderRadius.circular(6),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(6),

@@ -1,20 +1,20 @@
 import 'package:flutter/foundation.dart';
 
-import '../models/track.dart';
+import '../models/beat_models.dart';
 
 enum RepeatMode { off, all, one }
 
 /// Holds all (simulated) playback state. There is no real audio engine wired
 /// up — every value here lives in memory and is mutated by the UI.
 class PlayerProvider extends ChangeNotifier {
-  Track? _currentTrack;
+  Beat? _currentTrack;
   bool _isPlaying = false;
   double _progress = 0.0;
   bool _shuffle = false;
   RepeatMode _repeatMode = RepeatMode.off;
   double _volume = 0.7;
 
-  Track? get currentTrack => _currentTrack;
+  Beat? get currentTrack => _currentTrack;
   bool get isPlaying => _isPlaying;
   double get progress => _progress;
   bool get shuffle => _shuffle;
@@ -28,7 +28,7 @@ class PlayerProvider extends ChangeNotifier {
     return track.duration * _progress;
   }
 
-  void playTrack(Track track) {
+  void playTrack(Beat track) {
     // Tapping the already-current track toggles play/pause instead of restarting.
     if (_currentTrack?.id == track.id) {
       togglePlay();
@@ -50,7 +50,7 @@ class PlayerProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void nextTrack(List<Track> tracks) {
+  void nextTrack(List<Beat> tracks) {
     if (_currentTrack == null || tracks.isEmpty) return;
     final idx = tracks.indexWhere((t) => t.id == _currentTrack!.id);
     final next = (idx + 1) % tracks.length;
@@ -60,7 +60,7 @@ class PlayerProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void prevTrack(List<Track> tracks) {
+  void prevTrack(List<Beat> tracks) {
     if (_currentTrack == null || tracks.isEmpty) return;
     // If we're more than 5% into the track, "previous" restarts it instead.
     if (_progress > 0.05) {

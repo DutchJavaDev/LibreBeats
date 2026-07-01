@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/track.dart';
+import '../models/beat_models.dart';
 import '../providers/player_provider.dart';
 import '../widgets/track_tile.dart';
 
@@ -41,7 +41,7 @@ class LikedScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.5),
+                        color: Colors.black.withValues(alpha: 0.5),
                         blurRadius: 32,
                         offset: const Offset(0, 16),
                       ),

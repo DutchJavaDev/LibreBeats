@@ -29,20 +29,8 @@ class CatalogProvider extends ChangeNotifier {
   /// while running on placeholder config / fake data).
   bool get isConnected => _beatMixRepository.isConnected;
 
-  Stream<BeatMix> findBeatMixByTitle(String query) async* {
-    var beatmixes = await _beatMixRepository.findByTitle(query);
-    for (var beatmix in beatmixes) {
-      yield beatmix;
-    }
-  }
-
-  Stream<Beat> findBeatByTitle(String query) async* {
-    var beats = await _beatRepository.findByTitle(query);
-    for (var beat in beats) {
-      yield beat;
-    }
-  }
-
+  /// Searches for beatmixes and beats whose title matches the given [query].
+  /// Returns a stream of search results, which will emit a new list every time
   Stream<List<SearchResult>> findAllByTitle(String query) async* {
     var beatmixes = await _beatMixRepository.findByTitle(query);
     var beats = await _beatRepository.findByTitle(query);
@@ -57,21 +45,4 @@ class CatalogProvider extends ChangeNotifier {
     }
     yield results;
   }
-  
-
-  // Future<void> load() async {
-  //   _isLoading = true;
-  //   _error = null;
-  //   notifyListeners();
-  //   try {
-  //     _tracks = await _beatMixRepository.fetchTracks();
-  //     _albums = await _beatMixRepository.fetchAlbums();
-  //     _playlists = await _beatMixRepository.fetchPlaylists();
-  //   } catch (e) {
-  //     _error = e.toString();
-  //   } finally {
-  //     _isLoading = false;
-  //     notifyListeners();
-  //   }
-  // }
 }

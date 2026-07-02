@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:liberated_beats/main.dart';
+import 'package:liberated_beats/services/audio_service.dart';
 
 import '../models/beat_models.dart';
 
@@ -7,7 +9,14 @@ enum RepeatMode { off, all, one }
 /// Holds all (simulated) playback state. There is no real audio engine wired
 /// up — every value here lives in memory and is mutated by the UI.
 class PlayerProvider extends ChangeNotifier {
+  PlayerProvider(this._audioPlayback) {
+    _audioPlayback.tickUpdater(tick);
+  }
+
+  final AudioPlaybackHandler _audioPlayback;
+
   Beat? _currentTrack;
+  List<Beat> recentTracks = [];
   bool _isPlaying = false;
   double _progress = 0.0;
   bool _shuffle = false;
@@ -35,18 +44,31 @@ class PlayerProvider extends ChangeNotifier {
       return;
     }
     _currentTrack = track;
+
+    _audioPlayback.setAudioSource(_currentTrack!);
+    _audioPlayback.play();
+
     _progress = 0;
     _isPlaying = true;
+
+    if (!recentTracks.any((t) => t.id == track.id)) {
+      recentTracks.add(track);
+    }
+
     notifyListeners();
   }
 
   void togglePlay() {
     _isPlaying = !_isPlaying;
+    _isPlaying ? _audioPlayback.play() : _audioPlayback.pause();
     notifyListeners();
   }
 
   void seek(double value) {
     _progress = value.clamp(0.0, 1.0);
+    _audioPlayback.pause();
+    _audioPlayback.seek(elapsed);
+    _audioPlayback.play();
     notifyListeners();
   }
 
@@ -100,13 +122,22 @@ class PlayerProvider extends ChangeNotifier {
   /// changes when the user drags a slider.
   void tick(Duration delta) {
     if (!_isPlaying || _currentTrack == null) return;
+
     final totalMs = _currentTrack!.duration.inMilliseconds;
     if (totalMs == 0) return;
-    _progress = (_progress + delta.inMilliseconds / totalMs).clamp(0.0, 1.0);
+
+    // ✅ Set progress directly from the actual position
+    _progress = (delta.inMilliseconds / totalMs).clamp(0.0, 1.0);
+
     if (_progress >= 1.0) {
-      _progress = 0;
+      _progress = 0.0;
       _isPlaying = false;
+      // Optionally stop the player or handle end-of-track
     }
+
     notifyListeners();
   }
 }
+
+
+// Delta update: 214.45ms tick, progress: 0.9224676616915424 EndTime: 201000ms

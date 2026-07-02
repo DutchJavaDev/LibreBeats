@@ -1,7 +1,10 @@
+import 'package:audio_service/audio_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:liberated_beats/data/beat_repository.dart';
+import 'package:liberated_beats/services/audio_service.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -12,6 +15,17 @@ import 'providers/catalog_provider.dart';
 import 'providers/player_provider.dart';
 
 Future<void> main() async {
+
+  if(kDebugMode)
+  {
+    CachedNetworkImage.logLevel = CacheManagerLogLevel.debug;    
+  }
+  else
+  {
+    // Log to file?
+    CachedNetworkImage.logLevel = CacheManagerLogLevel.warning;
+  }
+
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
@@ -24,13 +38,17 @@ Future<void> main() async {
 
   final beatMixRepository = BeatMixRepository();
   final beatRepository = BeatRepository();
+  final audioPlayback = AudioPlaybackHandler();
+
+  await setupAudioService(audioPlayback);
 
   runApp(
     MultiProvider(
       providers: [
         Provider<BeatMixRepository>.value(value: beatMixRepository),
         Provider<BeatRepository>.value(value: beatRepository),
-        ChangeNotifierProvider(create: (_) => PlayerProvider()),
+        Provider<AudioPlaybackHandler>.value(value: audioPlayback),
+        ChangeNotifierProvider(create: (_) => PlayerProvider(audioPlayback)),
         ChangeNotifierProvider(create: (_) => CatalogProvider(beatMixRepository, beatRepository)),
       ],
       child: const LiberatedBeatsApp(),
@@ -58,8 +76,13 @@ Future<void> supabaseInitialize() async {
   }
 }
 
-Future<void> setupAudioService() async {
-  
+Future<void> setupAudioService(AudioPlaybackHandler audioPlayback) async {
+  await AudioService.init(
+    builder: () => audioPlayback,
+    config: const AudioServiceConfig(
+      androidNotificationChannelName: 'Audio playback',
+      androidNotificationOngoing: true,
+    ));
 }
 
 // ignore: non_constant_identifier_names

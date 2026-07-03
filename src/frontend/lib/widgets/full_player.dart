@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' hide RepeatMode;
+import 'package:liberated_beats/widgets/widget_builder.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/player_provider.dart';
@@ -46,7 +47,8 @@ class _FullPlayerState extends State<FullPlayer> {
                   child: Container(
                     decoration: BoxDecoration(
                       gradient: track.color,
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                      borderRadius:
+                          const BorderRadius.vertical(top: Radius.circular(20)),
                     ),
                   ),
                 ),
@@ -70,27 +72,20 @@ class _FullPlayerState extends State<FullPlayer> {
                       Row(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white),
+                            icon: const Icon(Icons.keyboard_arrow_down,
+                                color: Colors.white),
                             onPressed: () => Navigator.pop(context),
                           ),
                           Expanded(
                             child: Column(
                               children: [
-                                Text(
-                                  'Playing from',
-                                  style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.6)),
-                                ),
-                                Text(
-                                  track.album,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white),
-                                ),
+                                Container(),
                               ],
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.more_horiz, color: Colors.white),
+                            icon: const Icon(Icons.more_horiz,
+                                color: Colors.white),
                             onPressed: () {},
                           ),
                         ],
@@ -99,7 +94,7 @@ class _FullPlayerState extends State<FullPlayer> {
                       // Artwork — subtly shrinks when paused.
                       AnimatedScale(
                         scale: player.isPlaying ? 1.0 : 0.92,
-                        duration: const Duration(milliseconds: 400),
+                        duration: const Duration(milliseconds: 800),
                         curve: Curves.easeOutBack,
                         child: Container(
                           width: double.infinity,
@@ -116,9 +111,11 @@ class _FullPlayerState extends State<FullPlayer> {
                               ),
                             ],
                           ),
-                          child: Text(
-                            track.title.isNotEmpty ? track.title[0] : '?',
-                            style: const TextStyle(fontSize: 100, fontWeight: FontWeight.w900, color: Colors.white),
+                          child: createCachedNetworkImage(
+                            imageUrl: track.album,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            height: double.infinity,
                           ),
                         ),
                       ),
@@ -134,13 +131,17 @@ class _FullPlayerState extends State<FullPlayer> {
                                   track.title,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white),
+                                  style: const TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white),
                                 ),
                                 Text(
                                   track.artist,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 14, color: Color(0xFFA7A7A7)),
+                                  style: const TextStyle(
+                                      fontSize: 14, color: Color(0xFFA7A7A7)),
                                 ),
                               ],
                             ),
@@ -148,7 +149,9 @@ class _FullPlayerState extends State<FullPlayer> {
                           IconButton(
                             icon: Icon(
                               _liked ? Icons.favorite : Icons.favorite_border,
-                              color: _liked ? const Color(0xFF1ED760) : const Color(0xFFA7A7A7),
+                              color: _liked
+                                  ? const Color(0xFF1ED760)
+                                  : const Color(0xFFA7A7A7),
                             ),
                             onPressed: () => setState(() => _liked = !_liked),
                           ),
@@ -159,23 +162,32 @@ class _FullPlayerState extends State<FullPlayer> {
                       SliderTheme(
                         data: SliderTheme.of(context).copyWith(
                           activeTrackColor: Colors.white,
-                          inactiveTrackColor: Colors.white.withValues(alpha: 0.2),
+                          inactiveTrackColor:
+                              Colors.white.withValues(alpha: 0.2),
                           thumbColor: Colors.white,
-                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                          overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                          thumbShape: const RoundSliderThumbShape(
+                              enabledThumbRadius: 6),
+                          overlayShape:
+                              const RoundSliderOverlayShape(overlayRadius: 14),
                           trackHeight: 3,
                         ),
                         child: Slider(
                           value: player.progress,
                           onChanged: player.seek,
+                          min: 0.0,
+                          max: 1.0,
                         ),
                       ),
                       // Time row.
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(_format(player.elapsed), style: const TextStyle(fontSize: 12, color: Color(0xFFA7A7A7))),
-                          Text(_format(track.duration), style: const TextStyle(fontSize: 12, color: Color(0xFFA7A7A7))),
+                          Text(_format(player.elapsed),
+                              style: const TextStyle(
+                                  fontSize: 12, color: Color(0xFFA7A7A7))),
+                          Text(_format(track.duration),
+                              style: const TextStyle(
+                                  fontSize: 12, color: Color(0xFFA7A7A7))),
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -185,32 +197,47 @@ class _FullPlayerState extends State<FullPlayer> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           IconButton(
-                            icon: Icon(Icons.shuffle, color: player.shuffle ? const Color(0xFF1ED760) : Colors.white),
+                            icon: Icon(Icons.shuffle,
+                                color: player.shuffle
+                                    ? const Color(0xFF1ED760)
+                                    : Colors.white),
                             onPressed: player.toggleShuffle,
                           ),
                           IconButton(
                             iconSize: 40,
-                            icon: const Icon(Icons.skip_previous, color: Colors.white),
+                            icon: const Icon(Icons.skip_previous,
+                                color: Colors.white),
                             onPressed: () => player.prevTrack([]),
                           ),
                           Container(
                             width: 64,
                             height: 64,
-                            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                            decoration: const BoxDecoration(
+                                color: Colors.white, shape: BoxShape.circle),
                             child: IconButton(
-                              icon: Icon(player.isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.black, size: 34),
+                              icon: Icon(
+                                  player.isPlaying
+                                      ? Icons.pause
+                                      : Icons.play_arrow,
+                                  color: Colors.black,
+                                  size: 34),
                               onPressed: player.togglePlay,
                             ),
                           ),
                           IconButton(
                             iconSize: 40,
-                            icon: const Icon(Icons.skip_next, color: Colors.white),
+                            icon: const Icon(Icons.skip_next,
+                                color: Colors.white),
                             onPressed: () => player.nextTrack([]),
                           ),
                           IconButton(
                             icon: Icon(
-                              player.repeatMode == RepeatMode.one ? Icons.repeat_one : Icons.repeat,
-                              color: player.repeatMode != RepeatMode.off ? const Color(0xFF1ED760) : Colors.white,
+                              player.repeatMode == RepeatMode.one
+                                  ? Icons.repeat_one
+                                  : Icons.repeat,
+                              color: player.repeatMode != RepeatMode.off
+                                  ? const Color(0xFF1ED760)
+                                  : Colors.white,
                             ),
                             onPressed: player.cycleRepeat,
                           ),
@@ -220,14 +247,17 @@ class _FullPlayerState extends State<FullPlayer> {
                       // Volume row.
                       Row(
                         children: [
-                          const Icon(Icons.volume_down, color: Color(0xFFA7A7A7)),
+                          const Icon(Icons.volume_down,
+                              color: Color(0xFFA7A7A7)),
                           Expanded(
                             child: SliderTheme(
                               data: SliderTheme.of(context).copyWith(
                                 activeTrackColor: Colors.white,
-                                inactiveTrackColor: Colors.white.withValues(alpha: 0.2),
+                                inactiveTrackColor:
+                                    Colors.white.withValues(alpha: 0.2),
                                 thumbColor: Colors.white,
-                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+                                thumbShape: const RoundSliderThumbShape(
+                                    enabledThumbRadius: 5),
                                 trackHeight: 3,
                               ),
                               child: Slider(
@@ -245,13 +275,17 @@ class _FullPlayerState extends State<FullPlayer> {
                         children: [
                           TextButton.icon(
                             onPressed: () {},
-                            icon: const Icon(Icons.share_outlined, color: Color(0xFFA7A7A7)),
-                            label: const Text('Share', style: TextStyle(color: Color(0xFFA7A7A7))),
+                            icon: const Icon(Icons.share_outlined,
+                                color: Color(0xFFA7A7A7)),
+                            label: const Text('Share',
+                                style: TextStyle(color: Color(0xFFA7A7A7))),
                           ),
                           TextButton.icon(
                             onPressed: () {},
-                            icon: const Icon(Icons.queue_music_outlined, color: Color(0xFFA7A7A7)),
-                            label: const Text('Queue', style: TextStyle(color: Color(0xFFA7A7A7))),
+                            icon: const Icon(Icons.queue_music_outlined,
+                                color: Color(0xFFA7A7A7)),
+                            label: const Text('Queue',
+                                style: TextStyle(color: Color(0xFFA7A7A7))),
                           ),
                         ],
                       ),

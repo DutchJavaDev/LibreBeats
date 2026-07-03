@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:liberated_beats/widgets/widget_builder.dart';
 
 import '../models/beat_models.dart';
 
@@ -6,14 +7,14 @@ import '../models/beat_models.dart';
 /// duration; when [isActive] it overlays a play/pause glyph on the art and
 /// tints the title green.
 class TrackTile extends StatelessWidget {
-  final Beat track;
+  final Beat beat;
   final bool isActive;
   final bool isPlaying;
   final VoidCallback onTap;
 
   const TrackTile({
     super.key,
-    required this.track,
+    required this.beat,
     required this.isActive,
     required this.isPlaying,
     required this.onTap,
@@ -37,12 +38,14 @@ class TrackTile extends StatelessWidget {
             height: 48,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              gradient: track.color,
+              gradient: beat.color,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Text(
-              track.title.isNotEmpty ? track.title[0] : '?',
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+            child: createCachedNetworkImage(
+              imageUrl: beat.album,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
             ),
           ),
           if (isActive)
@@ -63,7 +66,7 @@ class TrackTile extends StatelessWidget {
         ],
       ),
       title: Text(
-        track.title,
+        beat.title,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
@@ -73,7 +76,7 @@ class TrackTile extends StatelessWidget {
         ),
       ),
       subtitle: Text(
-        track.artist,
+        beat.artist,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(fontSize: 12, color: Color(0xFFA7A7A7)),
@@ -82,7 +85,7 @@ class TrackTile extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            _format(track.duration),
+            _format(beat.duration),
             style: const TextStyle(fontSize: 13, color: Color(0xFFA7A7A7)),
           ),
           const SizedBox(width: 4),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:liberated_beats/widgets/widget_builder.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/player_provider.dart';
@@ -37,12 +38,14 @@ class MiniPlayer extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(12)),
               child: LinearProgressIndicator(
                 value: player.progress,
                 minHeight: 3,
                 backgroundColor: Colors.white.withValues(alpha: 0.15),
-                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1ED760)),
+                valueColor:
+                    const AlwaysStoppedAnimation<Color>(Color(0xFF1ED760)),
               ),
             ),
             Padding(
@@ -57,9 +60,11 @@ class MiniPlayer extends StatelessWidget {
                       gradient: track.color,
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Text(
-                      track.title.isNotEmpty ? track.title[0] : '?',
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                    child: createCachedNetworkImage(
+                      imageUrl: track.album,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -72,13 +77,17 @@ class MiniPlayer extends StatelessWidget {
                           track.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white),
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white),
                         ),
                         Text(
                           track.artist,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12, color: Color(0xFFA7A7A7)),
+                          style: const TextStyle(
+                              fontSize: 12, color: Color(0xFFA7A7A7)),
                         ),
                       ],
                     ),
@@ -86,7 +95,9 @@ class MiniPlayer extends StatelessWidget {
                   IconButton(
                     visualDensity: VisualDensity.compact,
                     iconSize: 26,
-                    icon: Icon(player.isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white),
+                    icon: Icon(
+                        player.isPlaying ? Icons.pause : Icons.play_arrow,
+                        color: Colors.white),
                     onPressed: player.togglePlay,
                   ),
                   IconButton(

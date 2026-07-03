@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:liberated_beats/main.dart';
 import 'package:liberated_beats/services/audio_service.dart';
 
 import '../models/beat_models.dart';

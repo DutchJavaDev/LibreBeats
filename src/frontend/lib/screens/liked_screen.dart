@@ -90,7 +90,7 @@ class LikedScreen extends StatelessWidget {
               final t = sampleTracks[i];
               final isActive = player.currentTrack?.id == t.id;
               return TrackTile(
-                track: t,
+                beat: t,
                 isActive: isActive,
                 isPlaying: isActive && player.isPlaying,
                 onTap: () => player.playTrack(t),

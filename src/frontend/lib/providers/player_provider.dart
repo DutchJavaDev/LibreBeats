@@ -1,4 +1,7 @@
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
+import 'package:liberated_beats/main.dart';
 import 'package:liberated_beats/services/audio_service.dart';
 
 import '../models/beat_models.dart';
@@ -10,17 +13,24 @@ enum RepeatMode { off, all, one }
 class PlayerProvider extends ChangeNotifier {
   PlayerProvider(this._audioPlayback) {
     _audioPlayback.tickUpdater(tick);
+    _audioPlayback.togglePlayUpdater(_togglePlay);
+    _audioPlayback.onEnd(endOfBeat);
+    _audioPlayback.onNext(nextTrack);
+    _audioPlayback.onPrev(prevTrack);
   }
 
   final AudioPlaybackHandler _audioPlayback;
 
   Beat? _currentTrack;
   List<Beat> recentTracks = [];
+  List<Beat> beats = [];
+  List<Beat> beatsOriginal = [];
   bool _isPlaying = false;
+  bool _enReached = false;
   double _progress = 0.0;
   bool _shuffle = false;
   RepeatMode _repeatMode = RepeatMode.off;
-  double _volume = 0.7;
+  double _volume = 1.0;
 
   Beat? get currentTrack => _currentTrack;
   bool get isPlaying => _isPlaying;
@@ -63,35 +73,48 @@ class PlayerProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void seek(double value) {
-    _progress = value.clamp(0.0, 1.0);
-    _audioPlayback.pause();
-    _audioPlayback.seek(elapsed);
-    _audioPlayback.play();
+  void _togglePlay(bool state){
+    _isPlaying = state;
     notifyListeners();
   }
 
-  void nextTrack(List<Beat> tracks) {
-    if (_currentTrack == null || tracks.isEmpty) return;
-    final idx = tracks.indexWhere((t) => t.id == _currentTrack!.id);
-    final next = (idx + 1) % tracks.length;
-    _currentTrack = tracks[next];
+  void seek(double value) {
+    _progress = value.clamp(0.0, 1.0);
+    _audioPlayback.seek(elapsed);
+    notifyListeners();
+  }
+
+  void setBeats(List<Beat> beats)
+  {
+    this.beats = beats;
+    beatsOriginal = beats;
+  }
+
+  void nextTrack() {
+    if (_currentTrack == null || beats.isEmpty) return;
+    final idx = beats.indexWhere((t) => t.id == _currentTrack!.id);
+    final next = (idx + 1) % beats.length;
+    _currentTrack = beats[next];
+    _audioPlayback.setAudioSource(_currentTrack!);
+    _audioPlayback.play();
     _progress = 0;
     _isPlaying = true;
     notifyListeners();
   }
 
-  void prevTrack(List<Beat> tracks) {
-    if (_currentTrack == null || tracks.isEmpty) return;
+  void prevTrack() {
+    if (_currentTrack == null || beats.isEmpty) return;
     // If we're more than 5% into the track, "previous" restarts it instead.
     if (_progress > 0.05) {
       _progress = 0;
       notifyListeners();
       return;
     }
-    final idx = tracks.indexWhere((t) => t.id == _currentTrack!.id);
-    final prev = (idx - 1 + tracks.length) % tracks.length;
-    _currentTrack = tracks[prev];
+    final idx = beats.indexWhere((t) => t.id == _currentTrack!.id);
+    final prev = (idx - 1 + beats.length) % beats.length;
+    _currentTrack = beats[prev];
+    _audioPlayback.setAudioSource(_currentTrack!);
+    _audioPlayback.play();
     _progress = 0;
     _isPlaying = true;
     notifyListeners();
@@ -99,6 +122,17 @@ class PlayerProvider extends ChangeNotifier {
 
   void toggleShuffle() {
     _shuffle = !_shuffle;
+    if(_shuffle)
+    {
+      PrintLog(beats.map((e) => e.id));
+      var random = Random();
+      beats.shuffle(random);
+    }
+    else{
+      beats.clear();
+      beats.addAll(beatsOriginal);
+    }
+
     notifyListeners();
   }
 
@@ -108,12 +142,19 @@ class PlayerProvider extends ChangeNotifier {
       RepeatMode.all => RepeatMode.one,
       RepeatMode.one => RepeatMode.off,
     };
+    PrintLog("Repeat mode $_repeatMode");
     notifyListeners();
   }
 
   void setVolume(double v) {
     _volume = v.clamp(0.0, 1.0);
+    _audioPlayback.setVolume(_volume);
     notifyListeners();
+  }
+
+  void endOfBeat()
+  {
+    _enReached = true; 
   }
 
   /// Advances [progress] by [delta]. Intended to be driven by a ticker/audio
@@ -123,15 +164,29 @@ class PlayerProvider extends ChangeNotifier {
     if (!_isPlaying || _currentTrack == null) return;
 
     final totalMs = _currentTrack!.duration.inMilliseconds;
-    if (totalMs == 0) return;
+    if (totalMs == 0) {
+      return;
+    }
 
     // ✅ Set progress directly from the actual position
     _progress = (delta.inMilliseconds / totalMs).clamp(0.0, 1.0);
-
-    if (_progress >= 1.0) {
-      _progress = 0.0;
+    
+    if(_enReached)
+    {
+      _progress = 0;
       _isPlaying = false;
-      // Optionally stop the player or handle end-of-track
+      _enReached = false;
+      _audioPlayback.seek(Duration.zero);
+      _audioPlayback.pause();
+
+      if(_repeatMode == RepeatMode.one)
+      {
+        _audioPlayback.play();
+      }
+      else if(_repeatMode == RepeatMode.all || _repeatMode == RepeatMode.off)
+      {
+        nextTrack();
+      }
     }
 
     notifyListeners();

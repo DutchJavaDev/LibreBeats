@@ -107,11 +107,7 @@ class MiniPlayer extends StatelessWidget {
                     // Known quirk preserved from the source: this convoluted
                     // ternary always evaluates to an empty list, so nextTrack is
                     // a no-op. Pass `sampleTracks` (or the active queue) to enable.
-                    onPressed: () => player.nextTrack(
-                      player.currentTrack != null
-                          ? (context.read<PlayerProvider>() == player ? [] : [])
-                          : [],
-                    ),
+                    onPressed: () => player.nextTrack(),
                   ),
                 ],
               ),

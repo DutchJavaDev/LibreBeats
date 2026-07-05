@@ -26,6 +26,7 @@ class _FullPlayerState extends State<FullPlayer> {
   Widget build(BuildContext context) {
     final player = context.watch<PlayerProvider>();
     final track = player.currentTrack;
+
     if (track == null) return const SizedBox.shrink();
 
     return DraggableScrollableSheet(
@@ -207,7 +208,7 @@ class _FullPlayerState extends State<FullPlayer> {
                             iconSize: 40,
                             icon: const Icon(Icons.skip_previous,
                                 color: Colors.white),
-                            onPressed: () => player.prevTrack([]),
+                            onPressed: () => player.prevTrack(),
                           ),
                           Container(
                             width: 64,
@@ -228,7 +229,7 @@ class _FullPlayerState extends State<FullPlayer> {
                             iconSize: 40,
                             icon: const Icon(Icons.skip_next,
                                 color: Colors.white),
-                            onPressed: () => player.nextTrack([]),
+                            onPressed: () => player.nextTrack(),
                           ),
                           IconButton(
                             icon: Icon(

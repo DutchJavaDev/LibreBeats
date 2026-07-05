@@ -61,20 +61,6 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Stream<List<BeatMix>> _buildBeatMixGrid(CatalogProvider catalog) async* {
     final beatMixes = await catalog.getAllBeatMixes();
-    final b = beatMixes[0];
-
-    List<Beat> _beats = [];
-
-    for(var i = 0; i < 75; i++)
-    {
-      _beats.add(Beat(id: i, title: "Titl_$i", artist: "Art_$i", album: "https://picsum.photos/200", duration: Duration.zero, color: const LinearGradient(
-  begin: Alignment.topLeft,
-  end: Alignment.bottomRight,
-  colors: [Color(0xFF1DB954), Color(0xFF158A3E)], // Green
-)));
-    }
-
-    beatMixes[0].beats!.addAll(_beats);
     yield beatMixes;
   }
 

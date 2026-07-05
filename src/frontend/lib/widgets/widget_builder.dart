@@ -33,7 +33,6 @@ void showBeatMixDialog(BuildContext context, BeatMix beatMix) {
     context: context,
     builder: (context) => Dialog.fullscreen(
       backgroundColor: Colors.black,
-      // CRITICAL FIX: Wrap the entire content in RepaintBoundary
       child: RepaintBoundary(
         child: Column(
           children: [
@@ -84,7 +83,8 @@ void showBeatMixDialog(BuildContext context, BeatMix beatMix) {
                   ),
                   IconButton(
                     onPressed: () {
-                      
+                      player.setBeats(beatMix.beats!);
+                      player.playTrack(beatMix.beats![0]);
                     },
                     icon: const Icon(Icons.play_arrow_rounded),
                     iconSize: 48,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:liberated_beats/widgets/widget_builder.dart';
 
 import '../models/beat_models.dart';
 
@@ -50,13 +51,11 @@ class _AlbumCardState extends State<AlbumCard> {
                         ),
                       ],
                     ),
-                    child: Text(
-                      album.title.isNotEmpty ? album.title[0] : '?',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 36,
-                        color: Colors.white,
-                      ),
+                    child: createCachedNetworkImage(
+                      imageUrl: 'https://picsum.photos/200/300',
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
                     ),
                   ),
                 ),

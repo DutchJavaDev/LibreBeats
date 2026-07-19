@@ -17,6 +17,7 @@ class AudioPlaybackHandler extends BaseAudioHandler with SeekHandler {
   final _player = AudioPlayer();
   late VoidCallback _onNext;
   late VoidCallback _onPrev;
+  
   void setAudioSource(Beat beat) async {
     await _player.setAudioSource(AudioSource.uri(Uri.parse(beat.audioUrl!)));
 

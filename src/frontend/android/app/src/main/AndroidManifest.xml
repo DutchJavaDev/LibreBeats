@@ -49,7 +49,6 @@
             tools:ignore="Instantiatable">
 
             <intent-filter>
-                <action android:name="android.intent.action.MEDIA_BUTTON" />
                 <action android:name="android.media.browse.MediaBrowserService"/>
             </intent-filter>
 

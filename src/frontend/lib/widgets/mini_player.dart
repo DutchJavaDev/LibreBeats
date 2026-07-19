@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:liberated_beats/providers/background_audio_provider.dart';
 import 'package:liberated_beats/widgets/widget_builder.dart';
 import 'package:provider/provider.dart';
 
@@ -12,8 +13,8 @@ class MiniPlayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final player = context.watch<PlayerProvider>();
-    final track = player.currentTrack;
+    final backgroundPlayer = context.watch<BackgroundAudioProvider>();
+    final track = backgroundPlayer.currentTrack;
     if (track == null) return const SizedBox.shrink();
 
     return GestureDetector(
@@ -23,7 +24,7 @@ class MiniPlayer extends StatelessWidget {
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
           builder: (_) => ChangeNotifierProvider.value(
-            value: player,
+            value: backgroundPlayer,
             child: const FullPlayer(),
           ),
         );
@@ -41,7 +42,7 @@ class MiniPlayer extends StatelessWidget {
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(12)),
               child: LinearProgressIndicator(
-                value: player.progress,
+                value: backgroundPlayer.progress,
                 minHeight: 3,
                 backgroundColor: Colors.white.withValues(alpha: 0.15),
                 valueColor:
@@ -96,9 +97,9 @@ class MiniPlayer extends StatelessWidget {
                     visualDensity: VisualDensity.compact,
                     iconSize: 26,
                     icon: Icon(
-                        player.isPlaying ? Icons.pause : Icons.play_arrow,
+                        backgroundPlayer.isPlaying ? Icons.pause : Icons.play_arrow,
                         color: Colors.white),
-                    onPressed: player.togglePlay,
+                    onPressed: backgroundPlayer.togglePlay,
                   ),
                   IconButton(
                     visualDensity: VisualDensity.compact,
@@ -107,7 +108,7 @@ class MiniPlayer extends StatelessWidget {
                     // Known quirk preserved from the source: this convoluted
                     // ternary always evaluates to an empty list, so nextTrack is
                     // a no-op. Pass `sampleTracks` (or the active queue) to enable.
-                    onPressed: () => player.nextTrack(),
+                    onPressed: () => backgroundPlayer.skipToNext(),
                   ),
                 ],
               ),

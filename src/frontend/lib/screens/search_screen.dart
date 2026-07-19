@@ -59,14 +59,14 @@ class _SearchScreenState extends State<SearchScreen> {
     super.dispose();
   }
 
-  Stream<List<BeatMix>> _buildBeatMixGrid(CatalogProvider catalog) async* {
+  Stream<List<BeatMix>> _buildBeatMixGrid(LibreProvider catalog) async* {
     final beatMixes = await catalog.getAllBeatMixes();
     yield beatMixes;
   }
 
   @override
   Widget build(BuildContext context) {
-    final catalog = context.read<CatalogProvider>();
+    final catalog = context.read<LibreProvider>();
     final topInset = MediaQuery.of(context).padding.top;
 
     // Fixed height for the sticky header:

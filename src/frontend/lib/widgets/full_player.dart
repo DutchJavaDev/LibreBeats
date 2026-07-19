@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' hide RepeatMode;
+import 'package:liberated_beats/providers/background_audio_provider.dart';
 import 'package:liberated_beats/widgets/widget_builder.dart';
 import 'package:provider/provider.dart';
 
@@ -24,8 +25,8 @@ class _FullPlayerState extends State<FullPlayer> {
 
   @override
   Widget build(BuildContext context) {
-    final player = context.watch<PlayerProvider>();
-    final track = player.currentTrack;
+    final backgroundPlayer = context.watch<BackgroundAudioProvider>();
+    final track = backgroundPlayer.currentTrack;
 
     if (track == null) return const SizedBox.shrink();
 
@@ -94,7 +95,7 @@ class _FullPlayerState extends State<FullPlayer> {
                       const Spacer(),
                       // Artwork — subtly shrinks when paused.
                       AnimatedScale(
-                        scale: player.isPlaying ? 1.0 : 0.92,
+                        scale: backgroundPlayer.isPlaying ? 1.0 : 0.92,
                         duration: const Duration(milliseconds: 800),
                         curve: Curves.easeOutBack,
                         child: Container(
@@ -173,8 +174,15 @@ class _FullPlayerState extends State<FullPlayer> {
                           trackHeight: 3,
                         ),
                         child: Slider(
-                          value: player.progress,
-                          onChanged: player.seek,
+                          value: backgroundPlayer.progress,
+                          onChanged: (double position) async {
+                            await backgroundPlayer
+                                .setSeek(Duration(seconds: position.toInt()));
+                          },
+                          onChangeEnd: (double position) async {
+                            await backgroundPlayer
+                                .setSeek(Duration(seconds: position.toInt()));
+                          },
                           min: 0.0,
                           max: 1.0,
                         ),
@@ -183,7 +191,7 @@ class _FullPlayerState extends State<FullPlayer> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(_format(player.elapsed),
+                          Text(_format(backgroundPlayer.elapsed),
                               style: const TextStyle(
                                   fontSize: 12, color: Color(0xFFA7A7A7))),
                           Text(_format(track.duration),
@@ -199,16 +207,16 @@ class _FullPlayerState extends State<FullPlayer> {
                         children: [
                           IconButton(
                             icon: Icon(Icons.shuffle,
-                                color: player.shuffle
+                                color: backgroundPlayer.shuffle
                                     ? const Color(0xFF1ED760)
                                     : Colors.white),
-                            onPressed: player.toggleShuffle,
+                            onPressed: backgroundPlayer.toggleShuffle,
                           ),
                           IconButton(
                             iconSize: 40,
                             icon: const Icon(Icons.skip_previous,
                                 color: Colors.white),
-                            onPressed: () => player.prevTrack(),
+                            onPressed: () => backgroundPlayer.skipToPrevious(),
                           ),
                           Container(
                             width: 64,
@@ -217,30 +225,31 @@ class _FullPlayerState extends State<FullPlayer> {
                                 color: Colors.white, shape: BoxShape.circle),
                             child: IconButton(
                               icon: Icon(
-                                  player.isPlaying
+                                  backgroundPlayer.isPlaying
                                       ? Icons.pause
                                       : Icons.play_arrow,
                                   color: Colors.black,
                                   size: 34),
-                              onPressed: player.togglePlay,
+                              onPressed: backgroundPlayer.togglePlay,
                             ),
                           ),
                           IconButton(
                             iconSize: 40,
                             icon: const Icon(Icons.skip_next,
                                 color: Colors.white),
-                            onPressed: () => player.nextTrack(),
+                            onPressed: () => backgroundPlayer.skipToNext(),
                           ),
                           IconButton(
                             icon: Icon(
-                              player.repeatMode == RepeatMode.one
+                              backgroundPlayer.repeatMode == RepeatMode.one
                                   ? Icons.repeat_one
                                   : Icons.repeat,
-                              color: player.repeatMode != RepeatMode.off
-                                  ? const Color(0xFF1ED760)
-                                  : Colors.white,
+                              color:
+                                  backgroundPlayer.repeatMode != RepeatMode.off
+                                      ? const Color(0xFF1ED760)
+                                      : Colors.white,
                             ),
-                            onPressed: player.cycleRepeat,
+                            onPressed: backgroundPlayer.cycleRepeat,
                           ),
                         ],
                       ),
@@ -262,8 +271,8 @@ class _FullPlayerState extends State<FullPlayer> {
                                 trackHeight: 3,
                               ),
                               child: Slider(
-                                value: player.volume,
-                                onChanged: player.setVolume,
+                                value: backgroundPlayer.volume,
+                                onChanged: backgroundPlayer.setVolume,
                               ),
                             ),
                           ),

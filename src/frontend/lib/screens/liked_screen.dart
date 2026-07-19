@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:liberated_beats/providers/background_audio_provider.dart';
 import 'package:provider/provider.dart';
 
 import '../models/beat_models.dart';
@@ -10,7 +11,7 @@ class LikedScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final player = context.watch<PlayerProvider>();
+    final backgroundPlayer = context.watch<BackgroundAudioProvider>();
     final topInset = MediaQuery.of(context).padding.top;
 
     return CustomScrollView(
@@ -74,7 +75,7 @@ class LikedScreen extends StatelessWidget {
                       backgroundColor: const Color(0xFF1ED760),
                       foregroundColor: Colors.black,
                       elevation: 4,
-                      onPressed: () => player.playTrack(sampleTracks[0]),
+                      onPressed: () => backgroundPlayer.playBeat(sampleTracks[0]),
                       child: const Icon(Icons.play_arrow, size: 32),
                     ),
                   ],
@@ -88,12 +89,12 @@ class LikedScreen extends StatelessWidget {
           delegate: SliverChildBuilderDelegate(
             (context, i) {
               final t = sampleTracks[i];
-              final isActive = player.currentTrack?.id == t.id;
+              final isActive = backgroundPlayer.currentTrack?.id == t.id;
               return TrackTile(
                 beat: t,
                 isActive: isActive,
-                isPlaying: isActive && player.isPlaying,
-                onTap: () => player.playTrack(t),
+                isPlaying: isActive && backgroundPlayer.isPlaying,
+                onTap: () => backgroundPlayer.playBeat(t),
               );
             },
             childCount: sampleTracks.length,

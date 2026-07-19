@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:liberated_beats/models/beat_models.dart';
+import 'package:liberated_beats/providers/background_audio_provider.dart';
 import 'package:liberated_beats/providers/player_provider.dart';
 import 'package:liberated_beats/widgets/track_tile.dart';
 import 'package:provider/provider.dart';
@@ -27,7 +28,7 @@ void showBeatMixDialog(BuildContext context, BeatMix beatMix) {
   FocusScope.of(context).unfocus();
   SystemChannels.textInput.invokeMethod('TextInput.hide');
 
-  final player = context.read<PlayerProvider>();
+  final backgroundPlayer = context.watch<BackgroundAudioProvider>();
 
   showDialog(
     context: context,
@@ -59,7 +60,7 @@ void showBeatMixDialog(BuildContext context, BeatMix beatMix) {
                       isActive: false, // Won't work since modal does not have a setState()
                       isPlaying: false,// Won't work since modal does not have a setState()
                       onTap: () {
-                        player.playTrack(beat);
+                        backgroundPlayer.playBeatMix(beatMix, beat);
                       },
                     ),
                   );
@@ -83,8 +84,8 @@ void showBeatMixDialog(BuildContext context, BeatMix beatMix) {
                   ),
                   IconButton(
                     onPressed: () {
-                      player.setBeats(beatMix.beats!);
-                      player.playTrack(beatMix.beats![0]);
+                      backgroundPlayer.playBeatMix(beatMix, beatMix.beats![0]);
+                      backgroundPlayer.toggleShuffle();
                     },
                     icon: const Icon(Icons.play_arrow_rounded),
                     iconSize: 48,

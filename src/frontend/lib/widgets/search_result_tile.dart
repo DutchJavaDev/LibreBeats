@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:liberated_beats/main.dart';
 import 'package:liberated_beats/models/beat_models.dart';
+import 'package:liberated_beats/providers/background_audio_provider.dart';
 import 'package:liberated_beats/providers/player_provider.dart';
 import 'package:liberated_beats/widgets/track_tile.dart';
 import 'package:liberated_beats/widgets/widget_builder.dart';
@@ -21,8 +22,8 @@ class SearchTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final player = context.read<PlayerProvider>();
-    final isActive = player.currentTrack?.id == search.beat?.id;
+    final backgroundPlayer = context.watch<BackgroundAudioProvider>();
+    final isActive = backgroundPlayer.currentTrack?.id == search.beat?.id;
 
     if (search.beatMix != null) {
       final beatMix = search.beatMix!;
@@ -89,7 +90,7 @@ class SearchTile extends StatelessWidget {
       final beat = search.beat!;
       return ListTile(
         onTap: () {
-          player.playTrack(beat);
+          backgroundPlayer.playBeat(beat);
         },
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: createCachedNetworkImage(

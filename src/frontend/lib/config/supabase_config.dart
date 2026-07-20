@@ -10,8 +10,8 @@
 class SupabaseConfig {
   const SupabaseConfig._();
 
-  static const String url = 'https://rzbhinivwuddxmmpvfxf.supabase.co';
-  static const String anonKey = 'sb_publishable_Tlv87F3Y6a09bjfGwd3X-w_VrfzZcv7';
+  static const String url = '';
+  static const String anonKey = '';
 
   /// True only when real (non-placeholder) credentials have been provided.
   static bool get isConfigured =>

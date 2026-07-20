@@ -4,8 +4,6 @@
 
 **LibreBeats** is a self-hosted music streaming platform: a Spotify-style client you run yourself, backed by your own catalog and infrastructure instead of a commercial subscription.
 
-The Flutter app description: *“An open source music player — Liberated Beats.”*
-
 ## Table of contents
 
 - [Overview](#overview)
@@ -25,7 +23,7 @@ The Flutter app description: *“An open source music player — Liberated Beats
 | **Frontend** | [`src/frontend`](src/frontend) | Cross-platform Flutter app (Home, Search, Library, Liked, Settings + mini/full player UI) |
 | **Backend** | [`src/backend`](src/backend) | Self-hosted [Supabase](https://supabase.com/docs/guides/self-hosting/docker) + Go services for SQL migrations and audio ingest |
 
-**Current state:** The Flutter client is a self-contained UI prototype built with sample data and a simulated player (Spotify-style shell, not wired to any backend). The backend can ingest YouTube URLs into Postgres and Supabase Storage via a queue worker, but the app is not yet wired to Supabase or real playback.
+**Current state:** The Flutter client is a self-contained UI prototype built with sample data and a simulated player (Spotify-style shell, not wired to any backend). The backend can ingest YouTube URLs into Postgres and Supabase Storage via a queue worker, App is currently wired for basic search and playback (background supported)
 
 ### Prerequisites
 
@@ -44,7 +42,7 @@ The Flutter app description: *“An open source music player — Liberated Beats
 │  Home · Search · Library · Liked · Settings · player        │
 │  Provider state · sample data · simulated playback          │
 └───────────────────────────┬─────────────────────────────────┘
-                            │  planned: Supabase auth + real audio (not wired)
+                            │  Currently working: Supabase auth (No register, only on existing accounts) + real audio (search and playback)
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  Self-hosted Supabase (src/backend/supabase)                │
@@ -80,8 +78,8 @@ LibreBeats/
     │   └── lib/
     │       ├── main.dart              # Entry point: bindings, system chrome, runApp
     │       ├── app.dart               # MaterialApp + Material 3 dark theme
-    │       ├── models/track.dart      # Track/Album/Playlist models + sample data
-    │       ├── providers/             # PlayerProvider (simulated playback)
+    │       ├── models/                # Beats/Beatsmixes models + sample data
+    │       ├── providers/             # BackgroundAudioProvider (streaming playback)
     │       ├── screens/               # main_scaffold, home, search, library, liked, settings
     │       └── widgets/               # mini_player, full_player, album_card, track_tile
     └── backend/
@@ -126,7 +124,7 @@ Flutter app with a dark, Spotify-like shell.
 
 - Rebuilt as a self-contained UI prototype — Flutter package `liberated_beats`, app title “Liberated Beats”, dark Material 3 theme. No Supabase or backend wiring.
 - Sample data (`sampleTracks`, `sampleAlbums`, `samplePlaylists`) lives in `models/track.dart`; all artwork is a gradient with the title's first letter (no image assets).
-- `PlayerProvider` — a single in-memory `ChangeNotifier` holding all playback state; playback is simulated (no real audio engine, and `tick()` is not yet driven by a timer).
+- `BackgroundAudioProvider` — a single in-memory `ChangeNotifier` holding all playback state.
 - `main.dart` — locks portrait orientation, sets the system UI overlay, and runs the app through a `provider` `MultiProvider`.
 
 ## Backend (`src/backend`)
@@ -217,9 +215,9 @@ flutter run
 
 | Area | Target | Current |
 |------|--------|---------|
-| Playback | Stream from Storage / signed URLs | Simulated player |
-| Catalog | Read `Beat` / `BeatMix` from Supabase | Mock data in app |
-| Auth | Supabase Auth in Flutter | Not wired |
+| Playback | Stream from Storage / signed URLs | Done |
+| Catalog | Read `Beat` / `BeatMix` from Supabase | Done |
+| Auth | Supabase Auth in Flutter | Wired for existing users, can't register (jet) |
 | Music servers | LibreBeats / Navidrome / Jellyfin | Static settings prototype (no server UI) |
 | Ingest | Queue YouTube URLs → catalog | Worker with VT + DLQ; app not connected |
 | Tests | CI + integration tests for DB/queue | Go unit tests only |

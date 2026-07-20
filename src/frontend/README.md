@@ -71,9 +71,9 @@ From `pubspec.yaml`. The table marks which packages are **actually used** in the
 | `google_fonts` | `^6.2.1` | Loads **Plus Jakarta Sans** for the global text theme and nav-bar labels | ✅ `app.dart` |
 | `provider` | `^6.1.2` | State management — `ChangeNotifierProvider`, `context.watch`, `context.read` | ✅ `main.dart`, screens, players |
 | `shared_preferences` | `^2.2.3` | Intended for persisting settings/likes | ❌ Not imported |
-| `just_audio` | `^0.9.39` | Intended audio playback engine | ❌ Not imported |
-| `audio_service` | `^0.18.15` | Intended background audio / lock-screen controls | ❌ Not imported |
-| `cached_network_image` | `^3.3.1` | Intended for loading album artwork from URLs | ❌ Not imported |
+| `just_audio` | `^0.9.39` | Intended audio playback engine | ✅ imported/Everywhere |
+| `audio_service` | `^0.18.15` | Intended background audio / lock-screen controls | ✅ imported/Everywhere |
+| `cached_network_image` | `^3.3.1` | Intended for loading album artwork from URLs | ✅ imported/Everywhere |
 | `path_provider` | `^2.1.3` | Intended for local file/download paths | ❌ Not imported |
 
 **Dev dependencies**

@@ -3,7 +3,6 @@ import 'package:liberated_beats/providers/background_audio_provider.dart';
 import 'package:provider/provider.dart';
 
 import '../models/beat_models.dart';
-import '../providers/player_provider.dart';
 import '../widgets/track_tile.dart';
 
 class LikedScreen extends StatelessWidget {
@@ -89,7 +88,7 @@ class LikedScreen extends StatelessWidget {
           delegate: SliverChildBuilderDelegate(
             (context, i) {
               final t = sampleTracks[i];
-              final isActive = backgroundPlayer.currentTrack?.id == t.id;
+              final isActive = backgroundPlayer.currentBeat?.id == t.id;
               return TrackTile(
                 beat: t,
                 isActive: isActive,

@@ -33,13 +33,9 @@ class LibreProvider extends ChangeNotifier {
   /// Returns a stream of search results, which will emit a new list every time
   Stream<List<SearchResult>> findAllByTitle(final String query) async* {
 
-    if (_beats.isEmpty) {
-      _beats = await _beatRepository.findByTitle(query);
-    }
-
-    if (_beatMixes.isEmpty) {
-      _beatMixes = await _beatMixRepository.findByTitle(query);
-    }
+    _beats = await _beatRepository.findByTitle(query);
+    
+    _beatMixes = await _beatMixRepository.findByTitle(query);
     
     var results = <SearchResult>[];
 

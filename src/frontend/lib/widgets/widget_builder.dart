@@ -3,9 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/providers/background_audio_provider.dart';
-import 'package:liberated_beats/providers/player_provider.dart';
 import 'package:liberated_beats/widgets/track_tile.dart';
-import 'package:provider/provider.dart';
 
 CachedNetworkImage createCachedNetworkImage({
   required String imageUrl,
@@ -24,12 +22,10 @@ CachedNetworkImage createCachedNetworkImage({
   );
 }
 
-void showBeatMixDialog(BuildContext context, BeatMix beatMix) {
+void showBeatMixDialog(BuildContext context, BeatMix beatMix, BackgroundAudioProvider backgroundPlayer) {
   FocusScope.of(context).unfocus();
   SystemChannels.textInput.invokeMethod('TextInput.hide');
-
-  final backgroundPlayer = context.watch<BackgroundAudioProvider>();
-
+  
   showDialog(
     context: context,
     builder: (context) => Dialog.fullscreen(
@@ -84,7 +80,7 @@ void showBeatMixDialog(BuildContext context, BeatMix beatMix) {
                   ),
                   IconButton(
                     onPressed: () {
-                      backgroundPlayer.playBeatMix(beatMix, beatMix.beats![0]);
+                      backgroundPlayer.playBeatMix(beatMix, beatMix.beats![0]); // TODO should be random beat from beatmix
                       backgroundPlayer.toggleShuffle();
                     },
                     icon: const Icon(Icons.play_arrow_rounded),

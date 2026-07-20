@@ -72,7 +72,7 @@ class HomeScreen extends StatelessWidget {
                     itemCount: tracks.length.clamp(0, 6),
                     itemBuilder: (context, i) {
                       final t = tracks[i];
-                      final isActive = backgroundPlayer.currentTrack?.id == t.id;
+                      final isActive = backgroundPlayer.currentBeat?.id == t.id;
                       return Material(
                         color: Colors.white
                             .withValues(alpha: isActive ? 0.2 : 0.1),
@@ -162,7 +162,7 @@ class HomeScreen extends StatelessWidget {
           delegate: SliverChildBuilderDelegate(
             (context, i) {
               final t = tracks[i];
-              final isActive = backgroundPlayer.currentTrack?.id == t.id;
+              final isActive = backgroundPlayer.currentBeat?.id == t.id;
               return TrackTile(
                 beat: t,
                 isActive: isActive,

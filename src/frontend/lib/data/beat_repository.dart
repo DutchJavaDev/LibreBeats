@@ -5,7 +5,7 @@ import 'package:liberated_beats/models/beat_models.dart';
 /// Single point of access to the Beat catalog.
 class BeatRepository extends BaseRepository {
     Future<List<Beat>> findByTitle(String query) async {
-    final rows = await client!.schema('librebeats').from('beat').select('id, title, artist, thumbnailurl, streamingurl, rawbeat!beat_rawbeatid_fkey (duration)').ilike("title", "%${query}%");
+    final rows = await client!.schema('librebeats').from('beat').select('id, title, artist, thumbnailurl, streamingurl, rawbeat!beat_rawbeatid_fkey (duration)').ilike("title", "%$query%");
     PrintLog('Found beats: ${rows.length} for that contains "$query"');
     return rows.map(_beatFromRow).toList();
   }

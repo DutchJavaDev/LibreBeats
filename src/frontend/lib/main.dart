@@ -88,7 +88,7 @@ Future<void> setupAudioService(BaseAudioHandler audioPlayback) async {
 void PrintLog(Object? object) {
   if(kDebugMode)
   {
-    print(object);    
+    print("[LIBRE-BEATS]: $object");    
   }
   else
   {

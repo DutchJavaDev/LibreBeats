@@ -1,5 +1,4 @@
 import 'package:liberated_beats/data/base_repository.dart';
-import 'package:liberated_beats/main.dart';
 import '../models/beat_models.dart';
 
 /// Single point of access to the BeatMix catalog.
@@ -9,8 +8,7 @@ class BeatMixRepository extends BaseRepository {
     final rows = await client!.schema('librebeats')
                               .from('beatmix')
                               .select('id, title, thumbnailurl, beatmixbeat:beatmixbeat(count)')
-                              .ilike("title", "%${query}%");
-    PrintLog('Found beatmixes: ${rows.length} for that contains "$query"');
+                              .ilike("title", "%$query%");
 
     var beatMixes = rows.map(_beatMixFromRow).toList();
 
@@ -21,7 +19,6 @@ class BeatMixRepository extends BaseRepository {
                                     .eq('beatmixid', beatMix.id);
       final tracks = trackRows.map((row) => _beatFromRow(row['beat'])).toList();
 
-      PrintLog('Found ${tracks.length} tracks for beatmix "${beatMix.title}"');
       beatMix.beats!.addAll(tracks);
     }
 
@@ -33,7 +30,6 @@ class BeatMixRepository extends BaseRepository {
     final rows = await client!.schema('librebeats')
                               .from('beatmix')
                               .select('id, title, thumbnailurl, beatmixbeat:beatmixbeat(count)');
-    PrintLog('Found beatmixes: ${rows.length}');
 
     var beatMixes = rows.map(_beatMixFromRow).toList();
 
@@ -44,7 +40,6 @@ class BeatMixRepository extends BaseRepository {
                                     .eq('beatmixid', beatMix.id);
       final tracks = trackRows.map((row) => _beatFromRow(row['beat'])).toList();
 
-      PrintLog('Found ${tracks.length} tracks for beatmix "${beatMix.title}"');
       beatMix.beats!.addAll(tracks);
     }
 

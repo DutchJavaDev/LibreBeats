@@ -8,7 +8,7 @@ import 'package:liberated_beats/models/beat_models.dart';
 class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   final audioPlayer = AudioPlayer();
   
-  late VoidCallbackDoulbe _updateProgress;
+  late VoidCallbackUpdateProgress _updateProgress;
 
   AudioPlaybackService() {
     // So that our clients (the Flutter UI and the system notification) know
@@ -76,7 +76,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     
     for(var i = 0; i < mix!.beats!.length; i++)
     {
-      final beat = mix!.beats![i];
+      final beat = mix.beats![i];
       beatMediaItems.add(_createMediaItem(beat));
       beatAudioSources.add(_createSourceUri(beat));
 
@@ -117,7 +117,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     await audioPlayer.setVolume(volume);
   }
 
-  void setUpdateProgressCallback(VoidCallbackDoulbe updateProgress) {
+  void setUpdateProgressCallback(VoidCallbackUpdateProgress updateProgress) {
     _updateProgress = updateProgress;
   }
 
@@ -153,6 +153,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
       }
     }
 
+    // Callback so the UI gets updated with the correct data
     _updateProgress(_progress, _currentBeat!);
   }
 
@@ -221,7 +222,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
 
     if(mediaItems.isNotEmpty){
 
-      mediaItem.add(mediaItems.first!);
+      mediaItem.add(mediaItems.first);
     } 
     else
     {

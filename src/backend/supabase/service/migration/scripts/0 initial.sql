@@ -126,3 +126,8 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA Librebeats GRANT SELECT ON 
 -- Ensure service_role retains full control (bypasses RLS anyway, but keep grants for clarity)
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA Librebeats GRANT ALL ON TABLES TO service_role;
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA Librebeats GRANT ALL ON SEQUENCES TO service_role;
+
+-- Ensure authenticated can select on these tables
+GRANT SELECT ON librebeats.beatmix TO authenticated;
+GRANT SELECT ON librebeats.beatmixbeat TO authenticated;
+GRANT SELECT ON librebeats.beat TO authenticated;

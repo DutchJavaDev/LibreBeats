@@ -13,10 +13,10 @@ class LibreProvider extends ChangeNotifier {
   final BeatMixRepository _beatMixRepository;
   final BeatRepository _beatRepository;
 
-  bool _isLoading = false;
+  final bool _isLoading = false;
   String? _error;
   List<Beat> _beats = const [];
-  List<Album> _albums = const [];
+  final List<Album> _albums = const [];
   List<BeatMix> _beatMixes = const [];
 
   bool get isLoading => _isLoading;

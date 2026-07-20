@@ -5,17 +5,6 @@ import 'package:liberated_beats/widgets/search_result_tile.dart';
 import 'package:provider/provider.dart';
 import '../models/beat_models.dart';
 
-// (categories list remains unchanged)
-final List<(String, Color)> _categories = [
-  ('Hip Hop', const Color(0xFF1ED760)),
-  ('Pop', const Color(0xFFE91E63)),
-  ('Rock', const Color(0xFF2196F3)),
-  ('Jazz', const Color(0xFFFFC107)),
-  ('Classical', const Color(0xFF9C27B0)),
-  ('Electronic', const Color(0xFF00BCD4)),
-  ('R&B', const Color(0xFFFF5722)),
-  ('Country', const Color(0xFF4CAF50)),
-];
 
 // Custom delegate for the sticky header
 class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {

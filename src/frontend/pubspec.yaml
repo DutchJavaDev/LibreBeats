@@ -13,8 +13,8 @@ dependencies:
   provider: ^6.1.2
   supabase_flutter: ^2.12.4
   shared_preferences: ^2.2.3
-  just_audio: ^0.9.39
-  audio_service: ^0.18.15
+  just_audio: ^0.10.6
+  audio_service: ^0.18.19
   cached_network_image: ^3.3.1
   path_provider: ^2.1.3
 

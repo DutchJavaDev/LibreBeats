@@ -49,12 +49,14 @@ class BeatMix {
   final String title;
   final String thumbnailUrl;
   final int trackCount;
+  final List<Beat>? beats;
 
   const BeatMix({
     required this.id,
     required this.title,
     required this.thumbnailUrl,
     required this.trackCount,
+    required this.beats,
   });
 }
 
@@ -199,10 +201,10 @@ const List<Album> sampleAlbums = [
 ];
 
 const List<BeatMix> samplePlaylists = [
-  BeatMix(id: 1, title: 'Late Night Drives', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 24),
-  BeatMix(id: 2, title: 'Indie Focus', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 18),
-  BeatMix(id: 3, title: 'Chillwave Essentials', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 32),
-  BeatMix(id: 4, title: 'Workout Mix', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 15),
-  BeatMix(id: 5, title: 'Study Beats', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 41),
-  BeatMix(id: 6, title: 'Weekend Vibes', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 27),
+  BeatMix(id: 1, title: 'Late Night Drives', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 24, beats: []),
+  BeatMix(id: 2, title: 'Indie Focus', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 18, beats: []),
+  BeatMix(id: 3, title: 'Chillwave Essentials', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 32, beats: []),
+  BeatMix(id: 4, title: 'Workout Mix', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 15, beats: []),
+  BeatMix(id: 5, title: 'Study Beats', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 41, beats: []),
+  BeatMix(id: 6, title: 'Weekend Vibes', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 27, beats: []),
 ];

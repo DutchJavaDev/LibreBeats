@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:liberated_beats/providers/background_audio_provider.dart';
+import 'package:liberated_beats/widgets/widget_builder.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/catalog_provider.dart';
-import '../providers/player_provider.dart';
 import '../widgets/album_card.dart';
 import '../widgets/track_tile.dart';
 
@@ -18,10 +19,10 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final player = context.watch<PlayerProvider>();
-    final catalog = context.watch<CatalogProvider>();
+    final backgroundPlayer = context.watch<BackgroundAudioProvider>();
+    final catalog = context.watch<LibreProvider>();
     final topInset = MediaQuery.of(context).padding.top;
-    final tracks = catalog.tracks;
+    final tracks = backgroundPlayer.recentBeats;
     final albums = catalog.albums;
     final isInitialLoad = catalog.isLoading && tracks.isEmpty;
 
@@ -43,19 +44,25 @@ class HomeScreen extends StatelessWidget {
               children: [
                 Text(
                   _greeting,
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white),
+                  style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white),
                 ),
                 const SizedBox(height: 16),
                 if (isInitialLoad)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(child: CircularProgressIndicator(color: Color(0xFF1ED760))),
+                    child: Center(
+                        child: CircularProgressIndicator(
+                            color: Color(0xFF1ED760))),
                   )
                 else
                   GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,
                       mainAxisSpacing: 8,
                       crossAxisSpacing: 8,
@@ -64,13 +71,14 @@ class HomeScreen extends StatelessWidget {
                     itemCount: tracks.length.clamp(0, 6),
                     itemBuilder: (context, i) {
                       final t = tracks[i];
-                      final isActive = player.currentTrack?.id == t.id;
+                      final isActive = backgroundPlayer.currentBeat?.id == t.id;
                       return Material(
-                        color: Colors.white.withValues(alpha: isActive ? 0.2 : 0.1),
+                        color: Colors.white
+                            .withValues(alpha: isActive ? 0.2 : 0.1),
                         borderRadius: BorderRadius.circular(6),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(6),
-                          onTap: () => player.playTrack(t),
+                          onTap: () => backgroundPlayer.playBeat(t),
                           child: Row(
                             children: [
                               Container(
@@ -79,11 +87,14 @@ class HomeScreen extends StatelessWidget {
                                 alignment: Alignment.center,
                                 decoration: BoxDecoration(
                                   gradient: t.color,
-                                  borderRadius: const BorderRadius.horizontal(left: Radius.circular(6)),
+                                  borderRadius: const BorderRadius.horizontal(
+                                      left: Radius.circular(6)),
                                 ),
-                                child: Text(
-                                  t.title.isNotEmpty ? t.title[0] : '?',
-                                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                                child: createCachedNetworkImage(
+                                  imageUrl: t.album,
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                  height: double.infinity,
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -92,7 +103,10 @@ class HomeScreen extends StatelessWidget {
                                   t.title,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white),
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -106,17 +120,6 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
         ),
-        // Error banner (e.g. if a real Supabase fetch fails later).
-        if (catalog.error != null)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: Text(
-                'Could not load catalog: ${catalog.error}',
-                style: const TextStyle(color: Color(0xFFA7A7A7), fontSize: 12),
-              ),
-            ),
-          ),
         // 2. Recently played header.
         SliverToBoxAdapter(child: _sectionHeader('Recently played')),
         // 3. Horizontal albums row.
@@ -124,7 +127,8 @@ class HomeScreen extends StatelessWidget {
           child: SizedBox(
             height: 196,
             child: isInitialLoad
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFF1ED760)))
+                ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF1ED760)))
                 : ListView.separated(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -138,11 +142,11 @@ class HomeScreen extends StatelessWidget {
                           album: album,
                           onPlay: () {
                             if (tracks.isEmpty) return;
-                            final track = tracks.firstWhere(
+                            final beat = tracks.firstWhere(
                               (t) => t.album == album.title,
                               orElse: () => tracks.first,
                             );
-                            player.playTrack(track);
+                            backgroundPlayer.playBeat(beat);
                           },
                         ),
                       );
@@ -157,12 +161,12 @@ class HomeScreen extends StatelessWidget {
           delegate: SliverChildBuilderDelegate(
             (context, i) {
               final t = tracks[i];
-              final isActive = player.currentTrack?.id == t.id;
+              final isActive = backgroundPlayer.currentBeat?.id == t.id;
               return TrackTile(
-                track: t,
+                beat: t,
                 isActive: isActive,
-                isPlaying: isActive && player.isPlaying,
-                onTap: () => player.playTrack(t),
+                isPlaying: isActive && backgroundPlayer.isPlaying,
+                onTap: () => backgroundPlayer.playBeat(t),
               );
             },
             childCount: tracks.length,
@@ -180,8 +184,16 @@ class HomeScreen extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
-          const Text('Show all', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFFA7A7A7))),
+          Text(title,
+              style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white)),
+          const Text('Show all',
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFA7A7A7))),
         ],
       ),
     );

@@ -5,11 +5,14 @@
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
 
     <application
         android:label="LibreBeats"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:enableOnBackInvokedCallback="true"
+        android:allowBackup="false">
 
         <activity
             android:name="com.ryanheise.audioservice.AudioServiceActivity"
@@ -46,7 +49,6 @@
             tools:ignore="Instantiatable">
 
             <intent-filter>
-                <action android:name="android.intent.action.MEDIA_BUTTON" />
                 <action android:name="android.media.browse.MediaBrowserService"/>
             </intent-filter>
 

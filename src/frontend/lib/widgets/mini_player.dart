@@ -3,7 +3,6 @@ import 'package:liberated_beats/providers/background_audio_provider.dart';
 import 'package:liberated_beats/widgets/widget_builder.dart';
 import 'package:provider/provider.dart';
 
-import '../providers/player_provider.dart';
 import 'full_player.dart';
 
 /// Compact player docked above the bottom navigation bar. Invisible until a
@@ -14,7 +13,7 @@ class MiniPlayer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final backgroundPlayer = context.watch<BackgroundAudioProvider>();
-    final track = backgroundPlayer.currentTrack;
+    final track = backgroundPlayer.currentBeat;
     if (track == null) return const SizedBox.shrink();
 
     return GestureDetector(

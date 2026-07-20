@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart' hide RepeatMode;
+import 'package:just_audio/just_audio.dart';
 import 'package:liberated_beats/providers/background_audio_provider.dart';
 import 'package:liberated_beats/widgets/widget_builder.dart';
 import 'package:provider/provider.dart';
 
-import '../providers/player_provider.dart';
 
 /// Full-screen "now playing" sheet, opened from the [MiniPlayer]. Drag down to
 /// dismiss. The like state is local to the sheet and resets on reopen.
@@ -26,7 +26,7 @@ class _FullPlayerState extends State<FullPlayer> {
   @override
   Widget build(BuildContext context) {
     final backgroundPlayer = context.watch<BackgroundAudioProvider>();
-    final track = backgroundPlayer.currentTrack;
+    final track = backgroundPlayer.currentBeat;
 
     if (track == null) return const SizedBox.shrink();
 
@@ -176,12 +176,12 @@ class _FullPlayerState extends State<FullPlayer> {
                         child: Slider(
                           value: backgroundPlayer.progress,
                           onChanged: (double position) async {
-                            await backgroundPlayer
-                                .setSeek(Duration(seconds: position.toInt()));
+                            // await backgroundPlayer
+                            //     .setSeek(position);
                           },
                           onChangeEnd: (double position) async {
                             await backgroundPlayer
-                                .setSeek(Duration(seconds: position.toInt()));
+                                .setSeek(position);
                           },
                           min: 0.0,
                           max: 1.0,
@@ -216,7 +216,7 @@ class _FullPlayerState extends State<FullPlayer> {
                             iconSize: 40,
                             icon: const Icon(Icons.skip_previous,
                                 color: Colors.white),
-                            onPressed: () => backgroundPlayer.skipToPrevious(),
+                            onPressed: backgroundPlayer.skipToPrevious,
                           ),
                           Container(
                             width: 64,
@@ -237,15 +237,15 @@ class _FullPlayerState extends State<FullPlayer> {
                             iconSize: 40,
                             icon: const Icon(Icons.skip_next,
                                 color: Colors.white),
-                            onPressed: () => backgroundPlayer.skipToNext(),
+                            onPressed: backgroundPlayer.skipToNext,
                           ),
                           IconButton(
                             icon: Icon(
-                              backgroundPlayer.repeatMode == RepeatMode.one
+                              backgroundPlayer.repeatMode == LoopMode.one
                                   ? Icons.repeat_one
                                   : Icons.repeat,
                               color:
-                                  backgroundPlayer.repeatMode != RepeatMode.off
+                                  backgroundPlayer.repeatMode != LoopMode.off
                                       ? const Color(0xFF1ED760)
                                       : Colors.white,
                             ),

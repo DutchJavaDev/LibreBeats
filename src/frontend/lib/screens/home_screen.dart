@@ -4,7 +4,6 @@ import 'package:liberated_beats/widgets/widget_builder.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/catalog_provider.dart';
-import '../providers/player_provider.dart';
 import '../widgets/album_card.dart';
 import '../widgets/track_tile.dart';
 

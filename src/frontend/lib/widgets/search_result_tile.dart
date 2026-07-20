@@ -1,11 +1,8 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:liberated_beats/main.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/providers/background_audio_provider.dart';
-import 'package:liberated_beats/providers/player_provider.dart';
-import 'package:liberated_beats/widgets/track_tile.dart';
 import 'package:liberated_beats/widgets/widget_builder.dart';
 import 'package:provider/provider.dart';
 
@@ -23,11 +20,9 @@ class SearchTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final backgroundPlayer = context.watch<BackgroundAudioProvider>();
-    final isActive = backgroundPlayer.currentTrack?.id == search.beat?.id;
-
+    final isActive = backgroundPlayer.currentBeat?.id == search.beat?.id;
     if (search.beatMix != null) {
       final beatMix = search.beatMix!;
-      PrintLog('beatMix: ${beatMix.title}, tracks: ${beatMix.beats?.length}');
       return Stack(
         children: [
           Positioned.fill(
@@ -55,7 +50,7 @@ class SearchTile extends StatelessWidget {
 
           // 3. Your original ListTile (transparent by default)
           ListTile(
-            onTap: () => showBeatMixDialog(context, beatMix),
+            onTap: () => showBeatMixDialog(context, beatMix, backgroundPlayer),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             title: Text(

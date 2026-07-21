@@ -2,7 +2,6 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:liberated_beats/config/helpers.dart';
-import 'package:liberated_beats/main.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 
 class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
@@ -22,6 +21,8 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
 
     // Playback has ended, set _enReached to true, then updateProgress will handle the rest (stop, next song or repeat)
     audioPlayer.playbackEventStream.listen((e) {
+      _setCurrentBeat();
+      _setMediaItemForBeat();
       if (e.duration == null) return;
       if (e.duration!.inSeconds == e.updatePosition.inSeconds) {
         _enReached = true;
@@ -86,7 +87,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
       }
     }
 
-    audioPlayer.setAudioSources(beatAudioSources, preload: false, initialIndex: initialIndex, shuffleOrder: DefaultShuffleOrder());
+    audioPlayer.setAudioSources(beatAudioSources, preload: true, initialIndex: initialIndex, shuffleOrder: DefaultShuffleOrder());
 
     mediaItem.add(beatMediaItems[initialIndex]);
 
@@ -157,6 +158,11 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     _updateProgress(_progress, _currentBeat!);
   }
 
+  // void onResume() async {
+  //   _setCurrentBeat();
+  //   _setMediaItemForBeat();
+  // }
+
   @override
   Future<void> play() async {
     await togglePlay();
@@ -186,6 +192,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
       await audioPlayer.seekToNext();
       _setCurrentBeat();
       _setMediaItemForBeat();
+      _updateProgress(0, _currentBeat!);
     }
   }
 
@@ -195,39 +202,27 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
       await audioPlayer.seekToPrevious();
       _setCurrentBeat();
       _setMediaItemForBeat();
+      _updateProgress(0, _currentBeat!);
     }
   }
 
   void _setCurrentBeat() {
     var id = _getCurrentAudioSourceTagId();
 
-    var currentBeat = _currentBeatMix!.beats!.where((i) => i.id.toString() == id);
+    var currentBeat = _currentBeatMix!.beats!.where((i) => i.id.toString() == id).first;
 
-    if(currentBeat.isNotEmpty)
+    if(currentBeat.id != _currentBeat!.id)
     {
-      _currentBeat = currentBeat.first;
-    }
-    else
-    {
-      PrintLog("Could not sync currentBeat");
+      _currentBeat = currentBeat;
     }
   }
 
   void _setMediaItemForBeat() {
     var id = _getCurrentAudioSourceTagId();
 
-    PrintLog("Current audio source: $id");
-    
-    var mediaItems = beatMediaItems.where((i) => i.id == id);
+    var beatMediaItem = beatMediaItems.where((i) => i.id == id).first;
 
-    if(mediaItems.isNotEmpty){
-
-      mediaItem.add(mediaItems.first);
-    } 
-    else
-    {
-      PrintLog("Could not find mediaItem for Beat: $id");
-    }
+    mediaItem.add(beatMediaItem);
   }
 
   String _getCurrentAudioSourceTagId(){

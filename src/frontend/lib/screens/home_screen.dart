@@ -8,6 +8,7 @@ import '../widgets/album_card.dart';
 import '../widgets/track_tile.dart';
 
 class HomeScreen extends StatelessWidget {
+
   const HomeScreen({super.key});
 
   String get _greeting {

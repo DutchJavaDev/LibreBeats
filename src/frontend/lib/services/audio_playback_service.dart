@@ -208,7 +208,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
 
   void _setCurrentBeat() {
     var id = _getCurrentAudioSourceTagId();
-
+    if(id == "") return;
     var currentBeat = _currentBeatMix!.beats!.where((i) => i.id.toString() == id).first;
 
     if(currentBeat.id != _currentBeat!.id)
@@ -219,7 +219,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
 
   void _setMediaItemForBeat() {
     var id = _getCurrentAudioSourceTagId();
-
+    if(id == "") return;
     var beatMediaItem = beatMediaItems.where((i) => i.id == id).first;
 
     mediaItem.add(beatMediaItem);
@@ -227,7 +227,8 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
 
   String _getCurrentAudioSourceTagId(){
     var index = audioPlayer.currentIndex;
-    var currentSource = audioPlayer.audioSources[index!] as UriAudioSource;
+    if(index == null) return "";
+    var currentSource = audioPlayer.audioSources[index] as UriAudioSource;
     return currentSource.tag.toString();
   }
 

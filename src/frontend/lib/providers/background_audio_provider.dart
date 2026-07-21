@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:just_audio/just_audio.dart';
+import 'package:liberated_beats/main.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/services/audio_playback_service.dart';
 
 final class BackgroundAudioProvider extends ChangeNotifier {
-  BackgroundAudioProvider(this._playbackService){
+  BackgroundAudioProvider(this._playbackService) {
     _playbackService.setUpdateProgressCallback(updateProgress);
   }
 
-  final AudioPlaybackService _playbackService; 
+  final AudioPlaybackService _playbackService;
 
   // TODO does not reflect actuall recents
   List<Beat> get recentBeats => _playbackService.recentBeats;
@@ -21,7 +22,7 @@ final class BackgroundAudioProvider extends ChangeNotifier {
   Beat? _currentBeat;
 
   bool get isPlaying => _playbackService.isPlaying;
-  
+
   double get progress => _progress;
   double _progress = 0.0;
 
@@ -37,7 +38,7 @@ final class BackgroundAudioProvider extends ChangeNotifier {
 
   // Set a beatmix, then from there play the selected beat
   void playBeatMix(BeatMix beatmix, Beat selectedBeat) {
-    if(isPlaying) togglePlay();
+    if (isPlaying) togglePlay();
     _playbackService.setBeatMix(beatmix, selectedBeat);
     togglePlay();
   }
@@ -50,7 +51,7 @@ final class BackgroundAudioProvider extends ChangeNotifier {
       return;
     }
 
-    if(isPlaying) togglePlay();
+    if (isPlaying) togglePlay();
 
     _playbackService.setBeatSource(beat);
 
@@ -64,7 +65,12 @@ final class BackgroundAudioProvider extends ChangeNotifier {
 
   void updateProgress(double nProgress, Beat currentBeat) {
     _progress = nProgress;
-    _currentBeat = currentBeat;
+
+    // Display the current playing song
+    if (_currentBeat != currentBeat) {
+      _currentBeat = currentBeat;
+    }
+
     notifyListeners();
   }
 
@@ -100,9 +106,11 @@ final class BackgroundAudioProvider extends ChangeNotifier {
 
   Future<void> skipToNext() async {
     await _playbackService.skipToNext();
+    notifyListeners();
   }
 
   Future<void> skipToPrevious() async {
     await _playbackService.skipToPrevious();
+    notifyListeners();
   }
 }

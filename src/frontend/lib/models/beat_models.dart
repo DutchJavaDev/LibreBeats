@@ -4,6 +4,11 @@ import 'package:flutter/material.dart';
 /// letter drawn on top — there are no image assets in this prototype.
 class Beat {
   final int id;
+
+  /// Which server this beat came from (server URL). Ids are only unique per
+  /// server, so identity checks must use [key]. Sample data uses 'sample'.
+  final String sourceId;
+
   final String title;
   final String artist;
   final String album;
@@ -18,6 +23,7 @@ class Beat {
 
   const Beat({
     required this.id,
+    this.sourceId = 'sample',
     required this.title,
     required this.artist,
     required this.album,
@@ -26,6 +32,9 @@ class Beat {
     this.addedDate,
     this.audioUrl,
   });
+
+  /// Globally unique identity across servers.
+  String get key => '$sourceId:$id';
 }
 
 class Album {
@@ -46,6 +55,11 @@ class Album {
 
 class BeatMix {
   final int id;
+
+  /// Which server this mix came from (server URL). Ids are only unique per
+  /// server, so identity checks must use [key]. Sample data uses 'sample'.
+  final String sourceId;
+
   final String title;
   final String thumbnailUrl;
   final int trackCount;
@@ -53,11 +67,15 @@ class BeatMix {
 
   const BeatMix({
     required this.id,
+    this.sourceId = 'sample',
     required this.title,
     required this.thumbnailUrl,
     required this.trackCount,
     required this.beats,
   });
+
+  /// Globally unique identity across servers.
+  String get key => '$sourceId:$id';
 }
 
 class SearchResult {

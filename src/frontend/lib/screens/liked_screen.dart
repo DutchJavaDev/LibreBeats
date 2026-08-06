@@ -88,7 +88,7 @@ class LikedScreen extends StatelessWidget {
           delegate: SliverChildBuilderDelegate(
             (context, i) {
               final t = sampleTracks[i];
-              final isActive = backgroundPlayer.currentBeat?.id == t.id;
+              final isActive = backgroundPlayer.currentBeat?.key == t.key;
               return TrackTile(
                 beat: t,
                 isActive: isActive,

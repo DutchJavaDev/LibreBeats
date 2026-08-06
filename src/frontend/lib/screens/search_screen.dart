@@ -48,14 +48,10 @@ class _SearchScreenState extends State<SearchScreen> {
     super.dispose();
   }
 
-  Stream<List<BeatMix>> _buildBeatMixGrid(LibreProvider catalog) async* {
-    final beatMixes = await catalog.getAllBeatMixes();
-    yield beatMixes;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final catalog = context.read<LibreProvider>();
+    // watch: the browse grid grows tile-by-tile while the catalog drip-loads.
+    final catalog = context.watch<LibreProvider>();
     final topInset = MediaQuery.of(context).padding.top;
 
     // Fixed height for the sticky header:
@@ -172,43 +168,35 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ),
           SliverToBoxAdapter(
-            child: StreamBuilder<List<BeatMix>>(
-                stream: _buildBeatMixGrid(catalog),
-                builder: (context, snapshot) {
-
-                  if (snapshot.hasError) {
-                    PrintLog("StreamError: ${snapshot.error.toString()}");
-                  }
-
-                  if (snapshot.connectionState == ConnectionState.done) {
-                    if (snapshot.hasData) {
-                      final beatMixes = snapshot.data!;
-                      return GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: 2.0,
-                        ),
-                        itemCount: beatMixes.length,
-                        itemBuilder: (context, index) {
-                          final beatMix = beatMixes[index];
-                          return SearchTile(
-                              search: SearchResult(beatMix: beatMix));
-                        },
-                      );
-                    }
-
-                    return const Center(
-                        child: Text("No results found",
-                            style: TextStyle(color: Colors.white)));
-                  }
-
-                  return const Center(child: CircularProgressIndicator());
-                }),
+            child: catalog.beatMixes.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 48),
+                    child: Center(
+                      child: catalog.isFetching
+                          ? const CircularProgressIndicator(
+                              color: Color(0xFF1ED760))
+                          : const Text(
+                              'No playlists yet — check your servers in Settings',
+                              style: TextStyle(color: Color(0xFFA7A7A7))),
+                    ),
+                  )
+                : GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: 2.0,
+                    ),
+                    itemCount: catalog.beatMixes.length,
+                    itemBuilder: (context, index) {
+                      final beatMix = catalog.beatMixes[index];
+                      return SearchTile(
+                          search: SearchResult(beatMix: beatMix));
+                    },
+                  ),
           )
         ],
         const SliverToBoxAdapter(child: SizedBox(height: 16)),

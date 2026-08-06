@@ -4,13 +4,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:liberated_beats/data/beat_repository.dart';
+import 'package:liberated_beats/data/server_registry.dart';
 import 'package:liberated_beats/providers/background_audio_provider.dart';
 import 'package:liberated_beats/services/audio_playback_service.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
-import 'config/supabase_config.dart';
 import 'data/beatmix_repository.dart';
 import 'providers/catalog_provider.dart';
 
@@ -27,6 +26,7 @@ Future<void> main() async {
   }
 
   WidgetsFlutterBinding.ensureInitialized();
+
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
@@ -34,10 +34,18 @@ Future<void> main() async {
     systemNavigationBarColor: Colors.black,
   ));
 
-  await supabaseInitialize();
+  final serverRegistry = ServerRegistry();
+  // Loads servers persisted from Settings; on a fresh install, seeds from
+  // --dart-define (comma-separated, zipped pairwise):
+  //   --dart-define=LIBREBEATS_SEED_URLS=https://a.example.com,https://b.example.com
+  //   --dart-define=LIBREBEATS_SEED_KEYS=sb_publishable_aaa,sb_publishable_bbb
+  // Servers can also be added at runtime via Settings → Servers.
+  await serverRegistry.load(seed: _seedServersFromEnvironment());
+  // Sign-ins run in the background; LibreProvider awaits them before fetching.
+  serverRegistry.connectAll();
 
-  final beatMixRepository = BeatMixRepository();
-  final beatRepository = BeatRepository();
+  final beatMixRepository = BeatMixRepository(serverRegistry);
+  final beatRepository = BeatRepository(serverRegistry);
   final audioPlaybackService = AudioPlaybackService();
 
   await setupAudioService(audioPlaybackService);
@@ -45,34 +53,34 @@ Future<void> main() async {
   runApp(
     MultiProvider(
       providers: [
+        ChangeNotifierProvider<ServerRegistry>.value(value: serverRegistry),
         Provider<BeatMixRepository>.value(value: beatMixRepository),
         Provider<BeatRepository>.value(value: beatRepository),
         Provider<AudioPlaybackService>.value(value: audioPlaybackService),
         ChangeNotifierProvider(create: (_) => BackgroundAudioProvider(audioPlaybackService)),
-        ChangeNotifierProvider(create: (_) => LibreProvider(beatMixRepository, beatRepository)),
+        ChangeNotifierProvider(
+            create: (_) => LibreProvider(
+                serverRegistry, beatMixRepository, beatRepository)),
       ],
       child: const LiberatedBeatsApp(),
     ),
   );
 }
 
+/// Zips LIBREBEATS_SEED_URLS / LIBREBEATS_SEED_KEYS (comma-separated
+/// dart-defines) into (url, key) pairs for the first-run server seed.
+List<(String, String)> _seedServersFromEnvironment() {
+  const urls = String.fromEnvironment('LIBREBEATS_SEED_URLS');
+  const keys = String.fromEnvironment('LIBREBEATS_SEED_KEYS');
+  if (urls.isEmpty || keys.isEmpty) return const [];
 
-// This is only for now on dev until I have designed multi config support
-Future<void> supabaseInitialize() async {
-  if (SupabaseConfig.isConfigured) {
-    var supabase = await Supabase.initialize(
-      url: SupabaseConfig.url,
-      publishableKey: SupabaseConfig.anonKey,
-    );
-    
-    var response = await supabase.client.auth.signInWithPassword(password: "", email: ""); // Remove this line
+  final urlList = urls.split(',');
+  final keyList = keys.split(',');
+  final count = urlList.length < keyList.length ? urlList.length : keyList.length;
 
-    if (response.user != null) {
-      PrintLog("User signed in successfully: ${response.user!.email}");
-    } else {
-      PrintLog("Sign-in failed: ${response.toString()}");
-    }
-  }
+  return [
+    for (var i = 0; i < count; i++) (urlList[i].trim(), keyList[i].trim()),
+  ];
 }
 
 Future<void> setupAudioService(BaseAudioHandler audioPlayback) async {

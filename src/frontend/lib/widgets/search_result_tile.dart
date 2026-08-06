@@ -20,7 +20,10 @@ class SearchTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final backgroundPlayer = context.watch<BackgroundAudioProvider>();
-    final isActive = backgroundPlayer.currentBeat?.id == search.beat?.id;
+    // Guard against null == null: with nothing playing and a beatmix result,
+    // both sides used to be null and every mix title rendered "active".
+    final isActive = search.beat != null &&
+        backgroundPlayer.currentBeat?.key == search.beat!.key;
     if (search.beatMix != null) {
       final beatMix = search.beatMix!;
       return Stack(

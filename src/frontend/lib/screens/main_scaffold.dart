@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../providers/catalog_provider.dart';
 import '../widgets/mini_player.dart';
 import 'home_screen.dart';
 import 'library_screen.dart';
@@ -38,7 +40,12 @@ class _MainScaffoldState extends State<MainScaffold> {
           const MiniPlayer(),
           NavigationBar(
             selectedIndex: _selectedIndex,
-            onDestinationSelected: (i) => setState(() => _selectedIndex = i),
+            onDestinationSelected: (i) {
+              // First visit fetches the catalog; later visits hit the 20-min
+              // cache (or trigger a silent background refresh once stale).
+              if (i == 1) context.read<LibreProvider>().ensureCatalog();
+              setState(() => _selectedIndex = i);
+            },
             destinations: const [
               NavigationDestination(
                 icon: Icon(Icons.home_outlined),

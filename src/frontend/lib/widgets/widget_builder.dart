@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:liberated_beats/main.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/providers/background_audio_provider.dart';
 import 'package:liberated_beats/widgets/track_tile.dart';
@@ -25,7 +26,7 @@ CachedNetworkImage createCachedNetworkImage({
 void showBeatMixDialog(BuildContext context, BeatMix beatMix, BackgroundAudioProvider backgroundPlayer) {
   FocusScope.of(context).unfocus();
   SystemChannels.textInput.invokeMethod('TextInput.hide');
-  
+  PrintLog("Beates: ${beatMix.beats!.length}");
   showDialog(
     context: context,
     builder: (context) => Dialog.fullscreen(

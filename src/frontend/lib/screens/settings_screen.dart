@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../data/server_registry.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -95,8 +98,130 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  // --- Servers section ------------------------------------------------------
+
+  Color _statusColor(ServerStatus status) => switch (status) {
+        ServerStatus.healthy => const Color(0xFF1ED760),
+        ServerStatus.connecting => const Color(0xFFE8C32E),
+        ServerStatus.failed => const Color(0xFFE8453C),
+      };
+
+  String _statusLabel(ServerStatus status) => switch (status) {
+        ServerStatus.healthy => 'Connected',
+        ServerStatus.connecting => 'Connecting…',
+        ServerStatus.failed => 'Unreachable',
+      };
+
+  Widget _serversCard(ServerRegistry registry) {
+    return _card([
+      for (final server in registry.servers)
+        ListTile(
+          leading: _iconBox(Icons.dns),
+          title: Text(server.host,
+              style: const TextStyle(
+                  fontSize: 14, fontWeight: FontWeight.w500, color: Colors.white)),
+          subtitle: Text(_statusLabel(server.status),
+              style: const TextStyle(fontSize: 12, color: Color(0xFFA7A7A7))),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: _statusColor(server.status),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline,
+                    size: 18, color: Color(0xFFA7A7A7)),
+                onPressed: () => registry.removeServer(server),
+              ),
+            ],
+          ),
+        ),
+      ListTile(
+        onTap: _showAddServerDialog,
+        leading: _iconBox(Icons.add),
+        title: const Text('Add server',
+            style: TextStyle(
+                fontSize: 14, fontWeight: FontWeight.w500, color: Colors.white)),
+        subtitle: const Text('Connect another LibreBeats backend',
+            style: TextStyle(fontSize: 12, color: Color(0xFFA7A7A7))),
+      ),
+    ]);
+  }
+
+  Future<void> _showAddServerDialog() async {
+    final urlController = TextEditingController();
+    final keyController = TextEditingController();
+    final registry = context.read<ServerRegistry>();
+
+    final submitted = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF181818),
+        title: const Text('Add server',
+            style: TextStyle(color: Colors.white, fontSize: 18)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: urlController,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              decoration: const InputDecoration(
+                labelText: 'Server URL',
+                hintText: 'https://your-server.example.com',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: keyController,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              decoration: const InputDecoration(
+                labelText: 'Publishable key',
+                hintText: 'sb_publishable_…',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel',
+                style: TextStyle(color: Color(0xFFA7A7A7))),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Add',
+                style: TextStyle(color: Color(0xFF1ED760))),
+          ),
+        ],
+      ),
+    );
+
+    final url = urlController.text.trim();
+    final key = keyController.text.trim();
+    urlController.dispose();
+    keyController.dispose();
+
+    if (submitted != true || url.isEmpty || key.isEmpty || !mounted) return;
+
+    // Validates by signing in — the server is only kept when that succeeds.
+    final added = await registry.addServer(url, key);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(added
+          ? 'Connected to ${Uri.tryParse(url)?.host ?? url}'
+          : 'Could not connect to server'),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
+    // watch: status dots update live as servers connect, fail, or get removed.
+    final registry = context.watch<ServerRegistry>();
     final topInset = MediaQuery.of(context).padding.top;
 
     return CustomScrollView(
@@ -140,6 +265,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         ),
+        // SERVERS.
+        SliverToBoxAdapter(child: _sectionHeader('Servers')),
+        SliverToBoxAdapter(child: _serversCard(registry)),
         // AUDIO.
         SliverToBoxAdapter(child: _sectionHeader('Audio')),
         SliverToBoxAdapter(

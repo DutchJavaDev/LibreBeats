@@ -4,7 +4,7 @@ import 'package:liberated_beats/widgets/widget_builder.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/catalog_provider.dart';
-import '../widgets/track_tile.dart';
+import '../widgets/beat_tile.dart';
 
 class HomeScreen extends StatelessWidget {
 
@@ -127,7 +127,7 @@ class HomeScreen extends StatelessWidget {
             (context, i) {
               final t = tracks[i];
               final isActive = backgroundPlayer.currentBeat?.key == t.key;
-              return TrackTile(
+              return BeatTile(
                 beat: t,
                 isActive: isActive,
                 isPlaying: isActive && backgroundPlayer.isPlaying,

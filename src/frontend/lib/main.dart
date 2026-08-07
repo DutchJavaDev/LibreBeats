@@ -37,17 +37,15 @@ Future<void> main() async {
   final serverRegistry = ServerRegistry();
   final audioPlaybackService = AudioPlaybackService();
 
-  // prefs load and the audio service bind are independent, run them together.
   // first run seed comes from --dart-define=LIBREBEATS_SEED_URLS / _KEYS,
   // after that servers are managed in settings
-  if (kDebugMode) {
-    await Future.wait([
-      serverRegistry.load(seed: _seedServersFromEnvironment()),
-    ]);
-  }
+  await serverRegistry.load(seed: _seedServersFromEnvironment());
+
   // dont await, LibreProvider waits for this before fetching
   serverRegistry.connectAll();
-  setupAudioService(audioPlaybackService);
+
+  // awaited so the platform side is bound before the app starts playing
+  await setupAudioService(audioPlaybackService);
 
   final beatMixRepository = BeatMixRepository(serverRegistry);
   final beatRepository = BeatRepository(serverRegistry);
@@ -80,6 +78,8 @@ Future<void> setupAudioService(BaseAudioHandler audioPlayback) async {
   await AudioService.init(
       builder: () => audioPlayback,
       config: const AudioServiceConfig(
+        androidNotificationChannelId: 'com.librebeats.audio',
+        androidNotificationChannelName: 'LibreBeats playback',
         androidNotificationOngoing: true,
         preloadArtwork: true,
       ));

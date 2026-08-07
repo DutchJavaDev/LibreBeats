@@ -5,19 +5,29 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 // Expected payload: {"url": "https://...", "key": "sb_publishable_..."}
 // or a json list of those for adding multiple servers with one code.
-// returns null on anything malformed so the scanner keeps going
-List<(String, String)>? parseServerQrPayload(String raw) {
+// Entries can optionally carry "email" and "password" for servers that use
+// their own login. Returns (url, key, email?, password?) tuples, or null on
+// anything malformed so the scanner keeps going.
+List<(String, String, String?, String?)>? parseServerQrPayload(String raw) {
   try {
     final json = jsonDecode(raw);
     final items = json is List ? json : [json];
 
-    final servers = <(String, String)>[];
+    final servers = <(String, String, String?, String?)>[];
     for (final item in items) {
       if (item is! Map<String, dynamic>) return null;
       final url = (item['url'] as String?)?.trim() ?? '';
       final key = (item['key'] as String?)?.trim() ?? '';
       if (url.isEmpty || key.isEmpty) return null;
-      servers.add((url, key));
+
+      final email = (item['email'] as String?)?.trim();
+      final password = item['password'] as String?;
+      servers.add((
+        url,
+        key,
+        (email == null || email.isEmpty) ? null : email,
+        (password == null || password.isEmpty) ? null : password,
+      ));
     }
     return servers.isEmpty ? null : servers;
   } catch (_) {
@@ -25,9 +35,10 @@ List<(String, String)>? parseServerQrPayload(String raw) {
   }
 }
 
-/// Fullscreen QR scanner for adding servers, pops with a list of (url, key)
-/// or null. One code can hold one server or a whole list of them.
-/// "Enter manually" is there for emulators without a camera.
+/// Fullscreen QR scanner for adding servers, pops with a list of
+/// (url, key, email?, password?) or null. One code can hold one server or a
+/// whole list of them. "Enter manually" is there for emulators without a
+/// camera.
 class AddServerScanScreen extends StatefulWidget {
   const AddServerScanScreen({super.key});
 
@@ -62,7 +73,7 @@ class _AddServerScanScreenState extends State<AddServerScanScreen> {
     );
     if (result != null && mounted) {
       _handled = true;
-      Navigator.pop(context, [result]);
+      Navigator.pop(context, [(result.$1, result.$2, null, null)]);
     }
   }
 

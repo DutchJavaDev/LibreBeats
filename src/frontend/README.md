@@ -10,13 +10,11 @@ The cross platform Flutter client for **LibreBeats**, a dark Spotify style music
 cd src/frontend
 flutter pub get
 flutter run \
-  --dart-define=LIBREBEATS_DEV_EMAIL=you@example.com \
-  --dart-define=LIBREBEATS_DEV_PASSWORD=yourpassword \
   --dart-define=LIBREBEATS_SEED_URLS=https://your-server.example.com \
   --dart-define=LIBREBEATS_SEED_KEYS=sb_publishable_yourkey
 ```
 
-The dev account signs in to every server (development only assumption). The seed defines register your first server(s) on a fresh install, after that servers are managed in Settings and persist on device. See [Configuration](#configuration).
+The seed defines register your first server(s) on a fresh install, after that servers are managed in Settings and persist on device. No login ships in the app: set the default login under Settings → Servers on first run, or bake one into your local build with a git-ignored `env.json` (`flutter run --dart-define-from-file=env.json`). See [Configuration](#configuration).
 
 ## Architecture
 
@@ -77,7 +75,7 @@ lib/
 │   ├── search_screen.dart             # Sticky search header, live results, beatmix browse grid
 │   ├── library_screen.dart            # Filter chips, Liked entry, playlists (sample data)
 │   ├── liked_screen.dart              # Liked hero + track list (sample data)
-│   └── settings_screen.dart           # Setting cards + the servers section
+│   └── settings_screen.dart           # Servers section + about
 └── widgets/
     ├── mini_player.dart               # Docked compact player above the nav bar
     ├── full_player.dart               # Full-screen "now playing" sheet
@@ -117,7 +115,9 @@ A thin `ChangeNotifier` facade the widgets watch. Exposes `currentBeat`, `isPlay
 
 ### Multi-server sources (`lib/data/server_registry.dart`)
 
-`ServerRegistry` (a `ChangeNotifier`) owns the list of Supabase sources. Each `ServerConnection` tracks its url, publishable key, signed-in client and health (connecting / healthy / failed). Servers added via Settings are validated by an actual sign-in and persisted with `shared_preferences`. On startup the persisted list is reloaded and reconnected, the dart-define seed covers fresh installs. Sign-in uses a single development-only shared account for every server, supplied via dart-defines.
+`ServerRegistry` (a `ChangeNotifier`) owns the list of Supabase sources. Each `ServerConnection` tracks its url, publishable key, signed-in client, health (connecting / healthy / failed) and an optional login override. Servers added via Settings are validated by an actual sign-in and persisted with `shared_preferences`. On startup the persisted list is reloaded and reconnected, the dart-define seed covers fresh installs.
+
+Sign-in uses the default login (set under Settings → Servers → Default login, persisted on device) unless a server has its own override, set from the server detail sheet or delivered by a QR code that includes logins. No account ships in the app itself.
 
 ### Repositories (`lib/data/`)
 
@@ -147,7 +147,7 @@ While the search tab is on screen and the app is foregrounded, a watcher checks 
 | **Search** | All servers via `LibreProvider` | Sticky pinned header. Search fires on submit, not per keystroke. Clearing the field restores the browse grid, a randomized merge of every server's mixes that drips in tile by tile on first visit and comes from the cache afterwards. Tapping a beatmix opens a full-screen track list dialog with play/shuffle. |
 | **Library** | `samplePlaylists` | Static prototype: inert filter chips, hardcoded "847 songs" Liked entry. |
 | **Liked** | `sampleTracks` | Static hero + sample track list, nothing here is playable (no audioUrl). |
-| **Settings** | `ServerRegistry` + local `setState` | The Servers card is expandable: collapsed it shows a one line fleet summary ("11 of 12 connected" + worst-status dot), expanded it groups servers by status with problems on top, gets a filter field past 8 servers, and has Add (QR scan, single or bulk), Share (the fleet as a QR) and Retry all. Tapping a server opens a detail sheet with retry and remove-behind-confirmation. The other toggles work visually but don't persist, log-out is inert. |
+| **Settings** | `ServerRegistry` | Just servers and about, the prototype cards are gone until their features exist. The Servers card is expandable: collapsed it shows a one line fleet summary ("11 of 12 connected" + worst-status dot), expanded it groups servers by status with problems on top, gets a filter field past 8 servers, and has Add (QR scan, single or bulk), Share (the fleet as a QR), Retry all and the editable Default login. Tapping a server opens a detail sheet with retry, a per-server login override and remove-behind-confirmation. About shows the version and a working licenses page. |
 
 The `MiniPlayer` docks above the nav bar once something plays and opens the `FullPlayer` sheet: artwork with a paused-scale animation, seek slider (seeks on release), shuffle/repeat, volume, and skip previous/next against the current queue.
 
@@ -178,11 +178,26 @@ Servers are managed at runtime from **Settings → Servers** and persisted with 
 [{"url": "https://a.example.com", "key": "…"}, {"url": "https://b.example.com", "key": "…"}]
 ```
 
-The Share action in settings renders your current server list in that same list format, so another device picks up the whole fleet with one scan. Manual url/key entry is available as a fallback on the scanner screen.
+Entries can optionally carry `"email"` and `"password"` for servers that use their own account. The Share action in settings renders your current server list in that same format, with an "Include logins" toggle so another device picks up the whole fleet, credentials included, with one scan (the passwords are in the QR in plain text, hence the toggle). Manual url/key entry is available as a fallback on the scanner screen.
 
-On a fresh install [`main.dart`](lib/main.dart) can also seed servers from the `LIBREBEATS_SEED_URLS` / `LIBREBEATS_SEED_KEYS` dart-defines. Every server signs in with the shared dev account from `LIBREBEATS_DEV_EMAIL` / `LIBREBEATS_DEV_PASSWORD`, see [Quick start](#quick-start). No credentials live in source.
+On a fresh install [`main.dart`](lib/main.dart) can also seed servers from the `LIBREBEATS_SEED_URLS` / `LIBREBEATS_SEED_KEYS` dart-defines.
 
-> Do not commit real credentials. Values passed via `--dart-define` stay out of git, keep it that way. Point the seed values at your own self-hosted stack from [`src/backend`](../backend/).
+Sign-in credentials: **no login ships in the app.** On first run the servers section shows "Not set" until you save a default login (Settings → Servers → Default login), or until logins arrive via a QR scan. Per-server overrides live in the detail sheet (Login button). Everything is stored in `shared_preferences` on the device.
+
+For local development you can bake a login into your own builds with a git-ignored `env.json`:
+
+```json
+{
+  "LIBREBEATS_DEV_EMAIL": "you@example.com",
+  "LIBREBEATS_DEV_PASSWORD": "yourpassword"
+}
+```
+
+```bash
+flutter run --dart-define-from-file=env.json
+```
+
+> Keep `env.json` out of git (it is in `.gitignore`). Values baked in this way do end up in that build's binary, so treat dev builds accordingly. Point the seed values at your own self-hosted stack from [`src/backend`](../backend/).
 
 ## Feature status
 
@@ -196,10 +211,9 @@ On a fresh install [`main.dart`](lib/main.dart) can also seed servers from the `
 | Catalog cache (20 min per-server timer, silent refresh) | Working, disk or in-memory, toggle on search |
 | Search for beatmixes | Working, filters the cached merged catalog |
 | Search for beats | Partial, query commented out, returns nothing |
-| Supabase auth | Partial, sign-in only with the shared dev account, no registration |
+| Supabase auth | Partial, sign-in only (default login + per-server overrides), no registration |
 | Home screen | Partial, shows recently played only |
 | Library / Liked screens | Sample data only |
-| Settings toggles persistence | Visual only |
 | Likes / playlists (user-owned) | Not implemented |
 | Offline downloads | Not implemented, `path_provider` unused |
 

@@ -1,8 +1,8 @@
 # Liberated Beats — Flutter Frontend
 
-The cross-platform Flutter client for **LibreBeats**: a dark, Spotify-style music player wired to a self-hosted [Supabase](../backend/) backend for catalog search and real audio streaming (background playback included).
+The cross platform Flutter client for **LibreBeats**, a dark Spotify style music player that streams from one or more self hosted [Supabase](../backend/) backends.
 
-> **Status:** transitioning from UI prototype to real client. Search, streaming playback, media notifications, and playlist (BeatMix) browsing work against Supabase. Home, Library, Liked, and Settings still render sample/static data. See [Feature status](#feature-status).
+> Status: search, streaming playback (background included), media notifications and beatmix browsing all work against real servers. Home, Library and Liked still render sample data. See [Feature status](#feature-status).
 
 ## Quick start
 
@@ -16,7 +16,7 @@ flutter run \
   --dart-define=LIBREBEATS_SEED_KEYS=sb_publishable_yourkey
 ```
 
-The dev account signs in to every server (development-only assumption); the seed defines register your first server(s) on a fresh install — after that, servers are managed in **Settings → Servers** and persist on-device. See [Configuration](#configuration).
+The dev account signs in to every server (development only assumption). The seed defines register your first server(s) on a fresh install, after that servers are managed in Settings and persist on device. See [Configuration](#configuration).
 
 ## Architecture
 
@@ -41,66 +41,62 @@ The app is layered: UI → providers (state) → service/repositories → Supaba
 └───────────────┬───────────┘               │
                 │ streams audio from        │ PostgREST (`librebeats`
                 │ `streamingurl`            │ schema) + `menu` Edge Function
-                └───────────►  Supabase  ◄──┘
+                └───────────►  Supabase server(s)  ◄──┘
 ```
 
-All five providers are registered in [`main.dart`](lib/main.dart) via a single `MultiProvider`: the two repositories and the `AudioPlaybackService` as plain `Provider.value`s, plus the two `ChangeNotifier`s that depend on them.
+Repositories reach the servers through `ServerRegistry`, so everything above it works against one or many backends without caring. All of it is wired up in [`main.dart`](lib/main.dart) with a single `MultiProvider`.
 
-### Startup sequence (`lib/main.dart`)
+### Startup (`lib/main.dart`)
 
-1. Configure `cached_network_image` logging (debug vs. release).
-2. `WidgetsFlutterBinding.ensureInitialized()`, lock portrait orientation, set system UI overlay (transparent status bar, black nav bar).
-3. Register Supabase clients with `BaseRepository.addSupabaseClient(url, key)` — each client signs in with password auth (registration is not supported yet).
-4. Construct repositories + `AudioPlaybackService`, then `AudioService.init(...)` so playback survives backgrounding and shows a media notification.
-5. `runApp` with the `MultiProvider` described above.
+Locks portrait orientation and sets the system chrome, loads the persisted server list (seeded from dart-defines on a fresh install) and kicks off the sign-ins in the background, sets up the audio service for background playback, then runs the app with everything registered in the `MultiProvider`.
 
 ## File structure
 
 ```
 lib/
-├── main.dart                          # Entry: bindings, Supabase clients, AudioService.init, MultiProvider
-├── app.dart                           # MaterialApp + Material 3 dark theme (Plus Jakarta Sans, #1ED760 accent)
+├── main.dart                          # Entry: server seed, audio service, MultiProvider
+├── app.dart                           # MaterialApp + Material 3 dark theme
 ├── config/
-│   ├── supabase_config.dart           # SupabaseConfig url/anonKey + isConfigured flag
-│   └── helpers.dart                   # VoidCallbackUpdateProgress typedef
+│   └── helpers.dart                   # PrintLog + shared typedefs
 ├── models/
-│   └── beat_models.dart               # Beat, Album, BeatMix, SearchResult + gradient palette + sample data
+│   └── beat_models.dart               # Beat, BeatMix, SearchResult + gradient palette + sample data
 ├── providers/
-│   ├── background_audio_provider.dart # BackgroundAudioProvider — playback state facade for the UI
-│   └── catalog_provider.dart          # LibreProvider — search + beatmix catalog
+│   ├── background_audio_provider.dart # playback state facade for the UI
+│   └── catalog_provider.dart          # LibreProvider, the merged beatmix catalog + cache
 ├── services/
-│   └── audio_playback_service.dart    # AudioPlaybackService — BaseAudioHandler over just_audio
+│   └── audio_playback_service.dart    # BaseAudioHandler over just_audio
 ├── data/
-│   ├── server_registry.dart           # Multi-server registry: connections, health, persistence
-│   ├── base_repository.dart           # Repository base — access to the ServerRegistry
-│   ├── beat_repository.dart           # Beat queries (findByTitle)
-│   └── beatmix_repository.dart        # Per-server `menu` Edge Function fetch
+│   ├── server_registry.dart           # multi-server registry: connections, health, persistence
+│   ├── catalog_cache_store.dart       # disk store for per-server results + fetch timers
+│   ├── base_repository.dart           # repository base, access to the registry
+│   ├── beat_repository.dart           # beat queries (findByTitle)
+│   └── beatmix_repository.dart        # per-server menu edge function fetch
 ├── screens/
 │   ├── main_scaffold.dart             # Bottom nav + IndexedStack host + MiniPlayer
-│   ├── home_screen.dart               # Greeting, recents grid, albums row, track list
+│   ├── home_screen.dart               # Greeting, recents grid, track list
 │   ├── search_screen.dart             # Sticky search header, live results, beatmix browse grid
 │   ├── library_screen.dart            # Filter chips, Liked entry, playlists (sample data)
 │   ├── liked_screen.dart              # Liked hero + track list (sample data)
-│   └── settings_screen.dart           # Grouped setting cards (static, not persisted)
+│   └── settings_screen.dart           # Setting cards + the servers section
 └── widgets/
     ├── mini_player.dart               # Docked compact player above the nav bar
     ├── full_player.dart               # Full-screen "now playing" sheet
-    ├── album_card.dart                # Album tile with play button
-    ├── track_tile.dart                # Reusable track list row
-    ├── search_result_tile.dart        # SearchTile — renders a Beat row or BeatMix card
+    ├── beat_tile.dart                 # Reusable beat list row
+    ├── add_server_scan.dart           # QR scanner for adding servers (+ manual fallback dialog)
+    ├── servers_section.dart           # Expandable server management card in settings
+    ├── search_result_tile.dart        # SearchTile, renders a beat row or a beatmix card
     └── widget_builder.dart            # createCachedNetworkImage helper + BeatMix full-screen dialog
 ```
 
 ## Domain models (`lib/models/beat_models.dart`)
 
-| Model | Key fields | Notes |
-|---|---|---|
-| `Beat` | `int id`, `title`, `artist`, `album`, `duration`, `Gradient color`, `audioUrl?` | A track. `album` currently carries the **thumbnail URL** from the backend; `audioUrl` is the streaming URL. `color` is a gradient fallback behind the artwork. |
-| `BeatMix` | `int id`, `title`, `thumbnailUrl`, `trackCount`, `List<Beat>? beats` | A playlist/mix with its tracks embedded. |
-| `Album` | `id`, `title`, `artist`, `year`, `color` | Only used by the Home albums row (currently always empty from the provider). |
-| `SearchResult` | `Beat? beat`, `BeatMix? beatMix` | Union type for mixed search results. |
+- `Beat`: id, sourceId, title, artist, thumbnailUrl, duration, a gradient fallback color and an optional `audioUrl` (the streaming url, null in sample data which makes those unplayable, `playBeat` skips them)
+- `BeatMix`: a playlist/mix with its beats embedded, plus thumbnailUrl and trackCount
+- `SearchResult`: holds either a beat or a beatmix for mixed search results
 
-The file also keeps an eight-gradient palette and `sampleTracks` / `sampleAlbums` / `samplePlaylists` sample data, still used by the Liked and Library screens and as artwork fallback colors.
+Ids are only unique per server, so both `Beat` and `BeatMix` carry a `sourceId` (the server url) and expose `key` (`"sourceId:id"`). Active-track highlighting, play/pause toggling and the audio queue tags all use `key`.
+
+The file also keeps the eight gradient palette and the `sampleTracks` / `samplePlaylists` data used by the Liked and Library screens.
 
 ## Playback
 
@@ -108,52 +104,52 @@ The file also keeps an eight-gradient palette and `sampleTracks` / `sampleAlbums
 
 A real `BaseAudioHandler` (with `SeekHandler`) around a `just_audio` `AudioPlayer`:
 
-- **Single beat** — `setBeatSource(beat)` sets a `UriAudioSource` from `beat.audioUrl` and publishes a `MediaItem` for the system notification.
-- **BeatMix queue** — `setBeatMix(mix, initialBeat)` builds `MediaItem`s + audio sources for every beat in the mix and hands them to `setAudioSources` with the tapped beat as the initial index. Skip next/previous, shuffle, and loop modes operate on this queue.
-- **Progress** — driven by the player's `positionStream`; end-of-track is detected and handled per loop mode (stop, repeat one, or skip next on repeat all). Finished tracks are appended to `recentBeats`.
-- **System integration** — `playbackEventStream` is piped into `playbackState`, so the media notification shows skip/play/pause/stop controls; `AudioService.init` in `main.dart` enables background playback.
+- `setBeatSource(beat)` plays a single beat and publishes a `MediaItem` for the system notification
+- `setBeatMix(mix, initialBeat)` builds the whole queue and starts at the tapped beat, skip/shuffle/loop all work on this queue
+- progress comes from the player's `positionStream`, end of track is handled per loop mode (stop, repeat one, or skip next) and finished tracks land in `recentBeats`
+- `playbackEventStream` is piped into `playbackState` so the media notification gets its controls, `AudioService.init` in `main.dart` enables background playback
 
 ### `BackgroundAudioProvider` (`lib/providers/background_audio_provider.dart`)
 
-A thin `ChangeNotifier` facade the widgets watch. Exposes `currentBeat`, `isPlaying`, `progress`, `elapsed`, `shuffle`, `repeatMode` (just_audio's `LoopMode`), `volume`, and `recentBeats`. Registers itself as the service's progress callback so every position tick notifies the UI. `playBeat(beat)` toggles play/pause when the same beat is tapped again; `playBeatMix(mix, beat)` starts queue playback.
+A thin `ChangeNotifier` facade the widgets watch. Exposes `currentBeat`, `isPlaying`, `progress`, `elapsed`, `shuffle`, `repeatMode`, `volume` and `recentBeats`, and registers itself as the service's progress callback so every position tick reaches the UI. `playBeat(beat)` toggles play/pause when the same beat is tapped again, `playBeatMix(mix, beat)` starts queue playback.
 
 ## Catalog & data access
 
 ### Multi-server sources (`lib/data/server_registry.dart`)
 
-`ServerRegistry` (a `ChangeNotifier`) owns the list of Supabase sources. Each `ServerConnection` tracks its URL, publishable key, signed-in client, and health (`connecting / healthy / failed`). Servers added via Settings are validated by an actual sign-in and persisted with `shared_preferences`; on startup the persisted list is reloaded and reconnected (a dev seed pair in `main.dart` covers fresh installs). Sign-in uses a single **development-only** shared account for every server.
+`ServerRegistry` (a `ChangeNotifier`) owns the list of Supabase sources. Each `ServerConnection` tracks its url, publishable key, signed-in client and health (connecting / healthy / failed). Servers added via Settings are validated by an actual sign-in and persisted with `shared_preferences`. On startup the persisted list is reloaded and reconnected, the dart-define seed covers fresh installs. Sign-in uses a single development-only shared account for every server, supplied via dart-defines.
 
 ### Repositories (`lib/data/`)
 
-- **`BaseRepository`** — thin base giving repositories access to the registry (`registry.healthy`) and an `isConnected` flag.
-- **`BeatRepository.findByTitle(query)`** — title search over `librebeats.beat`. *The live query is currently commented out, so beat search returns no rows.*
-- **`BeatMixRepository.fetchMenuFromServer(server)`** — fetches all mixes (with embedded beats) from **one** server via its `menu` Edge Function, with a 10s timeout; throws on failure so the caller can mark the server failed. Results are tagged with the server URL (`sourceId`).
+- `BaseRepository`: thin base that gives repositories the registry and an `isConnected` flag
+- `BeatRepository.findByTitle`: title search over `librebeats.beat`, the live query is currently commented out so beat search returns nothing
+- `BeatMixRepository.fetchMenuFromServer`: fetches all mixes (beats embedded) from one server via its `menu` edge function with a 10s timeout, throws on failure so the caller can mark the server failed
 
 ### `LibreProvider` (`lib/providers/catalog_provider.dart`)
 
-Owns the merged catalog and its **20-minute cache**. `ensureCatalog()` (triggered when the Search tab is opened):
+Owns the merged catalog. Every server has its own 20 minute timer, and `ensureCatalog()` (runs when the search tab opens) only refetches the ones whose timer ran out:
 
-- **First load** — waits for startup sign-ins, fetches every healthy server in parallel, and drips the shuffled results into the visible grid one tile at a time (200ms apart).
-- **While fresh** — serves the cache instantly, no loading state.
-- **After the TTL** — keeps showing the stale grid, retries previously failed servers, refetches in the background, and swaps the list in silently (stale results are kept if every server fails).
+- cold start with nothing cached: fetch every healthy server in parallel and drip the shuffled results into the grid one tile at a time (200ms apart)
+- still fresh: serve the cache instantly, no loading state
+- expired: keep showing the current grid, refetch just those servers in the background (failed ones get a reconnect attempt first) and swap the merged list in silently. A server that fails keeps its stale entry.
 
-`findAllByTitle(query)` merges beat + beatmix title matches into a `Stream<List<SearchResult>>` (beatmixes filter the cached list). `albums` is currently always empty.
+The cache has two modes, switched from the search screen header (choice persisted). Disk, the default, stores each server's results + fetch time through `CatalogCacheStore` so a restart reads them back and the timers keep counting across runs. In-memory keeps everything per run and wipes the disk copy when selected.
 
-### Beat/BeatMix identity across servers
+While the search tab is on screen and the app is foregrounded, a watcher checks every 30s and refreshes expired servers on its own, with a dismissible "Playlists were updated" banner. Everywhere else refreshing stays lazy and happens on the next visit.
 
-Row ids are only unique per server, so both models carry a `sourceId` (the server URL) and expose `key` (`"sourceId:id"`). All identity checks — active-track highlighting, play/pause toggling, and the audio queue's source tags — use `key`.
+`findAllByTitle(query)` merges beat + beatmix title matches into a stream, beatmixes are filtered from the cached list.
 
 ## Screens
 
 | Screen | Data source | Notes |
 |---|---|---|
-| **Home** | `recentBeats` + `LibreProvider.albums` | Quick-picks grid and track list show recently played beats — mostly empty on a fresh launch. Albums row is empty (provider returns `[]`). |
-| **Search** | All servers via `LibreProvider` | Sticky pinned header. Search fires on **submit** (`onEditingComplete`), not per keystroke; clearing the field restores the "Browse Playlists" grid — a randomized merge of every server's mixes that drips in tile-by-tile on first visit and serves the 20-min cache afterwards. Tapping a beatmix opens a full-screen track-list dialog (`widget_builder.dart`) with play/shuffle. |
+| **Home** | `recentBeats` | Quick-picks grid and track list show recently played beats, mostly empty on a fresh launch. |
+| **Search** | All servers via `LibreProvider` | Sticky pinned header. Search fires on submit, not per keystroke. Clearing the field restores the browse grid, a randomized merge of every server's mixes that drips in tile by tile on first visit and comes from the cache afterwards. Tapping a beatmix opens a full-screen track list dialog with play/shuffle. |
 | **Library** | `samplePlaylists` | Static prototype: inert filter chips, hardcoded "847 songs" Liked entry. |
-| **Liked** | `sampleTracks` | Static hero + sample track list; the FAB plays `sampleTracks[0]` (no real `audioUrl`, so it won't produce audio). |
-| **Settings** | `ServerRegistry` + local `setState` | The Servers card lists every source with a live status dot (green/amber/red), remove buttons, and an "Add server" dialog (URL + publishable key, validated by signing in). Other toggles work visually but don't persist; log-out is inert. |
+| **Liked** | `sampleTracks` | Static hero + sample track list, nothing here is playable (no audioUrl). |
+| **Settings** | `ServerRegistry` + local `setState` | The Servers card is expandable: collapsed it shows a one line fleet summary ("11 of 12 connected" + worst-status dot), expanded it groups servers by status with problems on top, gets a filter field past 8 servers, and has Add (QR scan, single or bulk), Share (the fleet as a QR) and Retry all. Tapping a server opens a detail sheet with retry and remove-behind-confirmation. The other toggles work visually but don't persist, log-out is inert. |
 
-**Players:** the `MiniPlayer` docks above the nav bar once something plays (progress bar, play/pause, skip next) and opens the `FullPlayer` sheet — artwork with paused-scale animation, seek slider (seeks on drag end), shuffle/repeat, volume, and working skip previous/next against the current queue.
+The `MiniPlayer` docks above the nav bar once something plays and opens the `FullPlayer` sheet: artwork with a paused-scale animation, seek slider (seeks on release), shuffle/repeat, volume, and skip previous/next against the current queue.
 
 ## Dependencies
 
@@ -164,15 +160,29 @@ Row ids are only unique per server, so both models carry a `sourceId` (the serve
 | `just_audio` | Audio engine (sources, queues, shuffle/loop, position stream) |
 | `audio_service` | Background playback + media notification (`BaseAudioHandler`) |
 | `cached_network_image` | Thumbnail/artwork loading with caching |
-| `google_fonts` | Plus Jakarta Sans across the whole theme |
+| `mobile_scanner` | QR scanning in the Add server flow |
+| `qr_flutter` | Rendering the Share-servers QR code |
+| `google_fonts` | Plus Jakarta Sans across the whole theme (bundled in `assets/google_fonts/`, runtime fetching disabled) |
 | `shared_preferences` | Persisting the server list added via Settings |
-| `path_provider` | Declared for planned downloads — **not yet imported** |
+| `path_provider` | Declared for the planned download feature, not used yet |
 
 ## Configuration
 
-Servers are managed at runtime from **Settings → Servers** and persisted with `shared_preferences`. On a fresh install, [`main.dart`](lib/main.dart) seeds servers from the `LIBREBEATS_SEED_URLS` / `LIBREBEATS_SEED_KEYS` dart-defines; every server signs in with the shared dev account from `LIBREBEATS_DEV_EMAIL` / `LIBREBEATS_DEV_PASSWORD` (see [Quick start](#quick-start)). No credentials live in source. [`config/supabase_config.dart`](lib/config/supabase_config.dart) is now unused legacy.
+Servers are managed at runtime from **Settings → Servers** and persisted with `shared_preferences`. Adding servers scans a QR code whose payload is JSON — a single server or a list:
 
-> ⚠️ **Do not commit real credentials.** Values passed via `--dart-define` stay out of git; keep it that way. Point the seed values at your own self-hosted stack from [`src/backend`](../backend/).
+```json
+{"url": "https://your-server.example.com", "key": "sb_publishable_…"}
+```
+
+```json
+[{"url": "https://a.example.com", "key": "…"}, {"url": "https://b.example.com", "key": "…"}]
+```
+
+The Share action in settings renders your current server list in that same list format, so another device picks up the whole fleet with one scan. Manual url/key entry is available as a fallback on the scanner screen.
+
+On a fresh install [`main.dart`](lib/main.dart) can also seed servers from the `LIBREBEATS_SEED_URLS` / `LIBREBEATS_SEED_KEYS` dart-defines. Every server signs in with the shared dev account from `LIBREBEATS_DEV_EMAIL` / `LIBREBEATS_DEV_PASSWORD`, see [Quick start](#quick-start). No credentials live in source.
+
+> Do not commit real credentials. Values passed via `--dart-define` stay out of git, keep it that way. Point the seed values at your own self-hosted stack from [`src/backend`](../backend/).
 
 ## Feature status
 
@@ -180,26 +190,37 @@ Servers are managed at runtime from **Settings → Servers** and persisted with 
 |---|---|
 | Streaming playback (single beat + beatmix queue) | Working |
 | Background audio + media notification | Working |
-| Skip / shuffle / repeat / seek / volume | Working (queue-based) |
-| Beatmix browse + full-screen track dialog | Working (`menu` Edge Function per server) |
-| Multi-server sources (add/remove in Settings, health dots) | Working — persisted via `shared_preferences` |
-| Catalog cache (20-min TTL, silent background refresh) | Working |
-| Search — beatmixes | Working (in-memory filter over cached merged catalog) |
-| Search — beats | Partial — query commented out; returns nothing |
-| Supabase auth | Partial — sign-in only, hardcoded account; no registration/UI |
-| Home screen | Partial — recents-driven; albums row empty |
+| Skip / shuffle / repeat / seek / volume | Working, queue based |
+| Beatmix browse + full-screen track dialog | Working, menu edge function per server |
+| Multi-server sources (add/remove in settings, health dots) | Working, persisted, bulk QR add/share, per-server retry |
+| Catalog cache (20 min per-server timer, silent refresh) | Working, disk or in-memory, toggle on search |
+| Search for beatmixes | Working, filters the cached merged catalog |
+| Search for beats | Partial, query commented out, returns nothing |
+| Supabase auth | Partial, sign-in only with the shared dev account, no registration |
+| Home screen | Partial, shows recently played only |
 | Library / Liked screens | Sample data only |
-| Settings persistence | Visual only (`shared_preferences` unused) |
+| Settings toggles persistence | Visual only |
 | Likes / playlists (user-owned) | Not implemented |
-| Offline downloads | Not implemented (`path_provider` unused) |
+| Offline downloads | Not implemented, `path_provider` unused |
 
 ### Known quirks
 
-- `Beat.album` doubles as the thumbnail URL — a dedicated `thumbnailUrl` field would be clearer.
-- `AlbumCard` loads a placeholder image from `picsum.photos` instead of real album art.
 - The beatmix dialog's track tiles can't highlight the actively playing beat (no state hookup inside the dialog).
-- Search-by-title over beatmixes only sees the cached catalog — content newer than the 20-minute cache window needs a TTL refresh to appear.
-- `MediaItem.artUri` is built from `beat.album` and the album label is a placeholder (`"x0x"`).
+- Search by title only sees the cached catalog, content newer than the cache window shows up after the next refresh.
+- The media notification's album label is a placeholder (`"x0x"`).
+
+## Testing
+
+```bash
+cd src/frontend
+flutter test
+```
+
+Tests run offline, no device or camera needed. Server connectivity is faked through the registry's `connector` and the provider takes small `cacheTtl`/`dripInterval` values in tests.
+
+Covered so far: the models (key identity across servers, playability), ServerRegistry (persistence, add/remove, reconnect logic), CatalogCacheStore (round trips, corrupt data), LibreProvider (multi-server merge, drip loading, cache ttl, failure recovery, the visible-page watcher), the QR payload parser, the manual add-server dialog, BeatTile and the settings servers section.
+
+Not covered yet: MiniPlayer, FullPlayer and BackgroundAudioProvider (need an abstraction over just_audio's platform channels first) and the scanner screen itself (camera).
 
 ## Design language
 

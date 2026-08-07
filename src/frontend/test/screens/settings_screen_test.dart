@@ -32,13 +32,18 @@ void main() {
   }
 
   testWidgets('collapsed summary shows the fleet state, no rows', (tester) async {
-    await pumpSettings(tester, seed: const [
+    final registry = await pumpSettings(tester, seed: const [
       ('https://a.example.com', 'k1'),
       ('https://b.example.com', 'k2'),
     ], failing: {
       'https://b.example.com'
     });
 
+    // without a default login the summary nudges towards setting one
+    expect(find.text('No default login set'), findsOneWidget);
+
+    await registry.setDefaultCredentials('me@example.com', 'pw');
+    await tester.pump();
     expect(find.text('1 of 2 connected'), findsOneWidget);
     // servers stay hidden until expanded
     expect(find.text('a.example.com'), findsNothing);
@@ -109,6 +114,29 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(registry.servers, isEmpty);
+  });
+
+  testWidgets('default login can be edited from the servers section',
+      (tester) async {
+    final registry = await pumpSettings(tester,
+        seed: const [('https://a.example.com', 'k1')]);
+
+    await tester.tap(find.text('Servers').last);
+    await tester.pumpAndSettle();
+    // nothing baked in, the section nudges towards setting it up
+    expect(find.text('Not set, servers need this to sign in'), findsOneWidget);
+
+    await tester.tap(find.text('Default login'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).at(0), 'me@example.com');
+    await tester.enterText(find.byType(TextField).at(1), 'hunter2');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(registry.defaultEmail, 'me@example.com');
+    expect(registry.defaultPassword, 'hunter2');
+    expect(find.text('me@example.com'), findsOneWidget);
   });
 
   testWidgets('filter shows up for long lists and narrows them',

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liberated_beats/models/beat_models.dart';
-import 'package:liberated_beats/widgets/track_tile.dart';
+import 'package:liberated_beats/widgets/beat_tile.dart';
 
 void main() {
   final beat = Beat(
@@ -9,7 +9,7 @@ void main() {
     sourceId: 'test',
     title: 'Test Song',
     artist: 'Test Artist',
-    album: 'not-a-url',
+    thumbnailUrl: 'not-a-url',
     duration: const Duration(seconds: 218),
     color: sampleTracks.first.color,
   );
@@ -18,7 +18,7 @@ void main() {
       {bool isActive = false, bool isPlaying = false, VoidCallback? onTap}) {
     return MaterialApp(
       home: Scaffold(
-        body: TrackTile(
+        body: BeatTile(
           beat: beat,
           isActive: isActive,
           isPlaying: isPlaying,
@@ -34,7 +34,7 @@ void main() {
     expect(find.text('Test Song'), findsOneWidget);
     expect(find.text('Test Artist'), findsOneWidget);
     expect(find.text('3:38'), findsOneWidget);
-    // album holds 'not-a-url' here, should not blow up trying to load it
+    // thumbnailUrl holds 'not-a-url' here, should not blow up trying to load it
     expect(tester.takeException(), isNull);
   });
 
@@ -61,7 +61,7 @@ void main() {
     var tapped = false;
     await tester.pumpWidget(host(onTap: () => tapped = true));
 
-    await tester.tap(find.byType(TrackTile));
+    await tester.tap(find.byType(BeatTile));
     expect(tapped, isTrue);
   });
 }

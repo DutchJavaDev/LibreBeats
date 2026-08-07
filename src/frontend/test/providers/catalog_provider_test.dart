@@ -1,34 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liberated_beats/data/beat_repository.dart';
-import 'package:liberated_beats/data/beatmix_repository.dart';
+import 'package:liberated_beats/data/catalog_cache_store.dart';
 import 'package:liberated_beats/data/server_registry.dart';
-import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/providers/catalog_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class FakeBeatMixRepository extends BeatMixRepository {
-  FakeBeatMixRepository(super.registry);
-
-  final Map<String, List<BeatMix>> responses = {};
-  final Set<String> failing = {};
-  int fetchCount = 0;
-
-  @override
-  Future<List<BeatMix>> fetchMenuFromServer(ServerConnection server) async {
-    fetchCount++;
-    if (failing.contains(server.url)) throw Exception('server down');
-    return List.of(responses[server.url] ?? const []);
-  }
-}
-
-BeatMix mix(String sourceId, int id, [String? title]) => BeatMix(
-      id: id,
-      sourceId: sourceId,
-      title: title ?? 'Mix $id',
-      thumbnailUrl: '',
-      trackCount: 0,
-      beats: const [],
-    );
+import '../fakes.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -41,7 +18,8 @@ void main() {
   late LibreProvider provider;
 
   Future<void> setup(
-      {Duration cacheTtl = const Duration(milliseconds: 60)}) async {
+      {Duration cacheTtl = const Duration(milliseconds: 60),
+      Duration watchInterval = const Duration(seconds: 30)}) async {
     SharedPreferences.setMockInitialValues({});
     registry =
         ServerRegistry(connector: (s) async => s.status = ServerStatus.healthy);
@@ -57,6 +35,7 @@ void main() {
       BeatRepository(registry),
       cacheTtl: cacheTtl,
       dripInterval: const Duration(milliseconds: 1),
+      watchInterval: watchInterval,
     );
   }
 
@@ -174,5 +153,149 @@ void main() {
 
     results = await provider.findAllByTitle('zzz').first;
     expect(results, isEmpty);
+  });
+
+  test('each server has its own timer', () async {
+    await setup(cacheTtl: const Duration(milliseconds: 50));
+    await provider.ensureCatalog();
+    expect(repo.fetchCount, 2);
+
+    // both expire, B is down so it keeps its old entry (and old timestamp)
+    await Future.delayed(const Duration(milliseconds: 60));
+    repo.failing.add(serverB);
+    await provider.ensureCatalog();
+    expect(repo.fetchCount, 4);
+
+    // A is fresh again, only B should get retried
+    repo.failing.clear();
+    await provider.ensureCatalog();
+    expect(repo.fetchCount, 5);
+    expect(
+        provider.beatMixes.map((m) => m.sourceId).toSet(), {serverA, serverB});
+  });
+
+  test('persistent mode survives a restart without refetching', () async {
+    await setup(cacheTtl: const Duration(minutes: 20));
+    await provider.ensureCatalog();
+    expect(repo.fetchCount, 2);
+
+    // "restart": new provider, same prefs
+    final second = LibreProvider(registry, repo, BeatRepository(registry),
+        cacheTtl: const Duration(minutes: 20),
+        dripInterval: const Duration(milliseconds: 1));
+    await second.ensureCatalog();
+
+    expect(repo.fetchCount, 2); // no new fetches, came from disk
+    expect(second.beatMixes.map((m) => m.key).toSet(),
+        provider.beatMixes.map((m) => m.key).toSet());
+  });
+
+  test('expired disk cache shows stale data then refetches', () async {
+    await setup(cacheTtl: const Duration(milliseconds: 30));
+    await provider.ensureCatalog();
+
+    repo.responses[serverA] = [mix(serverA, 9, 'Fresh')];
+    repo.responses[serverB] = [];
+    await Future.delayed(const Duration(milliseconds: 40));
+
+    final second = LibreProvider(registry, repo, BeatRepository(registry),
+        cacheTtl: const Duration(milliseconds: 30),
+        dripInterval: const Duration(milliseconds: 1));
+
+    final lengths = <int>[];
+    second.addListener(() => lengths.add(second.beatMixes.length));
+    await second.ensureCatalog();
+
+    expect(second.beatMixes.map((m) => m.key), ['$serverA:9']);
+    // stale disk content was visible before the refresh swapped it out
+    expect(lengths, contains(4));
+  });
+
+  test('in-memory mode stores nothing on disk', () async {
+    await setup(cacheTtl: const Duration(minutes: 20));
+    await provider.setPersistentCache(false);
+    await provider.ensureCatalog();
+    expect(provider.beatMixes, hasLength(4));
+    expect(repo.fetchCount, 2);
+
+    // "restart": nothing on disk so it all gets fetched again
+    final second = LibreProvider(registry, repo, BeatRepository(registry),
+        cacheTtl: const Duration(minutes: 20),
+        dripInterval: const Duration(milliseconds: 1));
+    await second.ensureCatalog();
+    expect(repo.fetchCount, 4);
+  });
+
+  test('switching to in-memory wipes the disk cache', () async {
+    await setup(cacheTtl: const Duration(minutes: 20));
+    await provider.ensureCatalog();
+    expect(await CatalogCacheStore().load(), isNotEmpty);
+
+    await provider.setPersistentCache(false);
+    expect(await CatalogCacheStore().load(), isEmpty);
+
+    // and switching back saves whats currently loaded
+    await provider.setPersistentCache(true);
+    expect(await CatalogCacheStore().load(), isNotEmpty);
+  });
+
+  test('watcher refreshes an expired cache while search is visible', () async {
+    await setup(
+        cacheTtl: const Duration(milliseconds: 40),
+        watchInterval: const Duration(milliseconds: 15));
+    await provider.ensureCatalog();
+    expect(provider.updateNotice, isFalse);
+
+    repo.responses[serverA] = [mix(serverA, 9, 'Fresh')];
+    repo.responses[serverB] = [];
+
+    provider.setSearchVisible(true);
+    await Future.delayed(const Duration(milliseconds: 120));
+    provider.setSearchVisible(false);
+
+    expect(provider.beatMixes.map((m) => m.key), ['$serverA:9']);
+    expect(provider.updateNotice, isTrue);
+  });
+
+  test('no watcher refresh when search is not visible', () async {
+    await setup(
+        cacheTtl: const Duration(milliseconds: 40),
+        watchInterval: const Duration(milliseconds: 15));
+    await provider.ensureCatalog();
+    final fetches = repo.fetchCount;
+
+    await Future.delayed(const Duration(milliseconds: 120));
+
+    expect(repo.fetchCount, fetches);
+    expect(provider.updateNotice, isFalse);
+  });
+
+  test('leaving the page stops the watcher', () async {
+    await setup(
+        cacheTtl: const Duration(milliseconds: 40),
+        watchInterval: const Duration(milliseconds: 15));
+    await provider.ensureCatalog();
+
+    provider.setSearchVisible(true);
+    provider.setSearchVisible(false);
+    final fetches = repo.fetchCount;
+
+    await Future.delayed(const Duration(milliseconds: 120));
+    expect(repo.fetchCount, fetches);
+  });
+
+  test('visiting the page clears the update notice', () async {
+    await setup(
+        cacheTtl: const Duration(milliseconds: 40),
+        watchInterval: const Duration(milliseconds: 15));
+    await provider.ensureCatalog();
+
+    provider.setSearchVisible(true);
+    await Future.delayed(const Duration(milliseconds: 120));
+    provider.setSearchVisible(false);
+    expect(provider.updateNotice, isTrue);
+
+    await provider.ensureCatalog();
+    expect(provider.updateNotice, isFalse);
   });
 }

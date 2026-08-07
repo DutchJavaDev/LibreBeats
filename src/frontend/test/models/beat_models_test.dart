@@ -7,7 +7,6 @@ void main() {
         sourceId: sourceId,
         title: 'T',
         artist: 'A',
-        album: '',
         duration: Duration.zero,
         color: sampleTracks.first.color,
       );
@@ -37,6 +36,33 @@ void main() {
 
   test('sample track keys are unique', () {
     expect(sampleTracks.map((t) => t.key).toSet().length, sampleTracks.length);
+  });
+
+  test('only beats with a stream url are playable', () {
+    // sample data has no audioUrl, playBeat skips those instead of crashing
+    for (final t in sampleTracks) {
+      expect(t.isPlayable, isFalse);
+    }
+
+    final streamed = Beat(
+      id: 1,
+      title: 'T',
+      artist: 'A',
+      duration: Duration.zero,
+      color: sampleTracks.first.color,
+      audioUrl: 'https://a/stream.mp3',
+    );
+    expect(streamed.isPlayable, isTrue);
+
+    final empty = Beat(
+      id: 2,
+      title: 'T',
+      artist: 'A',
+      duration: Duration.zero,
+      color: sampleTracks.first.color,
+      audioUrl: '',
+    );
+    expect(empty.isPlayable, isFalse);
   });
 
   test('sample playlists all have a beats list', () {

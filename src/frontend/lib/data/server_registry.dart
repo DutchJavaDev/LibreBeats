@@ -1,14 +1,12 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:liberated_beats/main.dart';
+import 'package:liberated_beats/config/helpers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 enum ServerStatus { connecting, healthy, failed }
 
-/// One registered Supabase source: its connection settings, the signed-in
-/// client (once available), and its current health.
 class ServerConnection {
   ServerConnection({required this.url, required this.key});
 
@@ -21,16 +19,19 @@ class ServerConnection {
   String get host => Uri.tryParse(url)?.host ?? url;
 }
 
-/// Registry of Supabase servers ("sources"). Servers added in Settings are
-/// persisted via shared_preferences and reconnected on the next startup.
-///
-/// Notifies listeners whenever a server is added/removed or a status changes,
-/// so the Settings page can render live status dots.
+// injectable for tests
+typedef ServerConnector = Future<void> Function(ServerConnection server);
+
+/// Keeps track of all supabase servers, persisted with shared_preferences
 class ServerRegistry extends ChangeNotifier {
-  // DEVELOPMENT ONLY — every server is assumed to accept this one account.
-  // Supplied via --dart-define so no credential ever lands in git:
-  //   flutter run --dart-define=LIBREBEATS_DEV_EMAIL=you@example.com \
-  //               --dart-define=LIBREBEATS_DEV_PASSWORD=yourpassword
+  ServerRegistry({ServerConnector? connector}) {
+    _connector = connector ?? _defaultConnect;
+  }
+
+  late final ServerConnector _connector;
+
+  // DEVELOPMENT ONLY, same account on every server for now
+  // pass with --dart-define=LIBREBEATS_DEV_EMAIL / LIBREBEATS_DEV_PASSWORD
   static const String devEmail =
       String.fromEnvironment('LIBREBEATS_DEV_EMAIL');
   static const String devPassword =
@@ -46,8 +47,7 @@ class ServerRegistry extends ChangeNotifier {
   List<ServerConnection> get healthy =>
       _servers.where((s) => s.status == ServerStatus.healthy).toList();
 
-  /// Loads the persisted server list, or [seed] on a fresh install. Fast —
-  /// does not touch the network; call [connectAll] afterwards to sign in.
+  // Load persisted servers ([seed] on first run), connectAll() does the sign in
   Future<void> load({List<(String, String)> seed = const []}) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_prefsKey);
@@ -64,27 +64,43 @@ class ServerRegistry extends ChangeNotifier {
       _servers.add(ServerConnection(url: url, key: key));
     }
 
-    await _persist();
+    // only write back when the seed was actually used, normal startups
+    // should not touch disk here
+    if (raw == null && _servers.isNotEmpty) {
+      await _persist();
+    }
     notifyListeners();
   }
 
-  /// Signs in to every registered server in parallel. Memoized: repeat calls
-  /// (e.g. the catalog waiting on startup sign-ins) share the same future.
-  Future<void> connectAll() {
-    return _connectAllFuture ??=
-        Future.wait(_servers.map(_connect)).then((_) => notifyListeners());
+  // "url1,url2" + "key1,key2" -> [(url1, key1), (url2, key2)]
+  static List<(String, String)> parseSeedList(String urls, String keys) {
+    if (urls.isEmpty || keys.isEmpty) return const [];
+
+    final urlList = urls.split(',');
+    final keyList = keys.split(',');
+    final count =
+        urlList.length < keyList.length ? urlList.length : keyList.length;
+
+    return [
+      for (var i = 0; i < count; i++) (urlList[i].trim(), keyList[i].trim()),
+    ];
   }
 
-  /// Validates [url]/[key] by actually signing in; the server is only kept
-  /// (and persisted) when the sign-in succeeds.
+  // Sign in to every server, repeat calls share the same future
+  Future<void> connectAll() {
+    return _connectAllFuture ??=
+        Future.wait(_servers.map(_connector)).then((_) => notifyListeners());
+  }
+
+  // Only kept + persisted when the sign in works
   Future<bool> addServer(String url, String key) async {
     if (_servers.any((s) => s.url == url)) return false;
 
     final server = ServerConnection(url: url, key: key);
     _servers.add(server);
-    notifyListeners(); // show the "connecting" row immediately
+    notifyListeners();
 
-    await _connect(server);
+    await _connector(server);
 
     if (server.status == ServerStatus.healthy) {
       await _persist();
@@ -103,23 +119,29 @@ class ServerRegistry extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Called when a fetch against [server] fails — flips its status dot.
   void markFailed(ServerConnection server) {
     server.status = ServerStatus.failed;
     notifyListeners();
   }
 
-  /// Re-attempts sign-in for servers that previously failed. Used by the
-  /// catalog's TTL refresh so a recovered server rejoins the pool.
+  // Retry a single server, used by the servers screen
+  Future<void> reconnect(ServerConnection server) async {
+    server.status = ServerStatus.connecting;
+    notifyListeners();
+    await _connector(server);
+    notifyListeners();
+  }
+
+  // Retry sign-in for failed servers so they can rejoin
   Future<void> reconnectFailed() async {
     final failed =
         _servers.where((s) => s.status == ServerStatus.failed).toList();
     if (failed.isEmpty) return;
-    await Future.wait(failed.map(_connect));
+    await Future.wait(failed.map(_connector));
     notifyListeners();
   }
 
-  Future<void> _connect(ServerConnection server) async {
+  Future<void> _defaultConnect(ServerConnection server) async {
     server.status = ServerStatus.connecting;
     try {
       final client = server.client ?? SupabaseClient(server.url, server.key);

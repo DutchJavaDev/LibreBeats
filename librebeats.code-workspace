@@ -1,0 +1,30 @@
+{
+  "folders": [
+    {
+      "name": "project-root",
+      "path": "./"
+    },
+    {
+      "name": "librebeats frontend",
+      "path": "./src/frontend"
+    },
+    {
+      
+      "name": "librebeats backend",
+      "path": "./src/backend"
+    },
+    {
+      "name": "supabase-functions",
+      "path": "./src/backend/supabase/volumes/functions"
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "node_modules/": true,
+      "app/": true,
+      "supabase/functions/": true
+    },
+    "deno.importMap": "./supabase/functions/import_map.json",
+    "deno.enable": true
+  }
+}

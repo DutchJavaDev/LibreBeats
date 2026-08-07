@@ -75,6 +75,7 @@ LibreBeats/
     │   │   └── widgets/               # mini/full player, tiles, QR server scanner
     │   └── test/                  # Flutter unit + widget tests
     └── backend/
+        ├── README.md                  # Backend docs: scripts, services, schema, quirks
         ├── build.sh                   # Build Supabase + custom images
         ├── run.sh                     # Start stack
         ├── stop.sh                    # docker compose down
@@ -115,6 +116,8 @@ Most declared packages are in real use by now: `provider`, `supabase_flutter`, `
 Where it stands: real streaming (single beats and beatmix queues) with media notifications and background playback, playback pauses when headphones unplug or a call comes in. Servers are added via QR code in settings and persisted on device, the search grid merges every server's beatmixes and caches them for 20 minutes, Home keeps a persistent history of the last 10 plays. Library and Liked still run on sample data. Full details, config and the feature table live in [`src/frontend/README.md`](src/frontend/README.md).
 
 ## Backend (`src/backend`)
+
+More backend detail in [`src/backend/README.md`](src/backend/README.md): the deploy scripts, how the build directory works, both services and their quirks.
 
 ### Supabase stack
 

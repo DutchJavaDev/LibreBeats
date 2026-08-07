@@ -58,6 +58,9 @@ app.*.map.json
 **/.vagrant/
 **/DerivedData/
 Icon?
+# Icon? above also matches the "icons" folder on case-insensitive file
+# systems, keep the Flutter web app icons tracked
+!**/web/icons/
 **/Pods/
 **/.symlinks/
 profile

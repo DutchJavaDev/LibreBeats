@@ -49,5 +49,7 @@
 	<array>
   		<string>audio</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Used to scan server QR codes when adding a music server.</string>
 </dict>
 </plist>

@@ -103,9 +103,12 @@ The file also keeps the eight gradient palette and the `sampleTracks` / `sampleP
 A real `BaseAudioHandler` (with `SeekHandler`) around a `just_audio` `AudioPlayer`:
 
 - `setBeatSource(beat)` plays a single beat and publishes a `MediaItem` for the system notification
-- `setBeatMix(mix, initialBeat)` builds the whole queue and starts at the tapped beat, skip/shuffle/loop all work on this queue
-- progress comes from the player's `positionStream`, end of track is handled per loop mode (stop, repeat one, or skip next) and finished tracks land in `recentBeats`
-- `playbackEventStream` is piped into `playbackState` so the media notification gets its controls, `AudioService.init` in `main.dart` enables background playback
+- `setBeatMix(mix, initialBeat)` builds the whole queue (unplayable sample beats are skipped) and starts at the tapped beat, skip/shuffle/loop all work on this queue
+- both loaders await the source and return false on failure (dead server, bad url) instead of flipping to "playing"; tracks are matched by `key` since plain ids collide across servers
+- progress comes from the player's `positionStream`; advancing through the queue and repeat one/all are just_audio's job, the end of the queue rewinds and pauses; tracks land in `recentBeats` when they start (deduped, capped at 20)
+- the playing flag is synced from `playingStream`, so pauses coming from the notification, a headset or audio focus loss can't desync the UI, and `play()`/`pause()` are idempotent for system commands
+- an `audio_session` music session pauses playback when headphones unplug ("becoming noisy") and around interruptions like phone calls, and ducks volume when the OS asks
+- `playbackEventStream` is piped into `playbackState` so the media notification gets its controls, `AudioService.init` in `main.dart` (awaited before `runApp`) enables background playback
 
 ### `BackgroundAudioProvider` (`lib/providers/background_audio_provider.dart`)
 
@@ -159,6 +162,7 @@ The `MiniPlayer` docks above the nav bar once something plays and opens the `Ful
 | `supabase_flutter` | Auth, PostgREST queries, Edge Function calls |
 | `just_audio` | Audio engine (sources, queues, shuffle/loop, position stream) |
 | `audio_service` | Background playback + media notification (`BaseAudioHandler`) |
+| `audio_session` | Audio focus: pause on unplugged headphones, interruptions, ducking |
 | `cached_network_image` | Thumbnail/artwork loading with caching |
 | `mobile_scanner` | QR scanning in the Add server flow |
 | `qr_flutter` | Rendering the Share-servers QR code |
@@ -221,7 +225,6 @@ flutter run --dart-define-from-file=env.json
 
 - The beatmix dialog's track tiles can't highlight the actively playing beat (no state hookup inside the dialog).
 - Search by title only sees the cached catalog, content newer than the cache window shows up after the next refresh.
-- The media notification's album label is a placeholder (`"x0x"`).
 
 ## Testing
 

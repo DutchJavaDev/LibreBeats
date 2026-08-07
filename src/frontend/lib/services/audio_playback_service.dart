@@ -4,15 +4,21 @@ import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:liberated_beats/config/helpers.dart';
+import 'package:liberated_beats/data/history_store.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 
 class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   final audioPlayer = AudioPlayer();
 
-  VoidCallbackUpdateProgress? _updateProgress;
+  final HistoryStore _historyStore;
 
-  AudioPlaybackService() {
+  VoidCallbackUpdateProgress? _updateProgress;
+  void Function()? _recentsChanged;
+
+  AudioPlaybackService({HistoryStore? historyStore})
+      : _historyStore = historyStore ?? HistoryStore() {
     _setupAudioSession();
+    _restoreRecents();
 
     // So that our clients (the Flutter UI and the system notification) know
     // what state to display, here we set up our audio handler to broadcast all
@@ -224,6 +230,10 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     _updateProgress = updateProgress;
   }
 
+  void setRecentsChangedCallback(void Function() recentsChanged) {
+    _recentsChanged = recentsChanged;
+  }
+
   void updateProgress(Duration position) {
     final beat = _currentBeat;
     if (beat == null) return;
@@ -329,11 +339,30 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     return currentSource.tag.toString();
   }
 
-  // track recently played beats (deduped by key, capped)
+  // Play history, newest first. A replayed beat moves back to the top instead
+  // of appearing twice, the oldest entry drops off past the cap. Persisted so
+  // it survives an app restart.
+  static const _maxRecents = 10;
   void _recordRecent(Beat beat) {
-    if (_recentBeats.any((b) => b.key == beat.key)) return;
-    _recentBeats.add(beat);
-    if (_recentBeats.length > 20) _recentBeats.removeAt(0);
+    _recentBeats.removeWhere((b) => b.key == beat.key);
+    _recentBeats.insert(0, beat);
+    if (_recentBeats.length > _maxRecents) _recentBeats.removeLast();
+    unawaited(_historyStore.save(_recentBeats));
+    _recentsChanged?.call();
+  }
+
+  // Reload the persisted history on startup. Anything already played before
+  // the load finished stays on top of the restored entries.
+  Future<void> _restoreRecents() async {
+    final stored = await _historyStore.load();
+    if (stored.isEmpty) return;
+
+    for (final beat in stored) {
+      if (_recentBeats.any((b) => b.key == beat.key)) continue;
+      if (_recentBeats.length >= _maxRecents) break;
+      _recentBeats.add(beat);
+    }
+    _recentsChanged?.call();
   }
 
   // Helpers functions

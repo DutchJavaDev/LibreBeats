@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:liberated_beats/main.dart';
+import 'package:liberated_beats/config/helpers.dart';
 import 'package:liberated_beats/providers/catalog_provider.dart';
 import 'package:liberated_beats/widgets/search_result_tile.dart';
 import 'package:provider/provider.dart';
@@ -50,7 +50,6 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // watch: the browse grid grows tile-by-tile while the catalog drip-loads.
     final catalog = context.watch<LibreProvider>();
     final topInset = MediaQuery.of(context).padding.top;
 
@@ -74,13 +73,45 @@ class _SearchScreenState extends State<SearchScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Search',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Search',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                        // switch between disk and in-memory server results
+                        SizedBox(
+                          height: 30,
+                          child: TextButton.icon(
+                            onPressed: () => catalog
+                                .setPersistentCache(!catalog.persistentCache),
+                            style: TextButton.styleFrom(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 8),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            icon: Icon(
+                              catalog.persistentCache
+                                  ? Icons.save_outlined
+                                  : Icons.memory,
+                              size: 16,
+                              color: const Color(0xFFA7A7A7),
+                            ),
+                            label: Text(
+                              catalog.persistentCache
+                                  ? 'Cache: disk'
+                                  : 'Cache: memory',
+                              style: const TextStyle(
+                                  fontSize: 12, color: Color(0xFFA7A7A7)),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     SizedBox(
@@ -117,6 +148,40 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ),
         ),
+        // banner after an automatic refresh happened while on this page
+        if (catalog.updateNotice)
+          SliverToBoxAdapter(
+            child: Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1ED760).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0x661ED760)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.autorenew,
+                      size: 16, color: Color(0xFF1ED760)),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Playlists were updated',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1ED760)),
+                    ),
+                  ),
+                  InkWell(
+                    onTap: catalog.clearUpdateNotice,
+                    child: const Icon(Icons.close,
+                        size: 16, color: Color(0xFF1ED760)),
+                  ),
+                ],
+              ),
+            ),
+          ),
         // Results or categories (unchanged)
         if (_query.isNotEmpty)
           SliverToBoxAdapter(

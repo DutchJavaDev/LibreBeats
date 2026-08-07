@@ -10,12 +10,12 @@
     },
     {
       
-      "name": "librebeats backend",
-      "path": "./src/backend"
+      "name": "librebeats backend-self-hosted",
+      "path": "./src/backend-self-hosted"
     },
     {
       "name": "supabase-functions",
-      "path": "./src/backend/supabase/volumes/functions"
+      "path": "./src/backend-self-hosted/supabase/volumes/functions"
     }
   ],
   "settings": {

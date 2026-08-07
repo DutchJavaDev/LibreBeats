@@ -1,6 +1,6 @@
 # Liberated Beats — Flutter Frontend
 
-The cross platform Flutter client for **LibreBeats**, a dark Spotify style music player that streams from one or more self hosted [Supabase](../backend/) backends.
+The cross platform Flutter client for **LibreBeats**, a dark Spotify style music player that streams from one or more self hosted [Supabase](../backend-self-hosted/) backends.
 
 > Status: search, streaming playback (background included), media notifications and beatmix browsing all work against real servers. Home shows your play history now, Library and Liked still render sample data. See [Feature status](#feature-status).
 
@@ -201,7 +201,7 @@ For local development you can bake a login into your own builds with a git-ignor
 flutter run --dart-define-from-file=env.json
 ```
 
-> Keep `env.json` out of git (it is in `.gitignore`). Values baked in this way do end up in that build's binary, so treat dev builds accordingly. Point the seed values at your own self-hosted stack from [`src/backend`](../backend/).
+> Keep `env.json` out of git (it is in `.gitignore`). Values baked in this way do end up in that build's binary, so treat dev builds accordingly. Point the seed values at your own self-hosted stack from [`src/backend-self-hosted`](../backend-self-hosted/).
 
 ## App icon
 

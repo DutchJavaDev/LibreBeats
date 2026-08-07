@@ -11,7 +11,7 @@ The project is split in two:
 - [`src/frontend`](src/frontend): cross platform Flutter app (Home, Search, Library, Liked, Settings + mini/full player UI)
 - [`src/backend`](src/backend): self-hosted [Supabase](https://supabase.com/docs/guides/self-hosting/docker) plus Go services for SQL migrations and audio ingest
 
-**Current state:** the app streams real audio from one or more self hosted Supabase backends. Search, beatmix browsing, background playback and multi-server management (QR code add in Settings, 20 minute catalog cache) all work. Home, Library and Liked still run on sample data. On the backend a queue worker ingests YouTube URLs into Postgres and Supabase Storage. More frontend detail in [`src/frontend/README.md`](src/frontend/README.md).
+**Current state:** the app streams real audio from one or more self hosted Supabase backends. Search, beatmix browsing, background playback and multi-server management (QR code add in Settings, 20 minute catalog cache) all work. Home shows your last 10 played beats (persisted), Library and Liked still run on sample data. On the backend a queue worker ingests YouTube URLs into Postgres and Supabase Storage. More frontend detail in [`src/frontend/README.md`](src/frontend/README.md).
 
 ### Prerequisites
 
@@ -70,7 +70,7 @@ LibreBeats/
     │   │   ├── models/                # Beat/BeatMix/SearchResult models + sample data
     │   │   ├── providers/             # BackgroundAudioProvider, LibreProvider (catalog + cache)
     │   │   ├── services/              # AudioPlaybackService (just_audio + audio_service)
-    │   │   ├── data/                  # ServerRegistry + beat/beatmix repositories
+    │   │   ├── data/                  # ServerRegistry, repositories, disk stores (cache, history)
     │   │   ├── screens/               # main_scaffold, home, search, library, liked, settings
     │   │   └── widgets/               # mini/full player, tiles, QR server scanner
     │   └── test/                  # Flutter unit + widget tests
@@ -104,7 +104,7 @@ Flutter app with a dark, Spotify-like shell.
 
 | Screen | Purpose |
 |--------|---------|
-| **Home** | Greeting, quick-picks grid of recently played beats, track list |
+| **Home** | Greeting + horizontal history row (last 10 played, persisted) |
 | **Search** | Title search + "Browse Playlists" grid merging beatmixes from all registered servers |
 | **Library** | Filter chips, Liked Songs entry, playlist list (sample data) |
 | **Liked** | Liked Songs hero header + track list (sample data) |
@@ -112,7 +112,7 @@ Flutter app with a dark, Spotify-like shell.
 
 Most declared packages are in real use by now: `provider`, `supabase_flutter`, `just_audio` + `audio_service` + `audio_session`, `cached_network_image`, `mobile_scanner`, `shared_preferences` and `google_fonts`. Only `path_provider` is still waiting for the download feature, see [`pubspec.yaml`](src/frontend/pubspec.yaml).
 
-Where it stands: real streaming (single beats and beatmix queues) with media notifications and background playback. Servers are added via QR code in settings and persisted on device, the search grid merges every server's beatmixes and caches them for 20 minutes. Home, Library and Liked still run on sample data, and the settings toggles don't persist yet. Full details, config and the feature table live in [`src/frontend/README.md`](src/frontend/README.md).
+Where it stands: real streaming (single beats and beatmix queues) with media notifications and background playback, playback pauses when headphones unplug or a call comes in. Servers are added via QR code in settings and persisted on device, the search grid merges every server's beatmixes and caches them for 20 minutes, Home keeps a persistent history of the last 10 plays. Library and Liked still run on sample data. Full details, config and the feature table live in [`src/frontend/README.md`](src/frontend/README.md).
 
 ## Backend (`src/backend`)
 
@@ -175,7 +175,7 @@ flutter test
 |---------|----------------|
 | `migration` | Migration filename ID parsing, “migrations table missing” detection, `scripts/` naming convention |
 | `audio` | Queue JSON URL parsing, playlist URL detection, directory/file helpers, archive lookup, `ProgressState`, required env panics |
-| `frontend` | Models, ServerRegistry (persistence/reconnect), catalog provider (merge/drip/cache/failures), QR payload parsing, add-server dialog, BeatTile, settings servers card |
+| `frontend` | Models, ServerRegistry (persistence/reconnect), catalog provider (merge/drip/cache/failures), disk stores (catalog cache, play history), QR payload parsing, add-server dialog, BeatTile, settings servers card |
 
 Integration tests against a live Supabase stack are not included yet.
 

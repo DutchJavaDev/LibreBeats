@@ -6,6 +6,9 @@ import 'package:liberated_beats/services/audio_playback_service.dart';
 final class BackgroundAudioProvider extends ChangeNotifier {
   BackgroundAudioProvider(this._playbackService) {
     _playbackService.setUpdateProgressCallback(updateProgress);
+    // repaint the history UI when a play is recorded or the persisted
+    // history finishes loading on startup
+    _playbackService.setRecentsChangedCallback(notifyListeners);
   }
 
   final AudioPlaybackService _playbackService;

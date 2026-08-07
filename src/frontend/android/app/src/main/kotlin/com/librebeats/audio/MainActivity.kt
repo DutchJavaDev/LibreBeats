@@ -1,4 +1,4 @@
-package com.state.frontend
+package com.librebeats.audio
 
 import io.flutter.embedding.android.FlutterActivity
 

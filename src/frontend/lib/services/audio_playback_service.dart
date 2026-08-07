@@ -1,5 +1,4 @@
 import 'package:audio_service/audio_service.dart';
-import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:liberated_beats/config/helpers.dart';
 import 'package:liberated_beats/models/beat_models.dart';
@@ -35,11 +34,9 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
 
   bool _enReached = false;
 
-  double get progress => _progress;
   double _progress = 0.0;
 
-  /// Composite identity ('sourceId:id') of the current beat — beat ids alone
-  /// collide across servers.
+  // beat.key ('sourceId:id'), plain ids collide across servers
   String get beatKey => _beatKey;
   String _beatKey = '';
 
@@ -160,11 +157,6 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     _updateProgress(_progress, _currentBeat!);
   }
 
-  // void onResume() async {
-  //   _setCurrentBeat();
-  //   _setMediaItemForBeat();
-  // }
-
   @override
   Future<void> play() async {
     await togglePlay();
@@ -186,15 +178,11 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> seek(Duration position) async {
-    setSeek(position);
+    await setSeek(position);
   }
 
-  Future<ValueChanged<double>?> setSeek(Duration position) async {
-    if (position < Duration.zero) 0;
-    final positionDouble = position.inSeconds.toDouble();
-    _progress = positionDouble.clamp(0.0, 1.0);
-    await audioPlayer.seek(position);
-    return null;
+  Future<void> setSeek(Duration position) async {
+    await audioPlayer.seek(position < Duration.zero ? Duration.zero : position);
   }
 
   @override
@@ -253,7 +241,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
       title: beat.title,
       //artist: beat.artist,
       duration: beat.duration,
-      artUri: Uri.parse(beat.album));
+      artUri: Uri.parse(beat.thumbnailUrl));
 
   PlaybackState _transformEvent(PlaybackEvent event) {
     return PlaybackState(

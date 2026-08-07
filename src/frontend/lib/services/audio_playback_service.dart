@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:liberated_beats/config/helpers.dart';
 import 'package:liberated_beats/models/beat_models.dart';
@@ -6,9 +9,11 @@ import 'package:liberated_beats/models/beat_models.dart';
 class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   final audioPlayer = AudioPlayer();
 
-  late VoidCallbackUpdateProgress _updateProgress;
+  VoidCallbackUpdateProgress? _updateProgress;
 
   AudioPlaybackService() {
+    _setupAudioSession();
+
     // So that our clients (the Flutter UI and the system notification) know
     // what state to display, here we set up our audio handler to broadcast all
     // playback state changes as they happen via playbackState...
@@ -18,21 +23,79 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
       updateProgress(position);
     });
 
-    // Playback has ended, set _enReached to true, then updateProgress will handle the rest (stop, next song or repeat)
     audioPlayer.playbackEventStream.listen((e) {
       _setCurrentBeat();
       _setMediaItemForBeat();
-      if (e.duration == null) return;
-      if (e.duration!.inSeconds == e.updatePosition.inSeconds) {
-        _enReached = true;
+    }, onError: (Object e, StackTrace st) {
+      PrintLog('Playback error: $e');
+    });
+
+    // The player is the source of truth for playing/paused. External changes
+    // (media notification, headset, audio focus loss) land here too, so the
+    // flag can not drift from what is actually audible.
+    audioPlayer.playingStream.listen((playing) {
+      if (_isPlaying == playing) return;
+      _isPlaying = playing;
+      final beat = _currentBeat;
+      if (beat != null) _updateProgress?.call(_progress, beat);
+    });
+
+    // Playback has ended. Advancing through the queue and repeat one/all are
+    // just_audio's job, completed only fires when the whole queue ran out:
+    // rewind and stay paused.
+    audioPlayer.processingStateStream.listen((state) async {
+      if (state == ProcessingState.completed) {
+        await audioPlayer.pause();
+        await audioPlayer.seek(Duration.zero);
       }
     });
+  }
+
+  Future<void> _setupAudioSession() async {
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(const AudioSessionConfiguration.music());
+
+      // Headphones unplugged / bluetooth dropped: pause instead of switching
+      // to the loudspeaker.
+      session.becomingNoisyEventStream.listen((_) {
+        audioPlayer.pause();
+      });
+
+      session.interruptionEventStream.listen((event) {
+        if (event.begin) {
+          switch (event.type) {
+            case AudioInterruptionType.duck:
+              audioPlayer.setVolume(audioPlayer.volume / 2);
+            case AudioInterruptionType.pause:
+            case AudioInterruptionType.unknown:
+              if (audioPlayer.playing) {
+                _pausedByInterruption = true;
+                audioPlayer.pause();
+              }
+          }
+        } else {
+          switch (event.type) {
+            case AudioInterruptionType.duck:
+              audioPlayer.setVolume((audioPlayer.volume * 2).clamp(0.0, 1.0));
+            case AudioInterruptionType.pause:
+              if (_pausedByInterruption) audioPlayer.play();
+              _pausedByInterruption = false;
+            case AudioInterruptionType.unknown:
+              _pausedByInterruption = false;
+          }
+        }
+      });
+    } catch (e) {
+      // no audio_session backend on this platform, playback still works
+      PrintLog('Audio session setup failed: $e');
+    }
   }
 
   bool get isPlaying => _isPlaying;
   bool _isPlaying = false;
 
-  bool _enReached = false;
+  bool _pausedByInterruption = false;
 
   double _progress = 0.0;
 
@@ -52,54 +115,93 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   final List<MediaItem> beatMediaItems = [];
   final List<UriAudioSource> beatAudioSources = [];
 
-  void setBeatSource(Beat beat) async {
-    final audioSource = _createSourceUri(beat);
+  Future<bool> setBeatSource(Beat beat) async {
+    _currentBeatMix = null;
 
+    final audioSource = _createSourceUri(beat);
     final audioSourceMediaItem = _createMediaItem(beat);
 
-    audioPlayer.setAudioSource(audioSource);
+    beatMediaItems
+      ..clear()
+      ..add(audioSourceMediaItem);
+    beatAudioSources
+      ..clear()
+      ..add(audioSource);
+
+    try {
+      await audioPlayer.setAudioSource(audioSource);
+    } catch (e) {
+      PrintLog('Failed to load "${beat.title}": $e');
+      return false;
+    }
 
     mediaItem.add(audioSourceMediaItem);
 
     _beatKey = beat.key;
     _currentBeat = beat;
+    _progress = 0;
+    _recordRecent(beat);
+    return true;
   }
 
-  void setBeatMix(BeatMix? mix, Beat? initalBeat) async {
+  Future<bool> setBeatMix(BeatMix? mix, Beat? initalBeat) async {
+    if (mix == null) return false;
+
+    // sample data has no stream url, skip it instead of handing the player an
+    // unplayable source
+    final beats =
+        (mix.beats ?? const <Beat>[]).where((beat) => beat.isPlayable).toList();
+    if (beats.isEmpty) {
+      PrintLog('Nothing playable in "${mix.title}"');
+      return false;
+    }
+
     _currentBeatMix = mix;
-    _currentBeat = initalBeat;
 
     beatMediaItems.clear();
     beatAudioSources.clear();
 
     var initialIndex = 0;
 
-    for (var i = 0; i < mix!.beats!.length; i++) {
-      final beat = mix.beats![i];
+    for (var i = 0; i < beats.length; i++) {
+      final beat = beats[i];
       beatMediaItems.add(_createMediaItem(beat));
       beatAudioSources.add(_createSourceUri(beat));
 
-      if (initalBeat != null && initalBeat.id == beat.id) {
+      // match by key, plain ids collide across servers
+      if (initalBeat != null && initalBeat.key == beat.key) {
         initialIndex = i;
       }
     }
 
-    audioPlayer.setAudioSources(beatAudioSources,
-        preload: true,
-        initialIndex: initialIndex,
-        shuffleOrder: DefaultShuffleOrder());
+    try {
+      await audioPlayer.setAudioSources(beatAudioSources,
+          preload: true,
+          initialIndex: initialIndex,
+          shuffleOrder: DefaultShuffleOrder());
+    } catch (e) {
+      PrintLog('Failed to load mix "${mix.title}": $e');
+      _currentBeatMix = null;
+      return false;
+    }
 
     mediaItem.add(beatMediaItems[initialIndex]);
 
-    _beatKey = initalBeat!.key;
-    _currentBeat = initalBeat;
+    final startBeat = beats[initialIndex];
+    _beatKey = startBeat.key;
+    _currentBeat = startBeat;
+    _progress = 0;
+    _recordRecent(startBeat);
+    return true;
   }
 
   Future<bool> togglePlay() async {
     _isPlaying = !_isPlaying;
 
-    if (isPlaying) {
-      await audioPlayer.play();
+    if (_isPlaying) {
+      // play()'s future only completes when playback pauses or ends later,
+      // awaiting it here would block the caller for the whole track
+      unawaited(audioPlayer.play());
     } else {
       await audioPlayer.pause();
     }
@@ -122,10 +224,13 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     _updateProgress = updateProgress;
   }
 
-  void updateProgress(Duration position) async {
-    if (!_isPlaying) return;
+  void updateProgress(Duration position) {
+    final beat = _currentBeat;
+    if (beat == null) return;
 
-    final totalMs = _currentBeat!.duration.inMilliseconds;
+    // the player's decoded duration when known, catalog metadata while loading
+    final totalMs =
+        audioPlayer.duration?.inMilliseconds ?? beat.duration.inMilliseconds;
     if (totalMs == 0) {
       return;
     }
@@ -133,47 +238,27 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     // Set progress directly from the actual position
     _progress = (position.inMilliseconds / totalMs).clamp(0.0, 1.0);
 
-    if (_enReached) {
-      _progress = 0;
-      _isPlaying = false;
-      _enReached = false;
-
-      await audioPlayer.seek(Duration.zero);
-      await audioPlayer.pause();
-
-      // track recent played beats
-      if (_currentBeat != null && !_recentBeats.contains(_currentBeat)) {
-        _recentBeats.add(_currentBeat!);
-      }
-
-      if (audioPlayer.loopMode == LoopMode.one) {
-        togglePlay();
-      } else if (audioPlayer.loopMode == LoopMode.all) {
-        await skipToNext();
-      }
-    }
-
     // Callback so the UI gets updated with the correct data
-    _updateProgress(_progress, _currentBeat!);
+    _updateProgress?.call(_progress, beat);
   }
 
+  // The system (notification, headset, Android Auto) sends explicit play and
+  // pause commands, these have to be idempotent instead of blind toggles.
   @override
   Future<void> play() async {
-    await togglePlay();
+    if (!_isPlaying) await togglePlay();
   }
 
   @override
   Future<void> pause() async {
-    await togglePlay();
+    if (_isPlaying) await togglePlay();
   }
 
   @override
   Future<void> stop() async {
-    if (_isPlaying) {
-      await togglePlay();
-    }
-
     await audioPlayer.stop();
+    // let audio_service tear down the notification / foreground service
+    await super.stop();
   }
 
   @override
@@ -191,7 +276,6 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
       await audioPlayer.seekToNext();
       _setCurrentBeat();
       _setMediaItemForBeat();
-      _updateProgress(0, _currentBeat!);
     }
   }
 
@@ -201,34 +285,55 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
       await audioPlayer.seekToPrevious();
       _setCurrentBeat();
       _setMediaItemForBeat();
-      _updateProgress(0, _currentBeat!);
     }
   }
 
   void _setCurrentBeat() {
     var id = _getCurrentAudioSourceTagId();
     if (id == "") return;
-    var currentBeat =
-        _currentBeatMix!.beats!.where((i) => i.key == id).first;
 
-    if (currentBeat.id != _currentBeat!.id) {
+    // single beat playback has no mix to look tracks up in
+    final beats = _currentBeatMix?.beats;
+    if (beats == null) return;
+
+    final index = beats.indexWhere((i) => i.key == id);
+    if (index == -1) return;
+    final currentBeat = beats[index];
+
+    if (currentBeat.key != _currentBeat?.key) {
       _currentBeat = currentBeat;
+      _beatKey = currentBeat.key;
+      _progress = 0;
+      _recordRecent(currentBeat);
+      _updateProgress?.call(_progress, currentBeat);
     }
   }
 
   void _setMediaItemForBeat() {
     var id = _getCurrentAudioSourceTagId();
     if (id == "") return;
-    var beatMediaItem = beatMediaItems.where((i) => i.id == id).first;
 
-    mediaItem.add(beatMediaItem);
+    final index = beatMediaItems.indexWhere((i) => i.id == id);
+    if (index == -1) return;
+
+    // only rebroadcast on an actual change, this runs on every player event
+    if (mediaItem.valueOrNull?.id != id) {
+      mediaItem.add(beatMediaItems[index]);
+    }
   }
 
   String _getCurrentAudioSourceTagId() {
     var index = audioPlayer.currentIndex;
-    if (index == null) return "";
+    if (index == null || index >= audioPlayer.audioSources.length) return "";
     var currentSource = audioPlayer.audioSources[index] as UriAudioSource;
     return currentSource.tag.toString();
+  }
+
+  // track recently played beats (deduped by key, capped)
+  void _recordRecent(Beat beat) {
+    if (_recentBeats.any((b) => b.key == beat.key)) return;
+    _recentBeats.add(beat);
+    if (_recentBeats.length > 20) _recentBeats.removeAt(0);
   }
 
   // Helpers functions
@@ -237,17 +342,18 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
 
   MediaItem _createMediaItem(Beat beat) => MediaItem(
       id: beat.key,
-      album: "x0x", // TODO fetch beatmix name with request (if any)
+      album: _currentBeatMix?.title,
       title: beat.title,
-      //artist: beat.artist,
+      artist: beat.artist,
       duration: beat.duration,
-      artUri: Uri.parse(beat.thumbnailUrl));
+      artUri:
+          beat.thumbnailUrl.isEmpty ? null : Uri.tryParse(beat.thumbnailUrl));
 
   PlaybackState _transformEvent(PlaybackEvent event) {
     return PlaybackState(
       controls: [
         MediaControl.skipToPrevious,
-        if (_isPlaying) MediaControl.pause else MediaControl.play,
+        if (audioPlayer.playing) MediaControl.pause else MediaControl.play,
         MediaControl.stop,
         MediaControl.skipToNext
       ],

@@ -36,31 +36,37 @@ final class BackgroundAudioProvider extends ChangeNotifier {
   }
 
   // Set a beatmix, then from there play the selected beat
-  void playBeatMix(BeatMix beatmix, Beat selectedBeat) {
-    if (isPlaying) togglePlay();
-    _playbackService.setBeatMix(beatmix, selectedBeat);
-    togglePlay();
+  Future<void> playBeatMix(BeatMix beatmix, Beat selectedBeat) async {
+    if (isPlaying) await togglePlay();
+
+    // a failed load (dead server, bad url) should not flip to "playing"
+    final loaded = await _playbackService.setBeatMix(beatmix, selectedBeat);
+    if (!loaded) return;
+
+    await togglePlay();
   }
 
   // This should only play a single beat, repeat it or stop after play
-  void playBeat(Beat beat) async {
+  Future<void> playBeat(Beat beat) async {
     // sample data has no stream to play
     if (!beat.isPlayable) return;
 
     // Tapping the already-current track toggles play/pause instead of restarting.
     if (_playbackService.beatKey == beat.key) {
-      togglePlay();
+      await togglePlay();
       return;
     }
 
-    if (isPlaying) togglePlay();
+    if (isPlaying) await togglePlay();
 
-    _playbackService.setBeatSource(beat);
+    // a failed load (dead server, bad url) should not flip to "playing"
+    final loaded = await _playbackService.setBeatSource(beat);
+    if (!loaded) return;
 
-    togglePlay();
+    await togglePlay();
   }
 
-  void togglePlay() async {
+  Future<void> togglePlay() async {
     await _playbackService.togglePlay();
     notifyListeners();
   }

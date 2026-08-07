@@ -113,6 +113,18 @@ void main() {
     expect(reloaded.servers, isEmpty);
   });
 
+  test('reconnect retries a single server', () async {
+    final failing = {'https://a'};
+    final registry = ServerRegistry(connector: fakeConnector(failing: failing));
+    await registry.load(seed: const [('https://a', 'k1')]);
+    await registry.connectAll();
+    expect(registry.healthy, isEmpty);
+
+    failing.clear(); // server came back
+    await registry.reconnect(registry.servers.first);
+    expect(registry.healthy, hasLength(1));
+  });
+
   test('markFailed and reconnectFailed', () async {
     final log = <String>[];
     final registry = ServerRegistry(connector: fakeConnector(log: log));

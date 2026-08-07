@@ -3,14 +3,12 @@ import 'package:liberated_beats/data/server_registry.dart';
 
 import '../models/beat_models.dart';
 
-/// Fetches BeatMix catalogs from individual servers via their `menu` Edge
-/// Function. Merging, ordering, and the 20-minute cache live in LibreProvider.
+/// Single point of access to the BeatMix catalog.
 class BeatMixRepository extends BaseRepository {
   BeatMixRepository(super.registry);
 
-  /// Fetches every mix (with embedded beats) from a single [server]. Throws on
-  /// any failure — including the 10s timeout — so the caller can mark the
-  /// server as failed and move on.
+  // Fetch all mixes from one server via the menu edge function,
+  // throws on failure so the caller can mark the server as failed
   Future<List<BeatMix>> fetchMenuFromServer(ServerConnection server) async {
     final response = await server.client!.functions
         .invoke('menu')
@@ -45,7 +43,7 @@ class BeatMixRepository extends BaseRepository {
         sourceId: sourceId,
         title: json['title'] as String,
         artist: json['artist'] as String,
-        album: json['thumbnailurl'] as String,
+        thumbnailUrl: json['thumbnailurl'] as String? ?? '',
         duration: Duration(seconds: json['duration'] ?? 0),
         color: sampleTracks.first.color,
         audioUrl: json['streamingurl'] as String?,

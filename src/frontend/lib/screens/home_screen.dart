@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/providers/background_audio_provider.dart';
 import 'package:liberated_beats/widgets/widget_builder.dart';
 import 'package:provider/provider.dart';
-
-import '../providers/catalog_provider.dart';
-import '../widgets/beat_tile.dart';
 
 class HomeScreen extends StatelessWidget {
 
@@ -20,16 +18,16 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final backgroundPlayer = context.watch<BackgroundAudioProvider>();
-    final catalog = context.watch<LibreProvider>();
     final topInset = MediaQuery.of(context).padding.top;
     final tracks = backgroundPlayer.recentBeats;
-    final isInitialLoad = catalog.isLoading && tracks.isEmpty;
 
     return CustomScrollView(
       slivers: [
-        // 1. Header with greeting + quick-picks grid (fetched via CatalogProvider).
+        // 1. Header with greeting. The quick-picks grid that used to live
+        // here duplicated the history carousel below.
         SliverToBoxAdapter(
           child: Container(
+            width: double.infinity,
             padding: EdgeInsets.fromLTRB(16, topInset + 16, 16, 24),
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -38,128 +36,115 @@ class HomeScreen extends StatelessWidget {
                 colors: [Color(0xFF1A3A2A), Color(0xFF121212)],
               ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _greeting,
-                  style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white),
-                ),
-                const SizedBox(height: 16),
-                if (isInitialLoad)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(
-                        child: CircularProgressIndicator(
-                            color: Color(0xFF1ED760))),
-                  )
-                else
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 8,
-                      crossAxisSpacing: 8,
-                      childAspectRatio: 3.5,
-                    ),
-                    itemCount: tracks.length.clamp(0, 6),
-                    itemBuilder: (context, i) {
-                      final t = tracks[i];
-                      final isActive = backgroundPlayer.currentBeat?.key == t.key;
-                      return Material(
-                        color: Colors.white
-                            .withValues(alpha: isActive ? 0.2 : 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(6),
-                          onTap: () => backgroundPlayer.playBeat(t),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 48,
-                                height: 48,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  gradient: t.color,
-                                  borderRadius: const BorderRadius.horizontal(
-                                      left: Radius.circular(6)),
-                                ),
-                                child: createCachedNetworkImage(
-                                  imageUrl: t.thumbnailUrl,
-                                  fit: BoxFit.cover,
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  t.title,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-              ],
+            child: Text(
+              _greeting,
+              style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white),
             ),
           ),
         ),
-        // 2. Liked songs header.
-        SliverToBoxAdapter(child: _sectionHeader('Liked songs')),
-        // 3. Track list.
-        SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, i) {
-              final t = tracks[i];
-              final isActive = backgroundPlayer.currentBeat?.key == t.key;
-              return BeatTile(
-                beat: t,
-                isActive: isActive,
-                isPlaying: isActive && backgroundPlayer.isPlaying,
-                onTap: () => backgroundPlayer.playBeat(t),
-              );
-            },
-            childCount: tracks.length,
+        // 2. History: the last 10 played beats as a horizontal carousel,
+        // newest first (a replay moves back to the front).
+        if (tracks.isNotEmpty) ...[
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text('History',
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white)),
+            ),
           ),
-        ),
-        // 6. Trailing spacer.
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: 164,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: tracks.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemBuilder: (context, i) {
+                  final t = tracks[i];
+                  final isActive = backgroundPlayer.currentBeat?.key == t.key;
+                  return _HistoryCard(
+                    beat: t,
+                    isActive: isActive,
+                    onTap: () => backgroundPlayer.playBeat(t),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+        // 3. Trailing spacer.
         const SliverToBoxAdapter(child: SizedBox(height: 16)),
       ],
     );
   }
+}
 
-  Widget _sectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(title,
-              style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white)),
-          const Text('Show all',
+/// One entry in the horizontal history carousel: square artwork (gradient
+/// fallback) with title + artist below, highlighted while playing.
+class _HistoryCard extends StatelessWidget {
+  const _HistoryCard({
+    required this.beat,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  final Beat beat;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 108,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 108,
+              height: 108,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                gradient: beat.color,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: createCachedNetworkImage(
+                  imageUrl: beat.thumbnailUrl,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: double.infinity,
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              beat.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFFA7A7A7))),
-        ],
+                  color: isActive ? const Color(0xFF1ED760) : Colors.white),
+            ),
+            Text(
+              beat.artist,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, color: Color(0xFFA7A7A7)),
+            ),
+          ],
+        ),
       ),
     );
   }

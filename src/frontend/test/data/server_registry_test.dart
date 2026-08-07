@@ -76,7 +76,8 @@ void main() {
     final registry = ServerRegistry(connector: fakeConnector());
     await registry.load();
 
-    expect(await registry.addServer('https://new.example.com', 'k'), isTrue);
+    expect(await registry.addServer('https://new.example.com', 'k'),
+        AddServerResult.added);
     expect(registry.healthy, hasLength(1));
 
     final reloaded = ServerRegistry(connector: fakeConnector());
@@ -89,7 +90,8 @@ void main() {
         connector: fakeConnector(failing: {'https://bad.example.com'}));
     await registry.load();
 
-    expect(await registry.addServer('https://bad.example.com', 'k'), isFalse);
+    expect(await registry.addServer('https://bad.example.com', 'k'),
+        AddServerResult.signInFailed);
     expect(registry.servers, isEmpty);
   });
 
@@ -97,7 +99,8 @@ void main() {
     final registry = ServerRegistry(connector: fakeConnector());
     await registry.load(seed: const [('https://a', 'k1')]);
 
-    expect(await registry.addServer('https://a', 'other'), isFalse);
+    expect(await registry.addServer('https://a', 'other'),
+        AddServerResult.duplicate);
     expect(registry.servers, hasLength(1));
   });
 
@@ -111,6 +114,61 @@ void main() {
     final reloaded = ServerRegistry(connector: fakeConnector());
     await reloaded.load();
     expect(reloaded.servers, isEmpty);
+  });
+
+  test('no default login until one is set', () {
+    // nothing baked in, first run has to set it (or a dev dart-define)
+    final registry = ServerRegistry(connector: fakeConnector());
+    expect(registry.hasDefaultLogin, isFalse);
+  });
+
+  test('default login can be changed and persists', () async {
+    final registry = ServerRegistry(connector: fakeConnector());
+    await registry.load();
+    await registry.setDefaultCredentials('me@example.com', 'hunter2');
+    expect(registry.hasDefaultLogin, isTrue);
+
+    final second = ServerRegistry(connector: fakeConnector());
+    await second.load();
+    expect(second.defaultEmail, 'me@example.com');
+    expect(second.defaultPassword, 'hunter2');
+  });
+
+  test('per server login overrides the default and persists', () async {
+    final registry = ServerRegistry(connector: fakeConnector());
+    await registry.load(seed: const [('https://a', 'k1')]);
+    await registry.setDefaultCredentials('def@example.com', 'defpw');
+    await registry.connectAll();
+
+    final server = registry.servers.first;
+    expect(registry.credentialsFor(server), ('def@example.com', 'defpw'));
+
+    await registry.setServerCredentials(server,
+        email: 'other@example.com', password: 'pw');
+    expect(registry.credentialsFor(server), ('other@example.com', 'pw'));
+
+    final second = ServerRegistry(connector: fakeConnector());
+    await second.load();
+    expect(second.servers.single.email, 'other@example.com');
+    expect(second.servers.single.password, 'pw');
+
+    // clearing goes back to the default
+    await registry.setServerCredentials(server, email: '', password: '');
+    expect(registry.credentialsFor(server), ('def@example.com', 'defpw'));
+  });
+
+  test('addServer can carry its own login from a QR', () async {
+    final registry = ServerRegistry(connector: fakeConnector());
+    await registry.load();
+
+    await registry.addServer('https://a', 'k',
+        email: 'qr@example.com', password: 'qrpw');
+    expect(registry.credentialsFor(registry.servers.single),
+        ('qr@example.com', 'qrpw'));
+
+    final second = ServerRegistry(connector: fakeConnector());
+    await second.load();
+    expect(second.servers.single.email, 'qr@example.com');
   });
 
   test('reconnect retries a single server', () async {

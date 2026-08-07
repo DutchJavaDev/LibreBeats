@@ -2,75 +2,106 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:liberated_beats/config/helpers.dart';
 import 'package:liberated_beats/data/beat_repository.dart';
+import 'package:liberated_beats/data/catalog_cache_store.dart';
 import 'package:liberated_beats/data/server_registry.dart';
-import 'package:liberated_beats/main.dart';
 
 import '../data/beatmix_repository.dart';
 import '../models/beat_models.dart';
 
-/// Loads the BeatMix catalog from every registered server, merges the results
-/// in random order, and caches them for [_cacheTtl].
-///
-/// The first load per app run drips tiles into the grid one at a time (the
-/// deliberate slow-load effect); once the TTL passes, the next visit keeps
-/// showing the stale grid, refetches in the background from the servers that
-/// still respond, and swaps the list in silently.
+/// Loads the beatmix catalog from all servers, merged in random order.
+/// Every server has its own 20 minute timer, expired ones are refreshed
+/// silently in the background. In persistent mode (the default) the results
+/// and timers are stored on disk and read back on the next startup.
 class LibreProvider extends ChangeNotifier {
-  LibreProvider(this._registry, this._beatMixRepository, this._beatRepository);
+  LibreProvider(
+    this._registry,
+    this._beatMixRepository,
+    this._beatRepository, {
+    Duration cacheTtl = const Duration(minutes: 20),
+    Duration dripInterval = const Duration(milliseconds: 200),
+    Duration watchInterval = const Duration(seconds: 30),
+    CatalogCacheStore? store,
+  })  : _cacheTtl = cacheTtl,
+        _dripInterval = dripInterval,
+        _watchInterval = watchInterval,
+        _store = store ?? CatalogCacheStore();
 
   final ServerRegistry _registry;
   final BeatMixRepository _beatMixRepository;
   final BeatRepository _beatRepository;
+  final CatalogCacheStore _store;
 
-  static const _cacheTtl = Duration(minutes: 20);
-  static const _dripInterval = Duration(milliseconds: 200);
+  // injectable for tests
+  final Duration _cacheTtl;
+  final Duration _dripInterval;
+  final Duration _watchInterval;
 
   final _random = Random();
 
+  // results + fetch time per server url
+  final Map<String, CachedServerCatalog> _cache = {};
+  bool _persistent = true;
+  bool _hydrated = false;
+
   List<BeatMix> _beatMixes = [];
-  DateTime? _fetchedAt;
   bool _isFetching = false;
   Timer? _dripTimer;
+  Timer? _watchTimer;
+  bool _updateNotice = false;
 
   List<BeatMix> get beatMixes => _beatMixes;
 
-  /// True while a fetch is running (drip load or background refresh).
   bool get isFetching => _isFetching;
 
-  /// True during the initial load, before anything is visible.
   bool get isLoading => _isFetching && _beatMixes.isEmpty;
 
-  /// Kept for the Home screen's albums row (no album source yet).
-  List<Album> get albums => const [];
+  /// Disk cache on/off, switched from the search screen
+  bool get persistentCache => _persistent;
 
-  /// Whether at least one server is signed in and reachable.
-  bool get isConnected => _beatMixRepository.isConnected;
+  /// True after an automatic refresh replaced results while the user was
+  /// looking at the search page, shown as a banner there
+  bool get updateNotice => _updateNotice;
 
-  bool get _isStale =>
-      _fetchedAt == null || DateTime.now().difference(_fetchedAt!) > _cacheTtl;
-
-  /// Call whenever the Search tab is opened. Fetches on the first visit,
-  /// serves the cache while fresh, and silently refreshes once the TTL passed.
-  Future<void> ensureCatalog() async {
-    if (_isFetching || !_isStale) return;
-    _isFetching = true;
+  void clearUpdateNotice() {
+    if (!_updateNotice) return;
+    _updateNotice = false;
     notifyListeners();
+  }
 
+  /// Called by the scaffold: true while the search tab is on screen and the
+  /// app is foregrounded. Runs a periodic check so an expired cache refreshes
+  /// itself while the user is watching, everywhere else stays lazy.
+  void setSearchVisible(bool visible) {
+    if (visible) {
+      _watchTimer ??= Timer.periodic(_watchInterval, (_) => _autoRefresh());
+    } else {
+      _watchTimer?.cancel();
+      _watchTimer = null;
+    }
+  }
+
+  Future<void> _autoRefresh() async {
+    if (_isFetching) return;
+    // empty grid means the first load never got content, retry the normal way
+    if (_beatMixes.isEmpty) return ensureCatalog();
+
+    final stale =
+        _registry.healthy.where((s) => _expired(_cache[s.url])).toList();
+    if (stale.isEmpty) return;
+
+    _isFetching = true;
     try {
-      // Wait for the startup sign-ins before the first fetch (memoized).
-      await _registry.connectAll();
-
-      if (_beatMixes.isEmpty) {
-        await _dripLoad();
-      } else {
-        await _silentRefresh();
-      }
-
-      if (_beatMixes.isNotEmpty) {
-        // An all-servers-down first load stays stale so the next visit retries
-        // instead of showing an empty grid for 20 minutes.
-        _fetchedAt = DateTime.now();
+      final refreshed = await _fetchServers(stale);
+      if (refreshed > 0) {
+        final merged = _merged();
+        if (merged.isNotEmpty) {
+          merged.shuffle(_random);
+          _beatMixes = merged;
+        }
+        _updateNotice = true;
+        if (_persistent) await _store.save(_cache);
       }
     } finally {
       _isFetching = false;
@@ -78,11 +109,87 @@ class LibreProvider extends ChangeNotifier {
     }
   }
 
-  /// First load: fetch every server in parallel, then trickle the collected
-  /// mixes into the visible list one tile at a time at [_dripInterval].
-  Future<void> _dripLoad() async {
+  bool get isConnected => _beatMixRepository.isConnected;
+
+  bool _expired(CachedServerCatalog? entry) =>
+      entry == null || DateTime.now().difference(entry.fetchedAt) > _cacheTtl;
+
+  Future<void> setPersistentCache(bool value) async {
+    if (_persistent == value) return;
+    _persistent = value;
+    await _store.savePersistentMode(value);
+    if (value) {
+      await _store.save(_cache);
+    } else {
+      await _store.clear();
+    }
+    notifyListeners();
+  }
+
+  // Called when the search tab is opened. Serves cached results per server
+  // and only fetches the ones whose timer ran out.
+  Future<void> ensureCatalog() async {
+    if (_isFetching) return;
+    _isFetching = true;
+    _updateNotice = false; // navigating here counts as seeing the update
+    notifyListeners();
+
+    try {
+      await _hydrate();
+      await _registry.connectAll();
+      // retry failed servers here too, otherwise an all-servers-down start
+      // can never recover
+      await _registry.reconnectFailed();
+
+      // forget servers that were removed in settings
+      _cache
+          .removeWhere((url, _) => !_registry.servers.any((s) => s.url == url));
+
+      // cold start with nothing at all -> drip mode later
+      final dripMode = _beatMixes.isEmpty && _cache.isEmpty;
+
+      // disk cache had content, show it right away (even if expired,
+      // stale beats an empty grid while the refresh runs)
+      if (_beatMixes.isEmpty && _cache.isNotEmpty) {
+        _beatMixes = _merged()..shuffle(_random);
+        notifyListeners();
+      }
+
+      final stale =
+          _registry.healthy.where((s) => _expired(_cache[s.url])).toList();
+      if (stale.isEmpty) return;
+
+      if (dripMode) {
+        await _dripLoad(stale);
+      } else {
+        await _fetchServers(stale);
+        final merged = _merged();
+        if (merged.isNotEmpty) {
+          merged.shuffle(_random);
+          _beatMixes = merged;
+        }
+      }
+
+      if (_persistent) await _store.save(_cache);
+    } finally {
+      _isFetching = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _hydrate() async {
+    if (_hydrated) return;
+    _hydrated = true;
+    _persistent = await _store.loadPersistentMode();
+    if (_persistent) {
+      _cache.addAll(await _store.load());
+    }
+  }
+
+  // First ever load, trickle the mixes into the list one at a time
+  Future<void> _dripLoad(List<ServerConnection> servers) async {
     final pending = <BeatMix>[];
-    final fetches = _fetchAllServers(onBatch: pending.addAll);
+    final fetches = _fetchServers(servers, onBatch: pending.addAll);
 
     _dripTimer?.cancel();
     _dripTimer = Timer.periodic(_dripInterval, (_) {
@@ -94,7 +201,7 @@ class LibreProvider extends ChangeNotifier {
 
     await fetches;
 
-    // Let the timer drain whatever is still pending (bail out if disposed).
+    // let the timer drain whatever is still pending
     while (pending.isNotEmpty && _dripTimer != null) {
       await Future.delayed(_dripInterval);
     }
@@ -103,40 +210,31 @@ class LibreProvider extends ChangeNotifier {
     _dripTimer = null;
   }
 
-  /// TTL refresh: keep showing the stale list, rebuild off-screen from the
-  /// servers that still work, and swap once — no loading state replay.
-  Future<void> _silentRefresh() async {
-    // Give previously failed servers a chance to rejoin the pool.
-    await _registry.reconnectFailed();
-
-    final fresh = <BeatMix>[];
-    await _fetchAllServers(onBatch: fresh.addAll);
-
-    if (fresh.isEmpty) return; // every server failed — keep the stale results
-
-    fresh.shuffle(_random);
-    _beatMixes = fresh;
-  }
-
-  /// Invokes the `menu` Edge Function on every healthy server in parallel.
-  /// A failing server is marked failed in the registry and contributes
-  /// nothing; the others still deliver.
-  Future<void> _fetchAllServers(
-      {required void Function(List<BeatMix>) onBatch}) {
-    return Future.wait(_registry.healthy.map((server) async {
+  // Call the menu function on the given servers in parallel, returns how many
+  // succeeded. A server that fails keeps its old entry, stale beats nothing.
+  Future<int> _fetchServers(List<ServerConnection> servers,
+      {void Function(List<BeatMix>)? onBatch}) async {
+    var succeeded = 0;
+    await Future.wait(servers.map((server) async {
       try {
         final batch = await _beatMixRepository.fetchMenuFromServer(server);
-        onBatch(batch..shuffle(_random));
+        _cache[server.url] =
+            CachedServerCatalog(fetchedAt: DateTime.now(), mixes: batch);
+        succeeded++;
+        onBatch?.call(List.of(batch)..shuffle(_random));
       } catch (e) {
         PrintLog('menu fetch failed for ${server.host}: $e');
         _registry.markFailed(server);
       }
     }));
+    return succeeded;
   }
+
+  List<BeatMix> _merged() => [for (final e in _cache.values) ...e.mixes];
 
   // ---------------------------------------------------------------------------
 
-  /// Title search across the cached beatmixes and (server-side) beats.
+  /// Searches for beatmixes and beats whose title matches the given [query].
   Stream<List<SearchResult>> findAllByTitle(String query) async* {
     final q = query.toLowerCase();
 
@@ -154,6 +252,8 @@ class LibreProvider extends ChangeNotifier {
   void dispose() {
     _dripTimer?.cancel();
     _dripTimer = null;
+    _watchTimer?.cancel();
+    _watchTimer = null;
     super.dispose();
   }
 }

@@ -110,7 +110,7 @@ Flutter app with a dark, Spotify-like shell.
 | **Liked** | Liked Songs hero header + track list (sample data) |
 | **Settings** | Server management (add via QR scan, status dots, remove) + about |
 
-Most declared packages are in real use by now: `provider`, `supabase_flutter`, `just_audio` + `audio_service`, `cached_network_image`, `mobile_scanner`, `shared_preferences` and `google_fonts`. Only `path_provider` is still waiting for the download feature, see [`pubspec.yaml`](src/frontend/pubspec.yaml).
+Most declared packages are in real use by now: `provider`, `supabase_flutter`, `just_audio` + `audio_service` + `audio_session`, `cached_network_image`, `mobile_scanner`, `shared_preferences` and `google_fonts`. Only `path_provider` is still waiting for the download feature, see [`pubspec.yaml`](src/frontend/pubspec.yaml).
 
 Where it stands: real streaming (single beats and beatmix queues) with media notifications and background playback. Servers are added via QR code in settings and persisted on device, the search grid merges every server's beatmixes and caches them for 20 minutes. Home, Library and Liked still run on sample data, and the settings toggles don't persist yet. Full details, config and the feature table live in [`src/frontend/README.md`](src/frontend/README.md).
 

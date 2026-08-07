@@ -2,7 +2,7 @@
 
 The cross platform Flutter client for **LibreBeats**, a dark Spotify style music player that streams from one or more self hosted [Supabase](../backend/) backends.
 
-> Status: search, streaming playback (background included), media notifications and beatmix browsing all work against real servers. Home, Library and Liked still render sample data. See [Feature status](#feature-status).
+> Status: search, streaming playback (background included), media notifications and beatmix browsing all work against real servers. Home shows your play history now, Library and Liked still render sample data. See [Feature status](#feature-status).
 
 ## Quick start
 
@@ -66,12 +66,13 @@ lib/
 ├── data/
 │   ├── server_registry.dart           # multi-server registry: connections, health, persistence
 │   ├── catalog_cache_store.dart       # disk store for per-server results + fetch timers
+│   ├── history_store.dart             # disk store for the play history
 │   ├── base_repository.dart           # repository base, access to the registry
 │   ├── beat_repository.dart           # beat queries (findByTitle)
 │   └── beatmix_repository.dart        # per-server menu edge function fetch
 ├── screens/
 │   ├── main_scaffold.dart             # Bottom nav + IndexedStack host + MiniPlayer
-│   ├── home_screen.dart               # Greeting, recents grid, track list
+│   ├── home_screen.dart               # Greeting + history carousel
 │   ├── search_screen.dart             # Sticky search header, live results, beatmix browse grid
 │   ├── library_screen.dart            # Filter chips, Liked entry, playlists (sample data)
 │   ├── liked_screen.dart              # Liked hero + track list (sample data)
@@ -102,17 +103,16 @@ The file also keeps the eight gradient palette and the `sampleTracks` / `sampleP
 
 A real `BaseAudioHandler` (with `SeekHandler`) around a `just_audio` `AudioPlayer`:
 
-- `setBeatSource(beat)` plays a single beat and publishes a `MediaItem` for the system notification
-- `setBeatMix(mix, initialBeat)` builds the whole queue (unplayable sample beats are skipped) and starts at the tapped beat, skip/shuffle/loop all work on this queue
-- both loaders await the source and return false on failure (dead server, bad url) instead of flipping to "playing"; tracks are matched by `key` since plain ids collide across servers
-- progress comes from the player's `positionStream`; advancing through the queue and repeat one/all are just_audio's job, the end of the queue rewinds and pauses; tracks land in `recentBeats` when they start (deduped, capped at 20)
-- the playing flag is synced from `playingStream`, so pauses coming from the notification, a headset or audio focus loss can't desync the UI, and `play()`/`pause()` are idempotent for system commands
-- an `audio_session` music session pauses playback when headphones unplug ("becoming noisy") and around interruptions like phone calls, and ducks volume when the OS asks
-- `playbackEventStream` is piped into `playbackState` so the media notification gets its controls, `AudioService.init` in `main.dart` (awaited before `runApp`) enables background playback
+- `setBeatSource(beat)` plays a single beat, `setBeatMix(mix, initialBeat)` builds the whole queue and starts at the tapped one. Both wait for the source to load and return false when a server is down or a url is dead, so the UI never says "playing" over nothing. Beats without a stream url (sample data) get skipped.
+- the queue itself is just_audio's job: tracks advance on their own, repeat one/all loop natively, and when the whole queue runs out playback rewinds and pauses
+- the playing flag follows the player's `playingStream`. Pauses from the notification, a headset or losing audio focus all land there too, so the UI stays in sync. The system sends explicit play/pause commands, so those handlers don't toggle.
+- an `audio_session` music session pauses when headphones unplug or a call comes in (resumes after the call), and ducks volume when the OS asks
+- every track that starts playing lands in `recentBeats`: newest first, max 10, replaying something moves it back to the top. Saved through `HistoryStore` so it survives a restart.
+- progress comes from the player's `positionStream`, `playbackEventStream` is piped into `playbackState` for the notification controls, and `AudioService.init` in `main.dart` runs before `runApp`
 
 ### `BackgroundAudioProvider` (`lib/providers/background_audio_provider.dart`)
 
-A thin `ChangeNotifier` facade the widgets watch. Exposes `currentBeat`, `isPlaying`, `progress`, `elapsed`, `shuffle`, `repeatMode`, `volume` and `recentBeats`, and registers itself as the service's progress callback so every position tick reaches the UI. `playBeat(beat)` toggles play/pause when the same beat is tapped again, `playBeatMix(mix, beat)` starts queue playback.
+A thin `ChangeNotifier` facade the widgets watch. Exposes `currentBeat`, `isPlaying`, `progress`, `elapsed`, `shuffle`, `repeatMode`, `volume` and `recentBeats`, and registers itself with the service so position ticks and history changes reach the UI. `playBeat(beat)` toggles play/pause when the same beat is tapped again, `playBeatMix(mix, beat)` starts queue playback.
 
 ## Catalog & data access
 
@@ -146,7 +146,7 @@ While the search tab is on screen and the app is foregrounded, a watcher checks 
 
 | Screen | Data source | Notes |
 |---|---|---|
-| **Home** | `recentBeats` | Quick-picks grid and track list show recently played beats, mostly empty on a fresh launch. |
+| **Home** | `recentBeats` | Greeting + a History row that scrolls sideways: the last 10 played beats, newest first. Replaying something moves it back to the front. Kept on device, so it's still there after a restart. |
 | **Search** | All servers via `LibreProvider` | Sticky pinned header. Search fires on submit, not per keystroke. Clearing the field restores the browse grid, a randomized merge of every server's mixes that drips in tile by tile on first visit and comes from the cache afterwards. Tapping a beatmix opens a full-screen track list dialog with play/shuffle. |
 | **Library** | `samplePlaylists` | Static prototype: inert filter chips, hardcoded "847 songs" Liked entry. |
 | **Liked** | `sampleTracks` | Static hero + sample track list, nothing here is playable (no audioUrl). |
@@ -162,12 +162,12 @@ The `MiniPlayer` docks above the nav bar once something plays and opens the `Ful
 | `supabase_flutter` | Auth, PostgREST queries, Edge Function calls |
 | `just_audio` | Audio engine (sources, queues, shuffle/loop, position stream) |
 | `audio_service` | Background playback + media notification (`BaseAudioHandler`) |
-| `audio_session` | Audio focus: pause on unplugged headphones, interruptions, ducking |
+| `audio_session` | Audio focus: pause on unplugged headphones and calls, ducking |
 | `cached_network_image` | Thumbnail/artwork loading with caching |
 | `mobile_scanner` | QR scanning in the Add server flow |
 | `qr_flutter` | Rendering the Share-servers QR code |
 | `google_fonts` | Plus Jakarta Sans across the whole theme (bundled in `assets/google_fonts/`, runtime fetching disabled) |
-| `shared_preferences` | Persisting the server list added via Settings |
+| `shared_preferences` | Persistence: server list, logins, catalog cache, play history |
 | `path_provider` | Declared for the planned download feature, not used yet |
 
 ## Configuration
@@ -203,6 +203,16 @@ flutter run --dart-define-from-file=env.json
 
 > Keep `env.json` out of git (it is in `.gitignore`). Values baked in this way do end up in that build's binary, so treat dev builds accordingly. Point the seed values at your own self-hosted stack from [`src/backend`](../backend/).
 
+## App icon
+
+All launcher icons come from one 1024px image, `assets/images/librebeats-icon-1024.png`. They are generated with [flutter_launcher_icons](https://pub.dev/packages/flutter_launcher_icons), the config sits in `pubspec.yaml`. After changing the base image run:
+
+```bash
+dart run flutter_launcher_icons
+```
+
+That takes care of Android (including adaptive icons), iOS (alpha stripped, the App Store wants that), web (favicon, PWA icons, manifest colors), Windows and macOS. Linux has no icon slot in the project, there the icon is set in the `.desktop` entry when packaging. One thing to keep in mind for adaptive icons: launchers mask them to a circle, so keep the artwork roughly in the center two thirds of the image.
+
 ## Feature status
 
 | Area | State |
@@ -216,7 +226,8 @@ flutter run --dart-define-from-file=env.json
 | Search for beatmixes | Working, filters the cached merged catalog |
 | Search for beats | Partial, query commented out, returns nothing |
 | Supabase auth | Partial, sign-in only (default login + per-server overrides), no registration |
-| Home screen | Partial, shows recently played only |
+| Play history (last 10, on Home) | Working, persisted on device |
+| Home screen | Partial, greeting + history, nothing else yet |
 | Library / Liked screens | Sample data only |
 | Likes / playlists (user-owned) | Not implemented |
 | Offline downloads | Not implemented, `path_provider` unused |
@@ -235,7 +246,7 @@ flutter test
 
 Tests run offline, no device or camera needed. Server connectivity is faked through the registry's `connector` and the provider takes small `cacheTtl`/`dripInterval` values in tests.
 
-Covered so far: the models (key identity across servers, playability), ServerRegistry (persistence, add/remove, reconnect logic), CatalogCacheStore (round trips, corrupt data), LibreProvider (multi-server merge, drip loading, cache ttl, failure recovery, the visible-page watcher), the QR payload parser, the manual add-server dialog, BeatTile and the settings servers section.
+Covered so far: the models (key identity across servers, playability), ServerRegistry (persistence, add/remove, reconnect logic), CatalogCacheStore and HistoryStore (round trips, corrupt data), LibreProvider (multi-server merge, drip loading, cache ttl, failure recovery, the visible-page watcher), the QR payload parser, the manual add-server dialog, BeatTile and the settings servers section.
 
 Not covered yet: MiniPlayer, FullPlayer and BackgroundAudioProvider (need an abstraction over just_audio's platform channels first) and the scanner screen itself (camera).
 

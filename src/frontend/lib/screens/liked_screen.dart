@@ -3,7 +3,7 @@ import 'package:liberated_beats/providers/background_audio_provider.dart';
 import 'package:provider/provider.dart';
 
 import '../models/beat_models.dart';
-import '../widgets/track_tile.dart';
+import '../widgets/beat_tile.dart';
 
 class LikedScreen extends StatelessWidget {
   const LikedScreen({super.key});
@@ -89,7 +89,7 @@ class LikedScreen extends StatelessWidget {
             (context, i) {
               final t = sampleTracks[i];
               final isActive = backgroundPlayer.currentBeat?.key == t.key;
-              return TrackTile(
+              return BeatTile(
                 beat: t,
                 isActive: isActive,
                 isPlaying: isActive && backgroundPlayer.isPlaying,

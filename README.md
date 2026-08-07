@@ -108,7 +108,7 @@ Flutter app with a dark, Spotify-like shell.
 | **Search** | Title search + "Browse Playlists" grid merging beatmixes from all registered servers |
 | **Library** | Filter chips, Liked Songs entry, playlist list (sample data) |
 | **Liked** | Liked Songs hero header + track list (sample data) |
-| **Settings** | Server management (add via QR scan, status dots, remove) + grouped setting cards |
+| **Settings** | Server management (add via QR scan, status dots, remove) + about |
 
 Most declared packages are in real use by now: `provider`, `supabase_flutter`, `just_audio` + `audio_service`, `cached_network_image`, `mobile_scanner`, `shared_preferences` and `google_fonts`. Only `path_provider` is still waiting for the download feature, see [`pubspec.yaml`](src/frontend/pubspec.yaml).
 
@@ -201,13 +201,11 @@ After startup, use Studio and API URLs from your `.env` / `SUPABASE_PUBLIC_URL`.
 cd src/frontend
 flutter pub get
 flutter run \
-  --dart-define=LIBREBEATS_DEV_EMAIL=you@example.com \
-  --dart-define=LIBREBEATS_DEV_PASSWORD=yourpassword \
   --dart-define=LIBREBEATS_SEED_URLS=https://your-server.example.com \
   --dart-define=LIBREBEATS_SEED_KEYS=sb_publishable_yourkey
 ```
 
-The dart-defines hold the dev login and the first-run server seed, so nothing sensitive lives in source. After the first run servers are managed in settings. More in [`src/frontend/README.md`](src/frontend/README.md).
+The dart-defines hold the first-run server seed. No login ships in the app: the sign-in account is set up in settings on first run (a default login plus per-server overrides), can arrive via a QR scan, or can be baked into local dev builds with a git-ignored `env.json`. More in [`src/frontend/README.md`](src/frontend/README.md).
 
 ## Roadmap
 

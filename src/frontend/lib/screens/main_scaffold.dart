@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../providers/catalog_provider.dart';
 import '../widgets/mini_player.dart';
 import 'home_screen.dart';
 import 'library_screen.dart';
@@ -16,8 +18,38 @@ class MainScaffold extends StatefulWidget {
   State<MainScaffold> createState() => _MainScaffoldState();
 }
 
-class _MainScaffoldState extends State<MainScaffold> {
+class _MainScaffoldState extends State<MainScaffold>
+    with WidgetsBindingObserver {
   int _selectedIndex = 0;
+
+  // only build a tab once its actually visited, saves a lot of first frame
+  // work. IndexedStack keeps them alive afterwards so state is preserved.
+  final _visited = <int>{0};
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Pause the catalog watcher in the background, lazy refresh only there.
+  // Coming back to the app on the search tab counts as visiting the page.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final catalog = context.read<LibreProvider>();
+    if (state == AppLifecycleState.resumed) {
+      catalog.setSearchVisible(_selectedIndex == 1);
+      if (_selectedIndex == 1) catalog.ensureCatalog();
+    } else {
+      catalog.setSearchVisible(false);
+    }
+  }
 
   static const _screens = [
     HomeScreen(),
@@ -31,14 +63,30 @@ class _MainScaffoldState extends State<MainScaffold> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
-      body: IndexedStack(index: _selectedIndex, children: _screens),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: [
+          for (var i = 0; i < _screens.length; i++)
+            _visited.contains(i) ? _screens[i] : const SizedBox.shrink(),
+        ],
+      ),
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           const MiniPlayer(),
           NavigationBar(
             selectedIndex: _selectedIndex,
-            onDestinationSelected: (i) => setState(() => _selectedIndex = i),
+            onDestinationSelected: (i) {
+              final catalog = context.read<LibreProvider>();
+              // search tab, load the catalog (cached after the first time).
+              // the watcher auto refreshes while the user stays on the page.
+              catalog.setSearchVisible(i == 1);
+              if (i == 1) catalog.ensureCatalog();
+              setState(() {
+                _visited.add(i);
+                _selectedIndex = i;
+              });
+            },
             destinations: const [
               NavigationDestination(
                 icon: Icon(Icons.home_outlined),

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:liberated_beats/main.dart';
+import 'package:liberated_beats/config/helpers.dart';
 import 'package:liberated_beats/providers/catalog_provider.dart';
 import 'package:liberated_beats/widgets/search_result_tile.dart';
 import 'package:provider/provider.dart';
@@ -48,14 +48,9 @@ class _SearchScreenState extends State<SearchScreen> {
     super.dispose();
   }
 
-  Stream<List<BeatMix>> _buildBeatMixGrid(LibreProvider catalog) async* {
-    final beatMixes = await catalog.getAllBeatMixes();
-    yield beatMixes;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final catalog = context.read<LibreProvider>();
+    final catalog = context.watch<LibreProvider>();
     final topInset = MediaQuery.of(context).padding.top;
 
     // Fixed height for the sticky header:
@@ -78,13 +73,45 @@ class _SearchScreenState extends State<SearchScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Search',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Search',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                        // switch between disk and in-memory server results
+                        SizedBox(
+                          height: 30,
+                          child: TextButton.icon(
+                            onPressed: () => catalog
+                                .setPersistentCache(!catalog.persistentCache),
+                            style: TextButton.styleFrom(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 8),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            icon: Icon(
+                              catalog.persistentCache
+                                  ? Icons.save_outlined
+                                  : Icons.memory,
+                              size: 16,
+                              color: const Color(0xFFA7A7A7),
+                            ),
+                            label: Text(
+                              catalog.persistentCache
+                                  ? 'Cache: disk'
+                                  : 'Cache: memory',
+                              style: const TextStyle(
+                                  fontSize: 12, color: Color(0xFFA7A7A7)),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     SizedBox(
@@ -121,6 +148,40 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ),
         ),
+        // banner after an automatic refresh happened while on this page
+        if (catalog.updateNotice)
+          SliverToBoxAdapter(
+            child: Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1ED760).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0x661ED760)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.autorenew,
+                      size: 16, color: Color(0xFF1ED760)),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Playlists were updated',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1ED760)),
+                    ),
+                  ),
+                  InkWell(
+                    onTap: catalog.clearUpdateNotice,
+                    child: const Icon(Icons.close,
+                        size: 16, color: Color(0xFF1ED760)),
+                  ),
+                ],
+              ),
+            ),
+          ),
         // Results or categories (unchanged)
         if (_query.isNotEmpty)
           SliverToBoxAdapter(
@@ -172,43 +233,35 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ),
           SliverToBoxAdapter(
-            child: StreamBuilder<List<BeatMix>>(
-                stream: _buildBeatMixGrid(catalog),
-                builder: (context, snapshot) {
-
-                  if (snapshot.hasError) {
-                    PrintLog("StreamError: ${snapshot.error.toString()}");
-                  }
-
-                  if (snapshot.connectionState == ConnectionState.done) {
-                    if (snapshot.hasData) {
-                      final beatMixes = snapshot.data!;
-                      return GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: 2.0,
-                        ),
-                        itemCount: beatMixes.length,
-                        itemBuilder: (context, index) {
-                          final beatMix = beatMixes[index];
-                          return SearchTile(
-                              search: SearchResult(beatMix: beatMix));
-                        },
-                      );
-                    }
-
-                    return const Center(
-                        child: Text("No results found",
-                            style: TextStyle(color: Colors.white)));
-                  }
-
-                  return const Center(child: CircularProgressIndicator());
-                }),
+            child: catalog.beatMixes.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 48),
+                    child: Center(
+                      child: catalog.isFetching
+                          ? const CircularProgressIndicator(
+                              color: Color(0xFF1ED760))
+                          : const Text(
+                              'No playlists yet — check your servers in Settings',
+                              style: TextStyle(color: Color(0xFFA7A7A7))),
+                    ),
+                  )
+                : GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: 2.0,
+                    ),
+                    itemCount: catalog.beatMixes.length,
+                    itemBuilder: (context, index) {
+                      final beatMix = catalog.beatMixes[index];
+                      return SearchTile(
+                          search: SearchResult(beatMix: beatMix));
+                    },
+                  ),
           )
         ],
         const SliverToBoxAdapter(child: SizedBox(height: 16)),

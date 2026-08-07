@@ -3,16 +3,16 @@ import 'package:liberated_beats/widgets/widget_builder.dart';
 
 import '../models/beat_models.dart';
 
-/// Reusable list row for a track. Shows the gradient "art", title, artist and
-/// duration; when [isActive] it overlays a play/pause glyph on the art and
-/// tints the title green.
-class TrackTile extends StatelessWidget {
+/// Reusable list row for a beat. Shows the artwork (gradient fallback),
+/// title, artist and duration; when [isActive] it overlays a play/pause
+/// glyph on the art and tints the title green.
+class BeatTile extends StatelessWidget {
   final Beat beat;
   final bool isActive;
   final bool isPlaying;
   final VoidCallback onTap;
 
-  const TrackTile({
+  const BeatTile({
     super.key,
     required this.beat,
     required this.isActive,
@@ -42,7 +42,7 @@ class TrackTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
             ),
             child: createCachedNetworkImage(
-              imageUrl: beat.album,
+              imageUrl: beat.thumbnailUrl,
               fit: BoxFit.cover,
               width: double.infinity,
               height: double.infinity,

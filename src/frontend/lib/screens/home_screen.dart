@@ -4,8 +4,7 @@ import 'package:liberated_beats/widgets/widget_builder.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/catalog_provider.dart';
-import '../widgets/album_card.dart';
-import '../widgets/track_tile.dart';
+import '../widgets/beat_tile.dart';
 
 class HomeScreen extends StatelessWidget {
 
@@ -24,7 +23,6 @@ class HomeScreen extends StatelessWidget {
     final catalog = context.watch<LibreProvider>();
     final topInset = MediaQuery.of(context).padding.top;
     final tracks = backgroundPlayer.recentBeats;
-    final albums = catalog.albums;
     final isInitialLoad = catalog.isLoading && tracks.isEmpty;
 
     return CustomScrollView(
@@ -72,7 +70,7 @@ class HomeScreen extends StatelessWidget {
                     itemCount: tracks.length.clamp(0, 6),
                     itemBuilder: (context, i) {
                       final t = tracks[i];
-                      final isActive = backgroundPlayer.currentBeat?.id == t.id;
+                      final isActive = backgroundPlayer.currentBeat?.key == t.key;
                       return Material(
                         color: Colors.white
                             .withValues(alpha: isActive ? 0.2 : 0.1),
@@ -92,7 +90,7 @@ class HomeScreen extends StatelessWidget {
                                       left: Radius.circular(6)),
                                 ),
                                 child: createCachedNetworkImage(
-                                  imageUrl: t.album,
+                                  imageUrl: t.thumbnailUrl,
                                   fit: BoxFit.cover,
                                   width: double.infinity,
                                   height: double.infinity,
@@ -121,49 +119,15 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
         ),
-        // 2. Recently played header.
-        SliverToBoxAdapter(child: _sectionHeader('Recently played')),
-        // 3. Horizontal albums row.
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: 196,
-            child: isInitialLoad
-                ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF1ED760)))
-                : ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: albums.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 12),
-                    itemBuilder: (context, i) {
-                      final album = albums[i];
-                      return SizedBox(
-                        width: 140,
-                        child: AlbumCard(
-                          album: album,
-                          onPlay: () {
-                            if (tracks.isEmpty) return;
-                            final beat = tracks.firstWhere(
-                              (t) => t.album == album.title,
-                              orElse: () => tracks.first,
-                            );
-                            backgroundPlayer.playBeat(beat);
-                          },
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ),
-        // 4. Liked songs header.
+        // 2. Liked songs header.
         SliverToBoxAdapter(child: _sectionHeader('Liked songs')),
-        // 5. Track list.
+        // 3. Track list.
         SliverList(
           delegate: SliverChildBuilderDelegate(
             (context, i) {
               final t = tracks[i];
-              final isActive = backgroundPlayer.currentBeat?.id == t.id;
-              return TrackTile(
+              final isActive = backgroundPlayer.currentBeat?.key == t.key;
+              return BeatTile(
                 beat: t,
                 isActive: isActive,
                 isPlaying: isActive && backgroundPlayer.isPlaying,

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:just_audio/just_audio.dart';
-import 'package:liberated_beats/main.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/services/audio_playback_service.dart';
 
@@ -45,8 +44,11 @@ final class BackgroundAudioProvider extends ChangeNotifier {
 
   // This should only play a single beat, repeat it or stop after play
   void playBeat(Beat beat) async {
+    // sample data has no stream to play
+    if (!beat.isPlayable) return;
+
     // Tapping the already-current track toggles play/pause instead of restarting.
-    if (_playbackService.beatId == beat.id) {
+    if (_playbackService.beatKey == beat.key) {
       togglePlay();
       return;
     }
@@ -97,11 +99,10 @@ final class BackgroundAudioProvider extends ChangeNotifier {
   }
 
   // BaseAudioHandler overides
-  Future<ValueChanged<double>?> setSeek(double value) async {
+  Future<void> setSeek(double value) async {
     _progress = value.clamp(0.0, 1.0);
     await _playbackService.setSeek(elapsed);
     notifyListeners();
-    return null;
   }
 
   Future<void> skipToNext() async {

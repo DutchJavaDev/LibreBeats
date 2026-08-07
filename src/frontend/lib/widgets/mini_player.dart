@@ -61,7 +61,7 @@ class MiniPlayer extends StatelessWidget {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: createCachedNetworkImage(
-                      imageUrl: track.album,
+                      imageUrl: track.thumbnailUrl,
                       fit: BoxFit.cover,
                       width: double.infinity,
                       height: double.infinity,
@@ -104,9 +104,6 @@ class MiniPlayer extends StatelessWidget {
                     visualDensity: VisualDensity.compact,
                     iconSize: 26,
                     icon: const Icon(Icons.skip_next, color: Colors.white),
-                    // Known quirk preserved from the source: this convoluted
-                    // ternary always evaluates to an empty list, so nextTrack is
-                    // a no-op. Pass `sampleTracks` (or the active queue) to enable.
                     onPressed: () => backgroundPlayer.skipToNext(),
                   ),
                 ],

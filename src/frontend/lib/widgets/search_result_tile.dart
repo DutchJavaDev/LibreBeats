@@ -20,7 +20,9 @@ class SearchTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final backgroundPlayer = context.watch<BackgroundAudioProvider>();
-    final isActive = backgroundPlayer.currentBeat?.id == search.beat?.id;
+    // null check needed, otherwise null == null marks everything active
+    final isActive = search.beat != null &&
+        backgroundPlayer.currentBeat?.key == search.beat!.key;
     if (search.beatMix != null) {
       final beatMix = search.beatMix!;
       return Stack(
@@ -89,7 +91,7 @@ class SearchTile extends StatelessWidget {
         },
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: createCachedNetworkImage(
-          imageUrl: beat.album,
+          imageUrl: beat.thumbnailUrl,
           width: 52,
           height: 52,
           fit: BoxFit.cover,

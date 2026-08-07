@@ -1,68 +1,52 @@
 import 'package:liberated_beats/data/base_repository.dart';
+import 'package:liberated_beats/data/server_registry.dart';
+
 import '../models/beat_models.dart';
 
 /// Single point of access to the BeatMix catalog.
 class BeatMixRepository extends BaseRepository {
+  BeatMixRepository(super.registry);
 
-  Future<List<BeatMix>> findByTitle(String query) async {
-    final rows = await client!.schema('librebeats')
-                              .from('beatmix')
-                              .select('id, title, thumbnailurl, beatmixbeat:beatmixbeat(count)')
-                              .ilike("title", "%$query%");
+  // Fetch all mixes from one server via the menu edge function,
+  // throws on failure so the caller can mark the server as failed
+  Future<List<BeatMix>> fetchMenuFromServer(ServerConnection server) async {
+    final response = await server.client!.functions
+        .invoke('menu')
+        .timeout(const Duration(seconds: 10));
 
-    var beatMixes = rows.map(_beatMixFromRow).toList();
-
-    for (var beatMix in beatMixes) {
-      final trackRows = await client!.schema('librebeats')
-                                    .from('beatmixbeat')
-                                    .select('beat:beat(id, title, artist, thumbnailurl, streamingurl, rawbeat!beat_rawbeatid_fkey(duration))')
-                                    .eq('beatmixid', beatMix.id);
-      final tracks = trackRows.map((row) => _beatFromRow(row['beat'])).toList();
-
-      beatMix.beats!.addAll(tracks);
+    if (response.status != 200) {
+      throw Exception('menu returned ${response.status} from ${server.host}');
     }
 
-    return beatMixes;
-  }
-
-  // get all beatmixes
-  Future<List<BeatMix>> getAll() async {
-    final rows = await client!.schema('librebeats')
-                              .from('beatmix')
-                              .select('id, title, thumbnailurl, beatmixbeat:beatmixbeat(count)');
-
-    var beatMixes = rows.map(_beatMixFromRow).toList();
-
-    for (var beatMix in beatMixes) {
-      final trackRows = await client!.schema('librebeats')
-                                    .from('beatmixbeat')
-                                    .select('beat:beat(id, title, artist, thumbnailurl, streamingurl, rawbeat!beat_rawbeatid_fkey(duration))')
-                                    .eq('beatmixid', beatMix.id);
-      final tracks = trackRows.map((row) => _beatFromRow(row['beat'])).toList();
-
-      beatMix.beats!.addAll(tracks);
-    }
-
-    return beatMixes;
+    final List<dynamic> data = response.data['data'];
+    return data.map((mix) => _beatMixFromJson(mix, server.url)).toList();
   }
 
   // ---------------------------------------------------------------------------
-  BeatMix _beatMixFromRow(Map<String, dynamic> row) => BeatMix(
-        id:  int.parse(row['id'].toString()),
-        title: row['title'] as String,
-        thumbnailUrl: row['thumbnailurl'] as String,
-        trackCount:  row['beatmixbeat'][0]['count'],
-        beats: [],
-      );
+  BeatMix _beatMixFromJson(dynamic json, String sourceId) {
+    final beats = ((json['beats'] as List<dynamic>?) ?? [])
+        .map((beat) => _beatFromJson(beat, sourceId))
+        .toList();
 
-  Beat _beatFromRow(Map<String, dynamic> row) => Beat(
-        id:  int.parse(row['id'].toString()),
-        title: row['title'] as String,
-        artist: row['artist'] as String,
-        album: row['thumbnailurl'] as String? ?? '',
-        duration: Duration(seconds: row['rawbeat']['duration'] ?? 0),
+    return BeatMix(
+      id: int.parse(json['id'].toString()),
+      sourceId: sourceId,
+      title: json['title'] as String,
+      thumbnailUrl: json['thumbnailurl'] as String,
+      trackCount: int.tryParse('${json['count']}') ?? beats.length,
+      beats: beats,
+    );
+  }
+
+  Beat _beatFromJson(dynamic json, String sourceId) => Beat(
+        id: int.parse(json['id'].toString()),
+        sourceId: sourceId,
+        title: json['title'] as String,
+        artist: json['artist'] as String,
+        thumbnailUrl: json['thumbnailurl'] as String? ?? '',
+        duration: Duration(seconds: json['duration'] ?? 0),
         color: sampleTracks.first.color,
-        audioUrl: row['streamingurl'] as String?,
+        audioUrl: json['streamingurl'] as String?,
       );
   // ---------------------------------------------------------------------------
 }

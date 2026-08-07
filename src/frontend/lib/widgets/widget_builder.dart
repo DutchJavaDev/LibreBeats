@@ -3,14 +3,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/providers/background_audio_provider.dart';
-import 'package:liberated_beats/widgets/track_tile.dart';
+import 'package:liberated_beats/widgets/beat_tile.dart';
 
-CachedNetworkImage createCachedNetworkImage({
+Widget createCachedNetworkImage({
   required String imageUrl,
   BoxFit? fit,
   double? width,
   double? height,
 }) {
+  // sample data has album titles in here instead of urls, dont try to load those
+  final uri = Uri.tryParse(imageUrl);
+  if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+    return const SizedBox.shrink();
+  }
+
   return CachedNetworkImage(
     imageUrl: imageUrl,
     fit: fit,
@@ -25,7 +31,6 @@ CachedNetworkImage createCachedNetworkImage({
 void showBeatMixDialog(BuildContext context, BeatMix beatMix, BackgroundAudioProvider backgroundPlayer) {
   FocusScope.of(context).unfocus();
   SystemChannels.textInput.invokeMethod('TextInput.hide');
-  
   showDialog(
     context: context,
     builder: (context) => Dialog.fullscreen(
@@ -51,7 +56,7 @@ void showBeatMixDialog(BuildContext context, BeatMix beatMix, BackgroundAudioPro
                 itemBuilder: (BuildContext context, int index) {
                   final beat = beatMix.beats![index];
                   return RepaintBoundary(
-                    child: TrackTile(
+                    child: BeatTile(
                       beat: beat,
                       isActive: false, // Won't work since modal does not have a setState()
                       isPlaying: false,// Won't work since modal does not have a setState()

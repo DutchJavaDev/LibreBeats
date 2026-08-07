@@ -1,51 +1,44 @@
 import 'package:flutter/material.dart';
 
-/// A single song. All artwork is rendered as [color] with the title's first
-/// letter drawn on top — there are no image assets in this prototype.
+/// A single song. Artwork falls back to [color] when [thumbnailUrl] is
+/// missing or not a real url.
 class Beat {
   final int id;
+
+  // which server this came from, ids are only unique per server so use [key]
+  final String sourceId;
+
   final String title;
   final String artist;
-  final String album;
+  final String thumbnailUrl;
   final Duration duration;
   final Gradient color;
 
-  /// Human-readable date string (e.g. `Jun 1, 2026`). Not shown in the UI yet.
-  final String? addedDate;
-
-  /// Reserved for a real audio source; never set in sample data, never read.
+  /// Streaming url, null for sample data (which can not be played).
   final String? audioUrl;
 
   const Beat({
     required this.id,
+    this.sourceId = 'sample',
     required this.title,
     required this.artist,
-    required this.album,
+    this.thumbnailUrl = '',
     required this.duration,
     required this.color,
-    this.addedDate,
     this.audioUrl,
   });
-}
 
-class Album {
-  final String id;
-  final String title;
-  final String artist;
-  final int year;
-  final Gradient color;
+  String get key => '$sourceId:$id';
 
-  const Album({
-    required this.id,
-    required this.title,
-    required this.artist,
-    required this.year,
-    required this.color,
-  });
+  bool get isPlayable => audioUrl != null && audioUrl!.isNotEmpty;
 }
 
 class BeatMix {
   final int id;
+
+  // which server this came from, ids are only unique per server so use [key]
+  final String sourceId;
+
   final String title;
   final String thumbnailUrl;
   final int trackCount;
@@ -53,11 +46,14 @@ class BeatMix {
 
   const BeatMix({
     required this.id,
+    this.sourceId = 'sample',
     required this.title,
     required this.thumbnailUrl,
     required this.trackCount,
     required this.beats,
   });
+
+  String get key => '$sourceId:$id';
 }
 
 class SearchResult {
@@ -121,83 +117,58 @@ const List<Beat> sampleTracks = [
     id: 1,
     title: 'Resonance',
     artist: 'Home',
-    album: 'Odyssey',
     duration: Duration(seconds: 218),
     color: _g0,
-    addedDate: 'Jun 1, 2026',
   ),
   Beat(
     id: 2,
     title: 'Midnight City',
     artist: 'M83',
-    album: "Hurry Up, We're Dreaming",
     duration: Duration(seconds: 243),
     color: _g1,
-    addedDate: 'May 28, 2026',
   ),
   Beat(
     id: 3,
     title: 'Let It Happen',
     artist: 'Tame Impala',
-    album: 'Currents',
     duration: Duration(seconds: 467),
     color: _g2,
-    addedDate: 'May 20, 2026',
   ),
   Beat(
     id: 4,
     title: 'Electric Feel',
     artist: 'MGMT',
-    album: 'Oracular Spectacular',
     duration: Duration(seconds: 231),
     color: _g3,
-    addedDate: 'May 15, 2026',
   ),
   Beat(
     id: 5,
     title: 'Crystalised',
     artist: 'The xx',
-    album: 'xx',
     duration: Duration(seconds: 214),
     color: _g4,
-    addedDate: 'May 10, 2026',
   ),
   Beat(
     id: 6,
     title: 'Do I Wanna Know?',
     artist: 'Arctic Monkeys',
-    album: 'AM',
     duration: Duration(seconds: 272),
     color: _g5,
-    addedDate: 'May 5, 2026',
   ),
   Beat(
     id: 7,
     title: 'Feels Like We Only Go Backwards',
     artist: 'Tame Impala',
-    album: 'Lonerism',
     duration: Duration(seconds: 193),
     color: _g6,
-    addedDate: 'Apr 28, 2026',
   ),
   Beat(
     id: 8,
     title: 'Heat Waves',
     artist: 'Glass Animals',
-    album: 'Dreamland',
     duration: Duration(seconds: 238),
     color: _g7,
-    addedDate: 'Apr 20, 2026',
   ),
-];
-
-const List<Album> sampleAlbums = [
-  Album(id: 'a1', title: 'Odyssey', artist: 'Home', year: 2014, color: _g0),
-  Album(id: 'a2', title: 'Currents', artist: 'Tame Impala', year: 2015, color: _g2),
-  Album(id: 'a3', title: 'AM', artist: 'Arctic Monkeys', year: 2013, color: _g5),
-  Album(id: 'a4', title: 'Dreamland', artist: 'Glass Animals', year: 2020, color: _g7),
-  Album(id: 'a5', title: 'xx', artist: 'The xx', year: 2009, color: _g4),
-  Album(id: 'a6', title: 'Lonerism', artist: 'Tame Impala', year: 2012, color: _g6),
 ];
 
 const List<BeatMix> samplePlaylists = [

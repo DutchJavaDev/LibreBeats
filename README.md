@@ -4,35 +4,21 @@
 
 **LibreBeats** is a self-hosted music streaming platform: a Spotify-style client you run yourself, backed by your own catalog and infrastructure instead of a commercial subscription.
 
-## Table of contents
-
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [Project structure](#project-structure)
-- [Frontend](#frontend-srcfrontend)
-- [Backend](#backend-srcbackend)
-- [Testing](#testing)
-- [Getting started](#getting-started)
-- [Roadmap](#roadmap)
-- [License & upstream](#license--upstream)
-
 ## Overview
 
-| Part | Path | Role |
-|------|------|------|
-| **Frontend** | [`src/frontend`](src/frontend) | Cross-platform Flutter app (Home, Search, Library, Liked, Settings + mini/full player UI) |
-| **Backend** | [`src/backend`](src/backend) | Self-hosted [Supabase](https://supabase.com/docs/guides/self-hosting/docker) + Go services for SQL migrations and audio ingest |
+The project is split in two:
 
-**Current state:** The Flutter client is a self-contained UI prototype built with sample data and a simulated player (Spotify-style shell, not wired to any backend). The backend can ingest YouTube URLs into Postgres and Supabase Storage via a queue worker, App is currently wired for basic search and playback (background supported)
+- [`src/frontend`](src/frontend): cross platform Flutter app (Home, Search, Library, Liked, Settings + mini/full player UI)
+- [`src/backend`](src/backend): self-hosted [Supabase](https://supabase.com/docs/guides/self-hosting/docker) plus Go services for SQL migrations and audio ingest
+
+**Current state:** the app streams real audio from one or more self hosted Supabase backends. Search, beatmix browsing, background playback and multi-server management (QR code add in Settings, 20 minute catalog cache) all work. Home, Library and Liked still run on sample data. On the backend a queue worker ingests YouTube URLs into Postgres and Supabase Storage. More frontend detail in [`src/frontend/README.md`](src/frontend/README.md).
 
 ### Prerequisites
 
-| Tool | Used for |
-|------|----------|
-| [Flutter](https://docs.flutter.dev/get-started/install) SDK — Dart `>=3.0.0 <4.0.0` | Mobile/desktop client |
-| [Docker](https://docs.docker.com/get-docker/) & Docker Compose | Self-hosted Supabase stack |
-| [Go](https://go.dev/dl/) `1.25+` | Migration and audio services (build + unit tests) |
-| Bash | `src/backend/*.sh` helper scripts (Linux/macOS/WSL) |
+- [Flutter](https://docs.flutter.dev/get-started/install) SDK, Dart `>=3.0.0 <4.0.0`
+- [Docker](https://docs.docker.com/get-docker/) with Docker Compose for the Supabase stack
+- [Go](https://go.dev/dl/) `1.25+` for the migration and audio services
+- Bash for the `src/backend/*.sh` helper scripts (Linux/macOS/WSL)
 
 ## Architecture
 
@@ -40,12 +26,13 @@
 ┌─────────────────────────────────────────────────────────────┐
 │  Flutter app (src/frontend)                                 │
 │  Home · Search · Library · Liked · Settings · player        │
-│  Provider state · sample data · simulated playback          │
+│  Provider state · streaming playback · multi-server catalog │
 └───────────────────────────┬─────────────────────────────────┘
-                            │  Currently working: Supabase auth (No register, only on existing accounts) + real audio (search and playback)
+                            │  Working: Supabase auth (no register, existing accounts only) +
+                            │  real audio (search, playback, background) against one or more servers
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  Self-hosted Supabase (src/backend/supabase)                │
+│  Self-hosted Supabase (src/backend/supabase), 1..n of these │
 │  Auth · PostgREST · Storage · Realtime · Studio · Kong      │
 └───────────────────────────┬─────────────────────────────────┘
                             │
@@ -63,10 +50,10 @@
 
 ### Intended flow
 
-1. **Ingest** — URLs are enqueued on `audiopipe-input`; the Go **audio** worker downloads via **yt-dlp**, uploads to Storage, and writes catalog rows.
-2. **Catalog** — Authenticated clients read `Beat` and `BeatMix` records (streaming URLs, metadata).
-3. **Play** — The Flutter app streams from those URLs (optional offline cache via planned `sqflite` / local storage).
-4. **Personal library** — User playlists and optional external music servers (the current Settings screen is a static prototype; no server endpoints are wired yet).
+1. Ingest: URLs get enqueued on `audiopipe-input`, the Go audio worker downloads them with yt-dlp, uploads to Storage and writes the catalog rows.
+2. Catalog: clients fetch `BeatMix` records (with their beats embedded) from every registered server via the `menu` edge function, merged and cached in the app.
+3. Play: the app streams straight from the catalog urls (offline cache still planned).
+4. Personal library: user playlists and external music servers. Multiple LibreBeats servers can be added in settings with a QR scan, Navidrome/Jellyfin not started.
 
 ## Project structure
 
@@ -75,13 +62,18 @@ LibreBeats/
 ├── README.md
 └── src/
     ├── frontend/
-    │   └── lib/
-    │       ├── main.dart              # Entry point: bindings, system chrome, runApp
-    │       ├── app.dart               # MaterialApp + Material 3 dark theme
-    │       ├── models/                # Beats/Beatsmixes models + sample data
-    │       ├── providers/             # BackgroundAudioProvider (streaming playback)
-    │       ├── screens/               # main_scaffold, home, search, library, liked, settings
-    │       └── widgets/               # mini_player, full_player, album_card, track_tile
+    │   ├── README.md              # Frontend docs: architecture, config, testing
+    │   ├── lib/
+    │   │   ├── main.dart              # Entry point: server seed, audio service, providers
+    │   │   ├── app.dart               # MaterialApp + Material 3 dark theme
+    │   │   ├── config/                # helpers
+    │   │   ├── models/                # Beat/BeatMix/SearchResult models + sample data
+    │   │   ├── providers/             # BackgroundAudioProvider, LibreProvider (catalog + cache)
+    │   │   ├── services/              # AudioPlaybackService (just_audio + audio_service)
+    │   │   ├── data/                  # ServerRegistry + beat/beatmix repositories
+    │   │   ├── screens/               # main_scaffold, home, search, library, liked, settings
+    │   │   └── widgets/               # mini/full player, tiles, QR server scanner
+    │   └── test/                  # Flutter unit + widget tests
     └── backend/
         ├── build.sh                   # Build Supabase + custom images
         ├── run.sh                     # Start stack
@@ -112,20 +104,15 @@ Flutter app with a dark, Spotify-like shell.
 
 | Screen | Purpose |
 |--------|---------|
-| **Home** | Greeting, quick-picks grid, recently-played albums, track list |
-| **Search** | Live filtering of sample tracks + browse-category grid |
-| **Library** | Filter chips, Liked Songs entry, playlist list |
-| **Liked** | Liked Songs hero header + track list |
-| **Settings** | Grouped setting cards: audio, downloads, notifications, display, privacy, about |
+| **Home** | Greeting, quick-picks grid of recently played beats, track list |
+| **Search** | Title search + "Browse Playlists" grid merging beatmixes from all registered servers |
+| **Library** | Filter chips, Liked Songs entry, playlist list (sample data) |
+| **Liked** | Liked Songs hero header + track list (sample data) |
+| **Settings** | Server management (add via QR scan, status dots, remove) + about |
 
-**Key dependencies:** `provider` (state) and `google_fonts` (Plus Jakarta Sans) are the only packages used in code today. `shared_preferences`, `just_audio`, `audio_service`, `cached_network_image`, and `path_provider` are declared for planned audio/persistence work but are not yet imported — see [`pubspec.yaml`](src/frontend/pubspec.yaml).
+Most declared packages are in real use by now: `provider`, `supabase_flutter`, `just_audio` + `audio_service`, `cached_network_image`, `mobile_scanner`, `shared_preferences` and `google_fonts`. Only `path_provider` is still waiting for the download feature, see [`pubspec.yaml`](src/frontend/pubspec.yaml).
 
-**Implementation status:**
-
-- Rebuilt as a self-contained UI prototype — Flutter package `liberated_beats`, app title “Liberated Beats”, dark Material 3 theme. No Supabase or backend wiring.
-- Sample data (`sampleTracks`, `sampleAlbums`, `samplePlaylists`) lives in `models/track.dart`; all artwork is a gradient with the title's first letter (no image assets).
-- `BackgroundAudioProvider` — a single in-memory `ChangeNotifier` holding all playback state.
-- `main.dart` — locks portrait orientation, sets the system UI overlay, and runs the app through a `provider` `MultiProvider`.
+Where it stands: real streaming (single beats and beatmix queues) with media notifications and background playback. Servers are added via QR code in settings and persisted on device, the search grid merges every server's beatmixes and caches them for 20 minutes. Home, Library and Liked still run on sample data, and the settings toggles don't persist yet. Full details, config and the feature table live in [`src/frontend/README.md`](src/frontend/README.md).
 
 ## Backend (`src/backend`)
 
@@ -168,7 +155,7 @@ Defined in [`0 initial.sql`](src/backend/supabase/service/migration/scripts/0%20
 
 ## Testing
 
-Backend Go services have **unit tests** that do not require Docker, Postgres, or yt-dlp.
+Both the Go services and the Flutter app have unit tests, none of them need Docker, Postgres, yt-dlp or a device.
 
 ```bash
 # Migration helpers + script naming
@@ -178,12 +165,17 @@ go test ./...
 # Pipeline parsing, file utilities, env guards, models
 cd src/backend/supabase/service/audio
 go test ./...
+
+# Frontend unit + widget tests
+cd src/frontend
+flutter test
 ```
 
 | Package | What is tested |
 |---------|----------------|
 | `migration` | Migration filename ID parsing, “migrations table missing” detection, `scripts/` naming convention |
 | `audio` | Queue JSON URL parsing, playlist URL detection, directory/file helpers, archive lookup, `ProgressState`, required env panics |
+| `frontend` | Models, ServerRegistry (persistence/reconnect), catalog provider (merge/drip/cache/failures), QR payload parsing, add-server dialog, BeatTile, settings servers card |
 
 Integration tests against a live Supabase stack are not included yet.
 
@@ -208,23 +200,27 @@ After startup, use Studio and API URLs from your `.env` / `SUPABASE_PUBLIC_URL`.
 ```bash
 cd src/frontend
 flutter pub get
-flutter run
+flutter run \
+  --dart-define=LIBREBEATS_SEED_URLS=https://your-server.example.com \
+  --dart-define=LIBREBEATS_SEED_KEYS=sb_publishable_yourkey
 ```
+
+The dart-defines hold the first-run server seed. No login ships in the app: the sign-in account is set up in settings on first run (a default login plus per-server overrides), can arrive via a QR scan, or can be baked into local dev builds with a git-ignored `env.json`. More in [`src/frontend/README.md`](src/frontend/README.md).
 
 ## Roadmap
 
 | Area | Target | Current |
 |------|--------|---------|
-| Playback | Stream from Storage / signed URLs | Done |
-| Catalog | Read `Beat` / `BeatMix` from Supabase | Done |
+| Playback | Stream from Storage / signed URLs | Done, with background playback + media notification |
+| Catalog | Read `Beat` / `BeatMix` from Supabase | Done, menu edge function merged across servers with a 20 min cache |
 | Auth | Supabase Auth in Flutter | Wired for existing users, can't register (jet) |
-| Music servers | LibreBeats / Navidrome / Jellyfin | Static settings prototype (no server UI) |
+| Music servers | LibreBeats / Navidrome / Jellyfin | Multiple LibreBeats servers via QR in settings, Navidrome/Jellyfin not started |
 | Ingest | Queue YouTube URLs → catalog | Worker with VT + DLQ; app not connected |
-| Tests | CI + integration tests for DB/queue | Go unit tests only |
+| Tests | CI + integration tests for DB/queue | Go + Flutter unit/widget tests |
 
 Audio worker env (optional): `QUEUE_VISIBILITY_TIMEOUT_SEC` (default 600), `QUEUE_MAX_READ_COUNT` (default 5), `QUEUE_DLQ_NAME` (default `audiopipe-dlq`). Container `restart: unless-stopped`.
 
 ## License & upstream
 
 - Supabase self-host files: upstream licensing and docs in [`src/backend/supabase/README.md`](src/backend/supabase/README.md).
-- Other components (Flutter, yt-dlp, Go modules, etc.) carry their own licenses — check each dependency before distribution.
+- Other components (Flutter, yt-dlp, Go modules, etc.) carry their own licenses, check each dependency before distribution.

@@ -78,13 +78,7 @@ class _FullPlayerState extends State<FullPlayer> {
                                 color: Colors.white),
                             onPressed: () => Navigator.pop(context),
                           ),
-                          Expanded(
-                            child: Column(
-                              children: [
-                                Container(),
-                              ],
-                            ),
-                          ),
+                          const Spacer(),
                           IconButton(
                             icon: const Icon(Icons.more_horiz,
                                 color: Colors.white),
@@ -114,7 +108,7 @@ class _FullPlayerState extends State<FullPlayer> {
                             ],
                           ),
                           child: createCachedNetworkImage(
-                            imageUrl: track.album,
+                            imageUrl: track.thumbnailUrl,
                             fit: BoxFit.cover,
                             width: double.infinity,
                             height: double.infinity,
@@ -175,13 +169,10 @@ class _FullPlayerState extends State<FullPlayer> {
                         ),
                         child: Slider(
                           value: backgroundPlayer.progress,
-                          onChanged: (double position) async {
-                            // await backgroundPlayer
-                            //     .setSeek(position);
-                          },
+                          // seek applies on release, not while dragging
+                          onChanged: (_) {},
                           onChangeEnd: (double position) async {
-                            await backgroundPlayer
-                                .setSeek(position);
+                            await backgroundPlayer.setSeek(position);
                           },
                           min: 0.0,
                           max: 1.0,
@@ -200,8 +191,7 @@ class _FullPlayerState extends State<FullPlayer> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      // Transport controls. skip_previous/next are inert here:
-                      // they receive empty lists, faithfully reproducing the source.
+                      // Transport controls.
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [

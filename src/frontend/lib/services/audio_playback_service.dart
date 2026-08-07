@@ -1,12 +1,11 @@
 import 'package:audio_service/audio_service.dart';
-import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:liberated_beats/config/helpers.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 
 class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   final audioPlayer = AudioPlayer();
-  
+
   late VoidCallbackUpdateProgress _updateProgress;
 
   AudioPlaybackService() {
@@ -35,12 +34,12 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
 
   bool _enReached = false;
 
-  double get progress => _progress;
   double _progress = 0.0;
 
-  int get beatId => _beatId;
-  int _beatId = -1;
- 
+  // beat.key ('sourceId:id'), plain ids collide across servers
+  String get beatKey => _beatKey;
+  String _beatKey = '';
+
   Beat? get currentBeat => _currentBeat;
   Beat? _currentBeat;
 
@@ -62,7 +61,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
 
     mediaItem.add(audioSourceMediaItem);
 
-    _beatId = beat.id;
+    _beatKey = beat.key;
     _currentBeat = beat;
   }
 
@@ -74,24 +73,25 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     beatAudioSources.clear();
 
     var initialIndex = 0;
-    
-    for(var i = 0; i < mix!.beats!.length; i++)
-    {
+
+    for (var i = 0; i < mix!.beats!.length; i++) {
       final beat = mix.beats![i];
       beatMediaItems.add(_createMediaItem(beat));
       beatAudioSources.add(_createSourceUri(beat));
 
-      if(initalBeat != null && initalBeat.id == beat.id)
-      {
+      if (initalBeat != null && initalBeat.id == beat.id) {
         initialIndex = i;
       }
     }
 
-    audioPlayer.setAudioSources(beatAudioSources, preload: true, initialIndex: initialIndex, shuffleOrder: DefaultShuffleOrder());
+    audioPlayer.setAudioSources(beatAudioSources,
+        preload: true,
+        initialIndex: initialIndex,
+        shuffleOrder: DefaultShuffleOrder());
 
     mediaItem.add(beatMediaItems[initialIndex]);
 
-    _beatId = initalBeat!.id;
+    _beatKey = initalBeat!.key;
     _currentBeat = initalBeat;
   }
 
@@ -114,7 +114,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     await audioPlayer.setLoopMode(mode);
   }
 
-  void setVolume(double volume) async{
+  void setVolume(double volume) async {
     await audioPlayer.setVolume(volume);
   }
 
@@ -137,13 +137,12 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
       _progress = 0;
       _isPlaying = false;
       _enReached = false;
-      
+
       await audioPlayer.seek(Duration.zero);
       await audioPlayer.pause();
 
       // track recent played beats
-      if(_currentBeat != null && !_recentBeats.contains(_currentBeat))
-      {
+      if (_currentBeat != null && !_recentBeats.contains(_currentBeat)) {
         _recentBeats.add(_currentBeat!);
       }
 
@@ -158,11 +157,6 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     _updateProgress(_progress, _currentBeat!);
   }
 
-  // void onResume() async {
-  //   _setCurrentBeat();
-  //   _setMediaItemForBeat();
-  // }
-
   @override
   Future<void> play() async {
     await togglePlay();
@@ -174,16 +168,21 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   }
 
   @override
-  Future<void> seek(Duration position) async {
-    setSeek(position);
+  Future<void> stop() async {
+    if (_isPlaying) {
+      await togglePlay();
+    }
+
+    await audioPlayer.stop();
   }
 
-  Future<ValueChanged<double>?> setSeek(Duration position) async {
-    if (position < Duration.zero) 0;
-    final positionDouble = position.inSeconds.toDouble();
-    _progress = positionDouble.clamp(0.0, 1.0);
-    await audioPlayer.seek(position);
-    return null;
+  @override
+  Future<void> seek(Duration position) async {
+    await setSeek(position);
+  }
+
+  Future<void> setSeek(Duration position) async {
+    await audioPlayer.seek(position < Duration.zero ? Duration.zero : position);
   }
 
   @override
@@ -208,41 +207,41 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
 
   void _setCurrentBeat() {
     var id = _getCurrentAudioSourceTagId();
-    if(id == "") return;
-    var currentBeat = _currentBeatMix!.beats!.where((i) => i.id.toString() == id).first;
+    if (id == "") return;
+    var currentBeat =
+        _currentBeatMix!.beats!.where((i) => i.key == id).first;
 
-    if(currentBeat.id != _currentBeat!.id)
-    {
+    if (currentBeat.id != _currentBeat!.id) {
       _currentBeat = currentBeat;
     }
   }
 
   void _setMediaItemForBeat() {
     var id = _getCurrentAudioSourceTagId();
-    if(id == "") return;
+    if (id == "") return;
     var beatMediaItem = beatMediaItems.where((i) => i.id == id).first;
 
     mediaItem.add(beatMediaItem);
   }
 
-  String _getCurrentAudioSourceTagId(){
+  String _getCurrentAudioSourceTagId() {
     var index = audioPlayer.currentIndex;
-    if(index == null) return "";
+    if (index == null) return "";
     var currentSource = audioPlayer.audioSources[index] as UriAudioSource;
     return currentSource.tag.toString();
   }
 
   // Helpers functions
   UriAudioSource _createSourceUri(Beat beat) =>
-      AudioSource.uri(Uri.parse(beat.audioUrl!), tag: beat.id.toString());
+      AudioSource.uri(Uri.parse(beat.audioUrl!), tag: beat.key);
 
   MediaItem _createMediaItem(Beat beat) => MediaItem(
-      id: beat.id.toString(),
+      id: beat.key,
       album: "x0x", // TODO fetch beatmix name with request (if any)
       title: beat.title,
       //artist: beat.artist,
       duration: beat.duration,
-      artUri: Uri.parse(beat.album));
+      artUri: Uri.parse(beat.thumbnailUrl));
 
   PlaybackState _transformEvent(PlaybackEvent event) {
     return PlaybackState(

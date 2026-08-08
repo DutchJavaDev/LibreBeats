@@ -1,6 +1,6 @@
 # LibreBeats — Supabase CLI project
 
-The [Supabase CLI](https://supabase.com/docs/guides/local-development) counterpart to [`../backend-self-hosted`](../backend-self-hosted): the same `librebeats` schema and the `menu` edge function, but managed by the CLI so the whole thing can be deployed to any Supabase instance, hosted or self hosted. The Go services (migration runner, audio worker) are not part of this, those only exist in `backend-self-hosted`.
+The [Supabase CLI](https://supabase.com/docs/guides/local-development) counterpart to [`../backend-self-hosted`](../backend-self-hosted): the same `librebeats` schema and the `menu` edge function, but managed by the cli so the whole thing can be deployed to any Supabase instance, hosted or self hosted. The big difference with the self hosted stack is that the Go programs don't work here. A hosted project has nowhere to run your own containers, `db push` does what the migration runner did and the audio worker has no place to live, so no ingest. You could run the worker yourself somewhere and point it at the project's database and storage, it only needs those two.
 
 ```
 deploy.sh / .ps1              # deploy to the linked project (needs supabase login)
@@ -66,12 +66,12 @@ $env:SUPABASE_PROJECT_REF = '<ref>'
 
 The connection string is under Connect in the dashboard (session pooler, port 5432), url-encode the password. The access token comes from Account → Access Tokens. Leave token and ref away and the script only pushes migrations, which is fine for the self hosted stack because that's all the cli can do there anyway (functions there are copied files, see `copy.sh` in `backend-self-hosted`).
 
-Two things to know:
+Two gotchas:
 
 - `config push` sends the whole config.toml, auth settings included. With the current values that means signups auto confirm and email confirmation is off, wanted for dev, check the diff it prints if the project matters.
 - cli versions are currently a mess: `link` only works on 2.111.0 ([supabase/cli#6115](https://github.com/supabase/cli/issues/6115)) while `db push` against newly created projects only works on 2.112.0. Both are installed via scoop, switch with `scoop reset supabase@<version>`, or set `SUPABASE_DB_PUSH_BIN` to the 2.112.0 exe so the deploy scripts do it for you.
 
-After a deploy the Data API serves exactly `beat`, `beatmix`, `beatmixbeat` and `rawbeat` to signed in users, nothing to configure, that's just the grants from the initial migration (`audiooutputlog` and `migrations` have none, `anon` gets nothing at all). Clients have to name the schema: `.schema('librebeats')` in supabase-js, `Accept-Profile: librebeats` on raw REST.
+After a deploy the Data API serves `beat`, `beatmix`, `beatmixbeat` and `rawbeat` to signed in users and nothing else, no config involved, that's the grants from the initial migration (`audiooutputlog` and `migrations` have none, `anon` gets nothing at all). Clients have to name the schema, `.schema('librebeats')` in supabase-js or `Accept-Profile: librebeats` on raw REST.
 
 ## Reverting
 

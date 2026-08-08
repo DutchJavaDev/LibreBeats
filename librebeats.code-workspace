@@ -10,24 +10,19 @@
     },
     {
       
-      "name": "librebeats backend-self-hosted",
-      "path": "./src/backend-self-hosted"
-    },
-    {
-      
       "name": "librebeats backend",
       "path": "./src/backend"
     },
     {
-      "name": "supabase-functions",
-      "path": "./src/backend-self-hosted/supabase/volumes/functions"
-    }
+      
+      "name": "librebeats backend-self-hosted",
+      "path": "./src/backend-self-hosted"
+    },
   ],
   "settings": {
     "files.exclude": {
       "node_modules/": true,
       "app/": true,
-      "supabase/functions/": true
     },
     "deno.importMap": "./supabase/functions/import_map.json",
     "deno.enable": true

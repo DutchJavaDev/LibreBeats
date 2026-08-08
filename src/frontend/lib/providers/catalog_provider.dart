@@ -234,13 +234,40 @@ class LibreProvider extends ChangeNotifier {
 
   // ---------------------------------------------------------------------------
 
-  /// Searches for beatmixes and beats whose title matches the given [query].
+  /// Searches the cached catalog first: beatmix titles and the titles of the
+  /// beats embedded in them. Only when that finds nothing at all the healthy
+  /// servers get queried live, beat and beatmix titles on the librebeats
+  /// schema. Live results are shown but never stored in the cache.
   Stream<List<SearchResult>> findAllByTitle(String query) async* {
-    final q = query.toLowerCase();
+    final q = query.toLowerCase().trim();
 
-    final beats = await _beatRepository.findByTitle(query);
-    final mixes =
+    final localMixes =
         _beatMixes.where((m) => m.title.toLowerCase().contains(q)).toList();
+
+    // same beat can sit in several cached mixes, key dedupes it
+    final seen = <String>{};
+    final localBeats = <Beat>[];
+    for (final mix in _beatMixes) {
+      for (final beat in mix.beats ?? const <Beat>[]) {
+        if (beat.title.toLowerCase().contains(q) && seen.add(beat.key)) {
+          localBeats.add(beat);
+        }
+      }
+    }
+
+    if (localBeats.isNotEmpty || localMixes.isNotEmpty) {
+      yield [
+        for (final beat in localBeats) SearchResult(beat: beat),
+        for (final mix in localMixes) SearchResult(beatMix: mix),
+      ];
+      return;
+    }
+
+    // cache came up empty, ask the servers directly
+    final beatsFuture = _beatRepository.findByTitle(query);
+    final mixesFuture = _beatMixRepository.findByTitle(query);
+    final beats = await beatsFuture;
+    final mixes = await mixesFuture;
 
     yield [
       for (final beat in beats) SearchResult(beat: beat),

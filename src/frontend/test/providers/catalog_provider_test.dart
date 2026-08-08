@@ -15,6 +15,7 @@ void main() {
 
   late ServerRegistry registry;
   late FakeBeatMixRepository repo;
+  late FakeBeatRepository beatRepo;
   late LibreProvider provider;
 
   Future<void> setup(
@@ -29,10 +30,12 @@ void main() {
     repo.responses[serverA] = [mix(serverA, 1, 'Chill'), mix(serverA, 2)];
     repo.responses[serverB] = [mix(serverB, 1, 'Rock'), mix(serverB, 3)];
 
+    beatRepo = FakeBeatRepository(registry);
+
     provider = LibreProvider(
       registry,
       repo,
-      BeatRepository(registry),
+      beatRepo,
       cacheTtl: cacheTtl,
       dripInterval: const Duration(milliseconds: 1),
       watchInterval: watchInterval,
@@ -153,6 +156,51 @@ void main() {
 
     results = await provider.findAllByTitle('zzz').first;
     expect(results, isEmpty);
+  });
+
+  test('cache hit never asks the servers', () async {
+    await setup();
+    await provider.ensureCatalog();
+
+    final results = await provider.findAllByTitle('chi').first;
+
+    expect(results.single.beatMix?.title, 'Chill');
+    expect(beatRepo.searchCount, 0);
+    expect(repo.searchCount, 0);
+  });
+
+  test('search finds beats inside cached mixes, deduped', () async {
+    await setup();
+    final deep = beat(serverA, 7, 'Deep Cut');
+    repo.responses[serverA] = [
+      mix(serverA, 1, 'Chill', [deep]),
+      mix(serverA, 2, 'Focus', [deep]),
+    ];
+    await provider.ensureCatalog();
+
+    final results = await provider.findAllByTitle('deep').first;
+
+    // in two mixes but listed once, and the cache answered by itself
+    expect(results.single.beat?.key, '$serverA:7');
+    expect(beatRepo.searchCount, 0);
+    expect(repo.searchCount, 0);
+  });
+
+  test('zero cache hits fall back to a live server search', () async {
+    await setup();
+    await provider.ensureCatalog();
+    beatRepo.searchResults.add(beat(serverA, 42, 'Obscure Song'));
+    repo.searchResults.add(mix(serverB, 42, 'Obscure Mix'));
+
+    final results = await provider.findAllByTitle('obscure').first;
+
+    expect(results.map((r) => r.beat?.title ?? r.beatMix?.title).toSet(),
+        {'Obscure Song', 'Obscure Mix'});
+    expect(beatRepo.searchCount, 1);
+    expect(repo.searchCount, 1);
+    // shown only, the cached catalog stays as it was
+    expect(
+        provider.beatMixes.map((m) => m.key), isNot(contains('$serverB:42')));
   });
 
   test('each server has its own timer', () async {

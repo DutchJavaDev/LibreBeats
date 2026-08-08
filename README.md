@@ -6,19 +6,21 @@
 
 ## Overview
 
-The project is split in two:
+The project is split in three:
 
 - [`src/frontend`](src/frontend): cross platform Flutter app (Home, Search, Library, Liked, Settings + mini/full player UI)
-- [`src/backend`](src/backend): self-hosted [Supabase](https://supabase.com/docs/guides/self-hosting/docker) plus Go services for SQL migrations and audio ingest
+- [`src/backend-self-hosted`](src/backend-self-hosted): self-hosted [Supabase](https://supabase.com/docs/guides/self-hosting/docker) plus Go services for SQL migrations and audio ingest
+- [`src/backend`](src/backend): [Supabase CLI](https://supabase.com/docs/guides/local-development) project with the same migrations and the `menu` edge function, for pushing to a running Supabase instance. The Go services don't work there, so no ingest
 
-**Current state:** the app streams real audio from one or more self hosted Supabase backends. Search, beatmix browsing, background playback and multi-server management (QR code add in Settings, 20 minute catalog cache) all work. Home shows your last 10 played beats (persisted), Library and Liked still run on sample data. On the backend a queue worker ingests YouTube URLs into Postgres and Supabase Storage. More frontend detail in [`src/frontend/README.md`](src/frontend/README.md).
+**Current state:** the app streams real audio from one or more Supabase backends, self hosted or deployed to supabase.com from the CLI project. Search, beatmix browsing, background playback and multi-server management (QR code add in Settings, 20 minute catalog cache) all work. Home shows your last 10 played beats (persisted), Library and Liked still run on sample data. On the backend a queue worker ingests YouTube URLs into Postgres and Supabase Storage. More frontend detail in [`src/frontend/README.md`](src/frontend/README.md).
 
 ### Prerequisites
 
 - [Flutter](https://docs.flutter.dev/get-started/install) SDK, Dart `>=3.0.0 <4.0.0`
 - [Docker](https://docs.docker.com/get-docker/) with Docker Compose for the Supabase stack
 - [Go](https://go.dev/dl/) `1.25+` for the migration and audio services
-- Bash for the `src/backend/*.sh` helper scripts (Linux/macOS/WSL)
+- Bash for the `src/backend-self-hosted/*.sh` helper scripts (Linux/macOS/WSL)
+- [Supabase CLI](https://supabase.com/docs/guides/local-development) for `src/backend` (local stack + deploys)
 
 ## Architecture
 
@@ -32,7 +34,9 @@ The project is split in two:
                             │  real audio (search, playback, background) against one or more servers
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  Self-hosted Supabase (src/backend/supabase), 1..n of these │
+│  Supabase backend, 1..n of these: the self-hosted stack     │
+│  (src/backend-self-hosted) or any instance deployed from    │
+│  the CLI project (src/backend)                              │
 │  Auth · PostgREST · Storage · Realtime · Studio · Kong      │
 └───────────────────────────┬─────────────────────────────────┘
                             │
@@ -74,7 +78,7 @@ LibreBeats/
     │   │   ├── screens/               # main_scaffold, home, search, library, liked, settings
     │   │   └── widgets/               # mini/full player, tiles, QR server scanner
     │   └── test/                  # Flutter unit + widget tests
-    └── backend/
+    ├── backend-self-hosted/
         ├── README.md                  # Backend docs: scripts, services, schema, quirks
         ├── build.sh                   # Build Supabase + custom images
         ├── run.sh                     # Start stack
@@ -97,6 +101,16 @@ LibreBeats/
                     ├── storage.go       # Supabase Storage uploads
                     ├── sourceHelper.go  # yt-dlp integration
                     └── *_test.go        # Unit tests
+    └── backend/
+        ├── README.md                  # CLI project docs: local stack, deploys, reverts
+        ├── deploy.sh / .ps1           # deploy to the linked project
+        ├── deploy-no-login.sh / .ps1  # same, env var driven (CI, servers)
+        ├── revert.sh / .ps1           # tear a deployment down (+ no-login variants)
+        ├── revert.sql                 # the teardown sql
+        └── supabase/
+            ├── config.toml            # local stack + what config push sends
+            ├── migrations/            # initial, dlq, storage buckets, listener user
+            └── functions/menu/        # the catalog api
 ```
 
 ## Frontend (`src/frontend`)
@@ -115,13 +129,13 @@ Most declared packages are in real use by now: `provider`, `supabase_flutter`, `
 
 Where it stands: real streaming (single beats and beatmix queues) with media notifications and background playback, playback pauses when headphones unplug or a call comes in. Servers are added via QR code in settings and persisted on device, the search grid merges every server's beatmixes and caches them for 20 minutes, Home keeps a persistent history of the last 10 plays. Library and Liked still run on sample data. Full details, config and the feature table live in [`src/frontend/README.md`](src/frontend/README.md).
 
-## Backend (`src/backend`)
+## Backend (`src/backend-self-hosted`)
 
-More backend detail in [`src/backend/README.md`](src/backend/README.md): the deploy scripts, how the build directory works, both services and their quirks.
+More backend detail in [`src/backend-self-hosted/README.md`](src/backend-self-hosted/README.md): the deploy scripts, how the build directory works, both services and their quirks.
 
 ### Supabase stack
 
-[`src/backend/supabase`](src/backend/supabase) is the official **self-hosted Supabase** Docker Compose setup. See [Self-Hosting with Docker](https://supabase.com/docs/guides/self-hosting/docker).
+[`src/backend-self-hosted/supabase`](src/backend-self-hosted/supabase) is the official **self-hosted Supabase** Docker Compose setup. See [Self-Hosting with Docker](https://supabase.com/docs/guides/self-hosting/docker).
 
 - Configure via `.env` (copied from `.env.example` on first `build.sh`).
 - `variables.sh` sets `PROJECT_DIR`, `BUILD_DIRECTORY`, and `GENERATE_KEYS` (runs `utils/generate-keys.sh` when `true`).
@@ -135,7 +149,7 @@ More backend detail in [`src/backend/README.md`](src/backend/README.md): the dep
 
 ### Database schema (`Librebeats`)
 
-Defined in [`0 initial.sql`](src/backend/supabase/service/migration/scripts/0%20initial.sql):
+Defined in [`0 initial.sql`](src/backend-self-hosted/supabase/service/migration/scripts/0%20initial.sql):
 
 | Table | Purpose | Client access |
 |-------|---------|----------------|
@@ -156,17 +170,27 @@ Defined in [`0 initial.sql`](src/backend/supabase/service/migration/scripts/0%20
 4. Upload to Supabase Storage buckets.
 5. Insert `RawBeat` → `Beat`; for playlists, `BeatMix` + `BeatMixBeat`.
 
+## Backend (`src/backend`)
+
+The same backend as a Supabase CLI project: the migrations (schema, queues, storage buckets and a seeded listener user) plus the `menu` edge function, deployable to any Supabase instance, the hosted free tier works fine. The big difference with the self hosted stack is that the Go programs don't work here. A hosted project has nowhere to run your own containers, `db push` does what the migration runner did and the audio worker has no place to live, so no ingest.
+
+- `supabase start` gives a trimmed local dev stack (realtime, analytics and the mail catcher are turned off)
+- `deploy.sh` / `deploy.ps1` push everything to the linked project, the `deploy-no-login` variants do the same driven by env vars for CI or servers that never ran `supabase login`
+- `revert.sh` / `revert.ps1` (+ no-login variants) take a deployment out again, listener user and buckets included
+
+How to use the scripts, the current cli version mess and baselining instances the Go runner already migrated is all in [`src/backend/README.md`](src/backend/README.md).
+
 ## Testing
 
 Both the Go services and the Flutter app have unit tests, none of them need Docker, Postgres, yt-dlp or a device.
 
 ```bash
 # Migration helpers + script naming
-cd src/backend/supabase/service/migration
+cd src/backend-self-hosted/supabase/service/migration
 go test ./...
 
 # Pipeline parsing, file utilities, env guards, models
-cd src/backend/supabase/service/audio
+cd src/backend-self-hosted/supabase/service/audio
 go test ./...
 
 # Frontend unit + widget tests
@@ -184,9 +208,9 @@ Integration tests against a live Supabase stack are not included yet.
 
 ## Getting started
 
-### Backend
+### Backend, self hosted
 
-From [`src/backend`](src/backend). Edit [`variables.sh`](src/backend/variables.sh) if needed (default build output: `~/librebeats/Herman`).
+From [`src/backend-self-hosted`](src/backend-self-hosted). Edit [`variables.sh`](src/backend-self-hosted/variables.sh) if needed (default build output: `~/librebeats/Herman`).
 
 ```bash
 ./build.sh   # Copy compose tree, build migration image (+ optional key generation)
@@ -196,7 +220,19 @@ From [`src/backend`](src/backend). Edit [`variables.sh`](src/backend/variables.s
 
 After startup, use Studio and API URLs from your `.env` / `SUPABASE_PUBLIC_URL`.
 
-> **Production:** Default Supabase self-host settings are not production-safe. Rotate secrets, review CORS, and read [security notes](src/backend/supabase/README.md) before exposing the stack.
+### Backend, hosted Supabase project
+
+From [`src/backend`](src/backend), deploys schema, buckets, listener user and the `menu` function to a project on supabase.com (the free tier is enough):
+
+```bash
+supabase login
+supabase link --project-ref <ref>
+./deploy.sh
+```
+
+No ingest this way (the audio worker only exists in the self-hosted stack), fill the catalog through the SQL editor or point the app at a self-hosted server as well. Details and the no-login variant in [`src/backend/README.md`](src/backend/README.md).
+
+> **Production:** Default Supabase self-host settings are not production-safe. Rotate secrets, review CORS, and read [security notes](src/backend-self-hosted/supabase/README.md) before exposing the stack.
 
 ### Frontend
 
@@ -225,5 +261,5 @@ Audio worker env (optional): `QUEUE_VISIBILITY_TIMEOUT_SEC` (default 600), `QUEU
 
 ## License & upstream
 
-- Supabase self-host files: upstream licensing and docs in [`src/backend/supabase/README.md`](src/backend/supabase/README.md).
+- Supabase self-host files: upstream licensing and docs in [`src/backend-self-hosted/supabase/README.md`](src/backend-self-hosted/supabase/README.md).
 - Other components (Flutter, yt-dlp, Go modules, etc.) carry their own licenses, check each dependency before distribution.

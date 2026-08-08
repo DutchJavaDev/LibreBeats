@@ -6,10 +6,11 @@
 
 ## Overview
 
-The project is split in two:
+The project is split in three:
 
 - [`src/frontend`](src/frontend): cross platform Flutter app (Home, Search, Library, Liked, Settings + mini/full player UI)
 - [`src/backend-self-hosted`](src/backend-self-hosted): self-hosted [Supabase](https://supabase.com/docs/guides/self-hosting/docker) plus Go services for SQL migrations and audio ingest
+- [`src/backend`](src/backend): [Supabase CLI](https://supabase.com/docs/guides/local-development) project with the same migrations and the `menu` edge function, for pushing to a running Supabase instance
 
 **Current state:** the app streams real audio from one or more self hosted Supabase backends. Search, beatmix browsing, background playback and multi-server management (QR code add in Settings, 20 minute catalog cache) all work. Home shows your last 10 played beats (persisted), Library and Liked still run on sample data. On the backend a queue worker ingests YouTube URLs into Postgres and Supabase Storage. More frontend detail in [`src/frontend/README.md`](src/frontend/README.md).
 

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -40,22 +41,53 @@ class _ServersSectionState extends State<ServersSection> {
         ServerStatus.failed => 'Unreachable',
       };
 
-  // one dot summing up the whole fleet, worst status wins
-  Color _fleetColor(ServerRegistry registry) {
-    if (registry.servers.any((s) => s.status == ServerStatus.failed)) {
-      return const Color(0xFFE8453C);
+  // problems first and colored, "1 unreachable · 11 connected"
+  Widget _fleetSummary(ServerRegistry registry) {
+    final servers = registry.servers;
+    if (servers.isEmpty) {
+      return const Text('None added yet',
+          style: TextStyle(fontSize: 12, color: Color(0xFFA7A7A7)));
     }
-    if (registry.servers.any((s) => s.status == ServerStatus.connecting)) {
-      return const Color(0xFFE8C32E);
+    if (!registry.hasDefaultLogin && servers.any((s) => s.email == null)) {
+      return const Text('No default login set',
+          style: TextStyle(fontSize: 12, color: Color(0xFFE8C32E)));
     }
-    return const Color(0xFF1ED760);
+
+    final failed =
+        servers.where((s) => s.status == ServerStatus.failed).length;
+    final connecting =
+        servers.where((s) => s.status == ServerStatus.connecting).length;
+    final connected = registry.healthy.length;
+
+    final parts = <TextSpan>[];
+    void add(String text, [Color? color]) {
+      if (parts.isNotEmpty) parts.add(const TextSpan(text: ' · '));
+      parts.add(TextSpan(
+          text: text, style: color == null ? null : TextStyle(color: color)));
+    }
+
+    if (failed > 0) add('$failed unreachable', const Color(0xFFE8453C));
+    if (connecting > 0) add('$connecting connecting', const Color(0xFFE8C32E));
+    if (connected > 0 || parts.isEmpty) add('$connected connected');
+
+    return Text.rich(TextSpan(
+      style: const TextStyle(fontSize: 12, color: Color(0xFFA7A7A7)),
+      children: parts,
+    ));
+  }
+
+  String _ago(DateTime t) {
+    final d = DateTime.now().difference(t);
+    if (d.inMinutes < 1) return 'just now';
+    if (d.inHours < 1) return '${d.inMinutes}m ago';
+    if (d.inDays < 1) return '${d.inHours}h ago';
+    return '${d.inDays}d ago';
   }
 
   @override
   Widget build(BuildContext context) {
     final registry = context.watch<ServerRegistry>();
     final total = registry.servers.length;
-    final connected = registry.healthy.length;
 
     final visible = registry.servers
         .where((s) =>
@@ -97,67 +129,68 @@ class _ServersSectionState extends State<ServersSection> {
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                       color: Colors.white)),
-              subtitle: Text(
-                  total == 0
-                      ? 'None added yet'
-                      : !registry.hasDefaultLogin &&
-                              registry.servers.any((s) => s.email == null)
-                          ? 'No default login set'
-                          : '$connected of $total connected',
-                  style:
-                      const TextStyle(fontSize: 12, color: Color(0xFFA7A7A7))),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (total > 0)
-                    Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: _fleetColor(registry),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  const SizedBox(width: 8),
-                  Icon(_expanded ? Icons.expand_less : Icons.expand_more,
-                      color: const Color(0xFFA7A7A7)),
-                ],
-              ),
+              subtitle: _fleetSummary(registry),
+              trailing: Icon(_expanded ? Icons.expand_less : Icons.expand_more,
+                  color: const Color(0xFFA7A7A7)),
             ),
             if (_expanded) ...[
               const Divider(indent: 70, height: 1, color: Color(0x1AFFFFFF)),
               Padding(
-                padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
                 child: Row(
                   children: [
-                    TextButton.icon(
+                    // adding is the main thing to do here, it gets the accent
+                    OutlinedButton.icon(
                       onPressed: _addServers,
                       icon: const Icon(Icons.qr_code_scanner,
-                          size: 16, color: Color(0xFFA7A7A7)),
+                          size: 16, color: Color(0xFF1ED760)),
                       label: const Text('Add',
                           style: TextStyle(
-                              fontSize: 13, color: Color(0xFFA7A7A7))),
+                              fontSize: 13, color: Color(0xFF1ED760))),
+                      style: OutlinedButton.styleFrom(
+                        shape: const StadiumBorder(),
+                        side: const BorderSide(color: Color(0xFF1ED760)),
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        visualDensity: VisualDensity.compact,
+                      ),
                     ),
-                    TextButton.icon(
-                      onPressed:
-                          total == 0 ? null : () => _showShareQr(registry),
-                      icon: const Icon(Icons.qr_code,
-                          size: 16, color: Color(0xFFA7A7A7)),
-                      label: const Text('Share',
-                          style: TextStyle(
-                              fontSize: 13, color: Color(0xFFA7A7A7))),
-                    ),
+                    const SizedBox(width: 8),
+                    if (total > 0)
+                      OutlinedButton.icon(
+                        onPressed: () => _showShareQr(registry),
+                        icon: const Icon(Icons.qr_code,
+                            size: 16, color: Color(0xFFA7A7A7)),
+                        label: const Text('Share',
+                            style: TextStyle(
+                                fontSize: 13, color: Color(0xFFA7A7A7))),
+                        style: OutlinedButton.styleFrom(
+                          shape: const StadiumBorder(),
+                          side: const BorderSide(color: Color(0x4DFFFFFF)),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
                     const Spacer(),
+                    // amber, retrying is a something-went-wrong action
                     if (failed.isNotEmpty)
                       TextButton(
                         onPressed: registry.reconnectFailed,
                         child: const Text('Retry all',
                             style: TextStyle(
-                                fontSize: 13, color: Color(0xFF1ED760))),
+                                fontSize: 13, color: Color(0xFFE8C32E))),
                       ),
                   ],
                 ),
               ),
+              if (total == 0)
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  child: Text(
+                      'No servers yet. Scan a QR from another device or add '
+                      'your own deployment to get started.',
+                      style:
+                          TextStyle(fontSize: 12, color: Color(0xFFA7A7A7))),
+                ),
               ListTile(
                 dense: true,
                 onTap: () => _editDefaultLogin(registry),
@@ -204,11 +237,15 @@ class _ServersSectionState extends State<ServersSection> {
                     ),
                   ),
                 ),
-              if (failed.isNotEmpty) ..._group('Unreachable', failed, registry),
+              if (failed.isNotEmpty)
+                ..._group('Unreachable', failed, registry,
+                    const Color(0xFFE8453C)),
               if (connecting.isNotEmpty)
-                ..._group('Connecting', connecting, registry),
+                ..._group('Connecting', connecting, registry,
+                    const Color(0xFFE8C32E)),
               if (healthy.isNotEmpty)
-                ..._group('Connected', healthy, registry),
+                ..._group('Connected', healthy, registry,
+                    const Color(0xFF5AA871)),
               const SizedBox(height: 8),
             ],
           ],
@@ -217,20 +254,22 @@ class _ServersSectionState extends State<ServersSection> {
     );
   }
 
-  List<Widget> _group(
-      String title, List<ServerConnection> servers, ServerRegistry registry) {
+  // the header carries the status color, rows say the rest only when it
+  // matters: failures show their error and age, healthy rows stay quiet
+  List<Widget> _group(String title, List<ServerConnection> servers,
+      ServerRegistry registry, Color color) {
     return [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
         child: Align(
           alignment: Alignment.centerLeft,
           child: Text(
-            '${title.toUpperCase()} (${servers.length})',
-            style: const TextStyle(
+            '${title.toUpperCase()} · ${servers.length}',
+            style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
               letterSpacing: 1.2,
-              color: Color(0xFF1ED760),
+              color: color,
             ),
           ),
         ),
@@ -239,15 +278,7 @@ class _ServersSectionState extends State<ServersSection> {
         ListTile(
           dense: true,
           onTap: () => _showDetail(server, registry),
-          leading: const Icon(Icons.dns, size: 18, color: Color(0xFFA7A7A7)),
-          title: Text(server.host,
-              style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.white)),
-          subtitle: Text(_statusLabel(server.status),
-              style: const TextStyle(fontSize: 11, color: Color(0xFFA7A7A7))),
-          trailing: Container(
+          leading: Container(
             width: 10,
             height: 10,
             decoration: BoxDecoration(
@@ -255,6 +286,26 @@ class _ServersSectionState extends State<ServersSection> {
               shape: BoxShape.circle,
             ),
           ),
+          minLeadingWidth: 18,
+          title: Text(server.host,
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white)),
+          subtitle: switch (server.status) {
+            ServerStatus.healthy => null,
+            ServerStatus.connecting => const Text('Connecting…',
+                style: TextStyle(fontSize: 11, color: Color(0xFFA7A7A7))),
+            ServerStatus.failed => Text(
+                '${server.lastError ?? 'Unreachable'}'
+                '${server.failedAt != null ? ' · ${_ago(server.failedAt!)}' : ''}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style:
+                    const TextStyle(fontSize: 11, color: Color(0xFFE8453C))),
+          },
+          trailing: const Icon(Icons.chevron_right,
+              size: 16, color: Color(0xFFA7A7A7)),
         ),
     ];
   }
@@ -266,11 +317,22 @@ class _ServersSectionState extends State<ServersSection> {
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (sheetContext) => Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
             Row(
               children: [
                 Container(
@@ -305,15 +367,9 @@ class _ServersSectionState extends State<ServersSection> {
                       fontSize: 11, color: Color(0xFFE8453C))),
             ],
             const SizedBox(height: 16),
-            const Text('URL',
-                style: TextStyle(fontSize: 11, color: Color(0xFFA7A7A7))),
-            Text(server.url,
-                style: const TextStyle(fontSize: 13, color: Colors.white)),
+            _copyRow('URL', server.url, server.url),
             const SizedBox(height: 12),
-            const Text('Publishable key',
-                style: TextStyle(fontSize: 11, color: Color(0xFFA7A7A7))),
-            Text(_maskedKey(server.key),
-                style: const TextStyle(fontSize: 13, color: Colors.white)),
+            _copyRow('Publishable key', _maskedKey(server.key), server.key),
             const SizedBox(height: 12),
             const Text('Login',
                 style: TextStyle(fontSize: 11, color: Color(0xFFA7A7A7))),
@@ -333,6 +389,7 @@ class _ServersSectionState extends State<ServersSection> {
                     label: const Text('Retry',
                         style: TextStyle(color: Colors.white)),
                     style: OutlinedButton.styleFrom(
+                        shape: const StadiumBorder(),
                         side: const BorderSide(color: Color(0x4DFFFFFF))),
                   ),
                 const SizedBox(width: 8),
@@ -366,7 +423,8 @@ class _ServersSectionState extends State<ServersSection> {
     final confirmed = await showDialog<bool>(
       context: sheetContext,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF181818),
+        backgroundColor: const Color(0xFF282828),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('Remove ${server.host}?',
             style: const TextStyle(color: Colors.white, fontSize: 18)),
         content: const Text(
@@ -395,6 +453,40 @@ class _ServersSectionState extends State<ServersSection> {
 
   String _maskedKey(String key) =>
       key.length <= 18 ? key : '${key.substring(0, 18)}…';
+
+  // label + monospace value, tapping copies the (unmasked) value
+  Widget _copyRow(String label, String shown, String copyValue) {
+    return InkWell(
+      onTap: () {
+        Clipboard.setData(ClipboardData(text: copyValue));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          backgroundColor: const Color(0xFF282828),
+          content: Text('$label copied',
+              style: const TextStyle(color: Colors.white)),
+        ));
+      },
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: const TextStyle(
+                        fontSize: 11, color: Color(0xFFA7A7A7))),
+                Text(shown,
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontFamily: 'monospace',
+                        color: Colors.white)),
+              ],
+            ),
+          ),
+          const Icon(Icons.copy, size: 14, color: Color(0xFFA7A7A7)),
+        ],
+      ),
+    );
+  }
 
   Future<void> _editDefaultLogin(ServerRegistry registry) async {
     final result = await showDialog<(String, String)>(

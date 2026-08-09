@@ -2,10 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liberated_beats/data/beat_repository.dart';
 import 'package:liberated_beats/data/beatmix_repository.dart';
+import 'package:liberated_beats/data/liked_store.dart';
+import 'package:liberated_beats/data/offline_media_store.dart';
 import 'package:liberated_beats/data/server_registry.dart';
 import 'package:liberated_beats/providers/catalog_provider.dart';
+import 'package:liberated_beats/providers/liked_provider.dart';
 import 'package:liberated_beats/screens/search_screen.dart';
+import 'package:liberated_beats/widgets/browse_mix_card.dart';
 import 'package:provider/provider.dart';
+import 'package:sembast/sembast_memory.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../fakes.dart';
@@ -83,5 +88,48 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Playlists were updated'), findsNothing);
+  });
+
+  testWidgets('browse grid shows playlist cards with a counted header',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final registry =
+        ServerRegistry(connector: (s) async => s.status = ServerStatus.healthy);
+    await registry.load(seed: const [('https://a.example.com', 'k1')]);
+
+    final repo = FakeBeatMixRepository(registry);
+    repo.responses['https://a.example.com'] = [
+      mix('https://a.example.com', 1, 'Chill'),
+      mix('https://a.example.com', 2, 'Focus'),
+    ];
+    final provider = LibreProvider(
+      registry,
+      repo,
+      BeatRepository(registry),
+      dripInterval: const Duration(milliseconds: 1),
+    );
+    final liked = LikedProvider(
+      LikedStore(
+          database: await newDatabaseFactoryMemory().openDatabase('liked.db')),
+      OfflineMediaStore(rootProvider: () async => 'unused'),
+      FakeDownloader('unused'),
+    );
+
+    await tester.pumpWidget(MultiProvider(
+      providers: [
+        ChangeNotifierProvider<LibreProvider>.value(value: provider),
+        ChangeNotifierProvider<LikedProvider>.value(value: liked),
+      ],
+      child: const MaterialApp(home: Scaffold(body: SearchScreen())),
+    ));
+
+    // drip timers are real, run the load outside the fake async zone
+    await tester.runAsync(() => provider.ensureCatalog());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Browse playlists · 2'), findsOneWidget);
+    expect(find.byType(BrowseMixCard), findsNWidgets(2));
+    expect(find.text('Chill'), findsOneWidget);
+    expect(find.text('Focus'), findsOneWidget);
   });
 }

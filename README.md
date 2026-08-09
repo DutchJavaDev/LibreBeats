@@ -12,7 +12,7 @@ The project is split in three:
 - [`src/backend-self-hosted`](src/backend-self-hosted): self-hosted [Supabase](https://supabase.com/docs/guides/self-hosting/docker) plus Go services for SQL migrations and audio ingest
 - [`src/backend`](src/backend): [Supabase CLI](https://supabase.com/docs/guides/local-development) project with the same migrations and the `menu` edge function, for pushing to a running Supabase instance. The Go services don't work there, so no ingest
 
-**Current state:** the app streams real audio from one or more Supabase backends, self hosted or deployed to supabase.com from the CLI project. Search, beatmix browsing, background playback and multi-server management (QR code add in Settings, 20 minute catalog cache) all work. Home shows your last 10 played beats (persisted), Library and Liked still run on sample data. On the backend a queue worker ingests YouTube URLs into Postgres and Supabase Storage. More frontend detail in [`src/frontend/README.md`](src/frontend/README.md).
+**Current state:** the app streams real audio from one or more Supabase backends, self hosted or deployed to supabase.com from the CLI project. Search, beatmix browsing, background playback and multi-server management (QR code add in Settings, 20 minute catalog cache) all work. Songs and whole playlists can be liked, they get downloaded and play offline (Android). Home shows your last 10 played beats, the Library holds your liked playlists. On the backend a queue worker ingests YouTube URLs into Postgres and Supabase Storage. More frontend detail in [`src/frontend/README.md`](src/frontend/README.md).
 
 ### Prerequisites
 
@@ -72,9 +72,9 @@ LibreBeats/
     │   │   ├── app.dart               # MaterialApp + Material 3 dark theme
     │   │   ├── config/                # helpers
     │   │   ├── models/                # Beat/BeatMix/SearchResult models + sample data
-    │   │   ├── providers/             # BackgroundAudioProvider, LibreProvider (catalog + cache)
+    │   │   ├── providers/             # BackgroundAudioProvider, LibreProvider, LikedProvider
     │   │   ├── services/              # AudioPlaybackService (just_audio + audio_service)
-    │   │   ├── data/                  # ServerRegistry, repositories, disk stores (cache, history)
+    │   │   ├── data/                  # ServerRegistry, repositories, disk stores (cache, history, liked, offline files)
     │   │   ├── screens/               # main_scaffold, home, search, library, liked, settings
     │   │   └── widgets/               # mini/full player, tiles, QR server scanner
     │   └── test/                  # Flutter unit + widget tests
@@ -120,14 +120,14 @@ Flutter app with a dark, Spotify-like shell.
 | Screen | Purpose |
 |--------|---------|
 | **Home** | Greeting + horizontal history row (last 10 played, persisted) |
-| **Search** | Title search + "Browse Playlists" grid merging beatmixes from all registered servers |
-| **Library** | Filter chips, Liked Songs entry, playlist list (sample data) |
-| **Liked** | Liked Songs hero header + track list (sample data) |
-| **Settings** | Server management (add via QR scan, status dots, remove) + about |
+| **Search** | Title search (sectioned results, match highlighted) + browse grid merging beatmixes from all registered servers |
+| **Library** | Liked Songs entry + your liked playlists, long press removes |
+| **Liked** | The liked songs with total playtime, plays as one queue, everything on disk |
+| **Settings** | Server management (add via QR scan, health grouping, remove), offline storage usage + about |
 
-Most declared packages are in real use by now: `provider`, `supabase_flutter`, `just_audio` + `audio_service` + `audio_session`, `cached_network_image`, `mobile_scanner`, `shared_preferences` and `google_fonts`. Only `path_provider` is still waiting for the download feature, see [`pubspec.yaml`](src/frontend/pubspec.yaml).
+Every declared package is in real use by now: `provider`, `supabase_flutter`, `just_audio` + `audio_service` + `audio_session`, `cached_network_image`, `mobile_scanner`, `shared_preferences`, `google_fonts`, and since the liked feature also `sembast`, `background_downloader` and `path_provider`, see [`pubspec.yaml`](src/frontend/pubspec.yaml).
 
-Where it stands: real streaming (single beats and beatmix queues) with media notifications and background playback, playback pauses when headphones unplug or a call comes in. Servers are added via QR code in settings and persisted on device, the search grid merges every server's beatmixes and caches them for 20 minutes, Home keeps a persistent history of the last 10 plays. Library and Liked still run on sample data. Full details, config and the feature table live in [`src/frontend/README.md`](src/frontend/README.md).
+Where it stands: real streaming (single beats and beatmix queues) with media notifications and background playback, playback pauses when headphones unplug or a call comes in. Servers are added via QR code in settings and persisted on device, the search grid merges every server's beatmixes and caches them for 20 minutes, Home keeps a persistent history of the last 10 plays. Songs and whole playlists can be liked, they get downloaded and keep playing offline, even after their server is removed (Android, the opus files don't play on iOS). Full details, config and the feature table live in [`src/frontend/README.md`](src/frontend/README.md).
 
 ## Backend (`src/backend-self-hosted`)
 
@@ -202,7 +202,7 @@ flutter test
 |---------|----------------|
 | `migration` | Migration filename ID parsing, “migrations table missing” detection, `scripts/` naming convention |
 | `audio` | Queue JSON URL parsing, playlist URL detection, directory/file helpers, archive lookup, `ProgressState`, required env panics |
-| `frontend` | Models, ServerRegistry (persistence/reconnect), catalog provider (merge/drip/cache/failures), disk stores (catalog cache, play history), QR payload parsing, add-server dialog, BeatTile, settings servers card |
+| `frontend` | Models, ServerRegistry (persistence/reconnect), catalog provider (merge/drip/cache/failures/search), liked store + provider (downloads, shared files, sweep), disk stores, QR payload parsing, add-server dialog, BeatTile, browse grid, library, settings servers + storage cards |
 
 Integration tests against a live Supabase stack are not included yet.
 
@@ -254,6 +254,7 @@ The dart-defines hold the first-run server seed. No login ships in the app: the 
 | Catalog | Read `Beat` / `BeatMix` from Supabase | Done, menu edge function merged across servers with a 20 min cache |
 | Auth | Supabase Auth in Flutter | Wired for existing users, can't register (jet) |
 | Music servers | LibreBeats / Navidrome / Jellyfin | Multiple LibreBeats servers via QR in settings, Navidrome/Jellyfin not started |
+| Likes + offline | Download what you like, play without a server | Done for songs and playlists on Android, iOS blocked on opus playback |
 | Ingest | Queue YouTube URLs → catalog | Worker with VT + DLQ; app not connected |
 | Tests | CI + integration tests for DB/queue | Go + Flutter unit/widget tests |
 

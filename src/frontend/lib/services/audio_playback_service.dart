@@ -7,10 +7,21 @@ import 'package:liberated_beats/config/helpers.dart';
 import 'package:liberated_beats/data/history_store.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 
+/// http(s) stays a network url, anything else is a file on disk. Uri.parse
+/// on a plain path would mangle it (a windows drive letter becomes a scheme).
+Uri mediaUri(String url) =>
+    url.startsWith('http') ? Uri.parse(url) : Uri.file(url);
+
 class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   final audioPlayer = AudioPlayer();
 
   final HistoryStore _historyStore;
+
+  /// When set, may return a file on disk to play instead of the beat's url
+  /// (a finished liked download). Resolved per play, so a beat that got
+  /// un-liked in the meantime just streams again instead of crashing on a
+  /// deleted file.
+  String? Function(Beat beat)? localSourceResolver;
 
   VoidCallbackUpdateProgress? _updateProgress;
   void Function()? _recentsChanged;
@@ -351,6 +362,16 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     _recentsChanged?.call();
   }
 
+  /// Drops a beat that turned out unplayable from the history so it does
+  /// not linger on the home screen. No-op when it is not in there.
+  void removeRecent(String key) {
+    final before = _recentBeats.length;
+    _recentBeats.removeWhere((b) => b.key == key);
+    if (_recentBeats.length == before) return;
+    unawaited(_historyStore.save(_recentBeats));
+    _recentsChanged?.call();
+  }
+
   // Reload the persisted history on startup. Anything already played before
   // the load finished stays on top of the restored entries.
   Future<void> _restoreRecents() async {
@@ -366,8 +387,12 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   }
 
   // Helpers functions
-  UriAudioSource _createSourceUri(Beat beat) =>
-      AudioSource.uri(Uri.parse(beat.audioUrl!), tag: beat.key);
+  UriAudioSource _createSourceUri(Beat beat) {
+    final local = localSourceResolver?.call(beat);
+    return AudioSource.uri(
+        local != null ? Uri.file(local) : mediaUri(beat.audioUrl!),
+        tag: beat.key);
+  }
 
   MediaItem _createMediaItem(Beat beat) => MediaItem(
       id: beat.key,
@@ -375,8 +400,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
       title: beat.title,
       artist: beat.artist,
       duration: beat.duration,
-      artUri:
-          beat.thumbnailUrl.isEmpty ? null : Uri.tryParse(beat.thumbnailUrl));
+      artUri: beat.thumbnailUrl.isEmpty ? null : mediaUri(beat.thumbnailUrl));
 
   PlaybackState _transformEvent(PlaybackEvent event) {
     return PlaybackState(

@@ -1,7 +1,11 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:liberated_beats/data/beat_repository.dart';
 import 'package:liberated_beats/data/beatmix_repository.dart';
 import 'package:liberated_beats/data/server_registry.dart';
 import 'package:liberated_beats/models/beat_models.dart';
+import 'package:liberated_beats/services/beat_download_service.dart';
 
 class FakeBeatMixRepository extends BeatMixRepository {
   FakeBeatMixRepository(super.registry);
@@ -45,6 +49,27 @@ class FakeBeatRepository extends BeatRepository {
     return searchResults
         .where((b) => b.title.toLowerCase().contains(q))
         .toList();
+  }
+}
+
+/// Writes a marker file where the real downloader would place it.
+class FakeDownloader implements MediaDownloader {
+  FakeDownloader(this.root);
+
+  final String root;
+  bool failing = false;
+  int fetchCount = 0;
+  Completer<void>? gate; // when set, fetches wait on it
+
+  @override
+  Future<bool> fetch(String url, String directory, String filename) async {
+    fetchCount++;
+    if (gate != null) await gate!.future;
+    if (failing) return false;
+    final file = File('$root/$directory/$filename');
+    await file.parent.create(recursive: true);
+    await file.writeAsString('audio-bytes');
+    return true;
   }
 }
 

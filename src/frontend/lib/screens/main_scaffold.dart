@@ -51,23 +51,36 @@ class _MainScaffoldState extends State<MainScaffold>
     }
   }
 
-  static const _screens = [
-    HomeScreen(),
-    SearchScreen(),
-    LibraryScreen(),
-    LikedScreen(),
-    SettingsScreen(),
-  ];
+  void _selectTab(int i) {
+    final catalog = context.read<LibreProvider>();
+    // search tab, load the catalog (cached after the first time).
+    // the watcher auto refreshes while the user stays on the page.
+    catalog.setSearchVisible(i == 1);
+    if (i == 1) catalog.ensureCatalog();
+    setState(() {
+      _visited.add(i);
+      _selectedIndex = i;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final screens = [
+      const HomeScreen(),
+      const SearchScreen(),
+      // the Liked Songs entry in the library jumps to the liked tab
+      LibraryScreen(onOpenLiked: () => _selectTab(3)),
+      const LikedScreen(),
+      const SettingsScreen(),
+    ];
+
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       body: IndexedStack(
         index: _selectedIndex,
         children: [
-          for (var i = 0; i < _screens.length; i++)
-            _visited.contains(i) ? _screens[i] : const SizedBox.shrink(),
+          for (var i = 0; i < screens.length; i++)
+            _visited.contains(i) ? screens[i] : const SizedBox.shrink(),
         ],
       ),
       bottomNavigationBar: Column(
@@ -76,17 +89,7 @@ class _MainScaffoldState extends State<MainScaffold>
           const MiniPlayer(),
           NavigationBar(
             selectedIndex: _selectedIndex,
-            onDestinationSelected: (i) {
-              final catalog = context.read<LibreProvider>();
-              // search tab, load the catalog (cached after the first time).
-              // the watcher auto refreshes while the user stays on the page.
-              catalog.setSearchVisible(i == 1);
-              if (i == 1) catalog.ensureCatalog();
-              setState(() {
-                _visited.add(i);
-                _selectedIndex = i;
-              });
-            },
+            onDestinationSelected: _selectTab,
             destinations: const [
               NavigationDestination(
                 icon: Icon(Icons.home_outlined),

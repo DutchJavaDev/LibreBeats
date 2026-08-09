@@ -25,6 +25,9 @@ class ServerConnection {
   // why the last sign in failed, shown in the server detail sheet
   String? lastError;
 
+  // when it went unreachable, shown as "2m ago" in the server list
+  DateTime? failedAt;
+
   String get host => Uri.tryParse(url)?.host ?? url;
 }
 
@@ -180,6 +183,7 @@ class ServerRegistry extends ChangeNotifier {
 
   void markFailed(ServerConnection server) {
     server.status = ServerStatus.failed;
+    server.failedAt ??= DateTime.now();
     notifyListeners();
   }
 
@@ -206,6 +210,7 @@ class ServerRegistry extends ChangeNotifier {
     final (email, password) = credentialsFor(server);
     if (email.isEmpty || password.isEmpty) {
       server.status = ServerStatus.failed;
+      server.failedAt = DateTime.now();
       server.lastError = 'no login set, set the default login in settings';
       PrintLog('No login for ${server.host}, default login not set');
       return;
@@ -220,14 +225,17 @@ class ServerRegistry extends ChangeNotifier {
         server.client = client;
         server.status = ServerStatus.healthy;
         server.lastError = null;
+        server.failedAt = null;
         PrintLog('Signed in to ${server.host} as ${response.user!.email}');
       } else {
         server.status = ServerStatus.failed;
+        server.failedAt = DateTime.now();
         server.lastError = 'sign in returned no user';
         PrintLog('Sign-in to ${server.host} returned no user');
       }
     } catch (e) {
       server.status = ServerStatus.failed;
+      server.failedAt = DateTime.now();
       server.lastError = '$e';
       PrintLog('Failed to connect to ${server.host}: $e');
     }

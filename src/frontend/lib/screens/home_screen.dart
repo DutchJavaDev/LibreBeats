@@ -72,7 +72,18 @@ class HomeScreen extends StatelessWidget {
                   return _HistoryCard(
                     beat: t,
                     isActive: isActive,
-                    onTap: () => backgroundPlayer.playBeat(t),
+                    onTap: () async {
+                      // a dead entry (un-liked download, gone server) says so
+                      // and disappears from the row
+                      final played = await backgroundPlayer.playBeat(t);
+                      if (!played && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          backgroundColor: const Color(0xFF282828),
+                          content: Text('${t.title} is unavailable',
+                              style: const TextStyle(color: Colors.white)),
+                        ));
+                      }
+                    },
                   );
                 },
               ),
@@ -120,7 +131,7 @@ class _HistoryCard extends StatelessWidget {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: createCachedNetworkImage(
-                  imageUrl: beat.thumbnailUrl,
+                  imageUrl: beat.localArtPath ?? beat.thumbnailUrl,
                   fit: BoxFit.cover,
                   width: double.infinity,
                   height: double.infinity,

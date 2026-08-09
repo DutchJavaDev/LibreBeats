@@ -61,7 +61,7 @@ class MiniPlayer extends StatelessWidget {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: createCachedNetworkImage(
-                      imageUrl: track.thumbnailUrl,
+                      imageUrl: track.localArtPath ?? track.thumbnailUrl,
                       fit: BoxFit.cover,
                       width: double.infinity,
                       height: double.infinity,

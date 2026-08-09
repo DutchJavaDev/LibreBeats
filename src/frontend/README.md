@@ -2,7 +2,7 @@
 
 The cross platform Flutter client for **LibreBeats**, a dark Spotify style music player that streams from one or more self hosted [Supabase](../backend-self-hosted/) backends.
 
-> Status: search, streaming playback (background included), media notifications and beatmix browsing all work against real servers. Home shows your play history now, Library and Liked still render sample data. See [Feature status](#feature-status).
+> Status: search, streaming playback (background included), media notifications and beatmix browsing all work against real servers. Liking works for songs and whole playlists, both get downloaded and play from disk. Home shows your play history, Library lists your liked playlists. See [Feature status](#feature-status).
 
 ## Quick start
 
@@ -60,42 +60,49 @@ lib/
 │   └── beat_models.dart               # Beat, BeatMix, SearchResult + gradient palette + sample data
 ├── providers/
 │   ├── background_audio_provider.dart # playback state facade for the UI
-│   └── catalog_provider.dart          # LibreProvider, the merged beatmix catalog + cache
+│   ├── catalog_provider.dart          # LibreProvider, the merged beatmix catalog + cache
+│   └── liked_provider.dart            # liked songs and mixes, downloads, plays-from-disk lookup
 ├── services/
-│   └── audio_playback_service.dart    # BaseAudioHandler over just_audio
+│   ├── audio_playback_service.dart    # BaseAudioHandler over just_audio
+│   └── beat_download_service.dart     # background_downloader behind a small interface
 ├── data/
 │   ├── server_registry.dart           # multi-server registry: connections, health, persistence
 │   ├── catalog_cache_store.dart       # disk store for per-server results + fetch timers
 │   ├── history_store.dart             # disk store for the play history
+│   ├── liked_store.dart               # sembast db for liked songs and liked mixes
+│   ├── offline_media_store.dart       # the offline folder: paths, sizes, orphan sweep
 │   ├── base_repository.dart           # repository base, access to the registry
-│   ├── beat_repository.dart           # beat queries (findByTitle)
-│   └── beatmix_repository.dart        # per-server menu edge function fetch
+│   ├── beat_repository.dart           # live beat title search
+│   └── beatmix_repository.dart        # menu edge function fetch + live mix title search
 ├── screens/
 │   ├── main_scaffold.dart             # Bottom nav + IndexedStack host + MiniPlayer
 │   ├── home_screen.dart               # Greeting + history carousel
-│   ├── search_screen.dart             # Sticky search header, live results, beatmix browse grid
-│   ├── library_screen.dart            # Filter chips, Liked entry, playlists (sample data)
-│   ├── liked_screen.dart              # Liked hero + track list (sample data)
-│   └── settings_screen.dart           # Servers section + about
+│   ├── search_screen.dart             # Sticky search header, sectioned results, browse grid
+│   ├── library_screen.dart            # Liked Songs entry + the liked playlists
+│   ├── liked_screen.dart              # Liked hero + the real liked list, plays from disk
+│   └── settings_screen.dart           # Servers, storage and about
 └── widgets/
     ├── mini_player.dart               # Docked compact player above the nav bar
     ├── full_player.dart               # Full-screen "now playing" sheet
-    ├── beat_tile.dart                 # Reusable beat list row
+    ├── beat_tile.dart                 # Reusable beat list row (heart + download glyph)
+    ├── beatmix_view.dart              # Full-screen mix view: cover, counts, actions, tracks
+    ├── browse_mix_card.dart           # Cover card for the browse grid
     ├── add_server_scan.dart           # QR scanner for adding servers (+ manual fallback dialog)
     ├── servers_section.dart           # Expandable server management card in settings
-    ├── search_result_tile.dart        # SearchTile, renders a beat row or a beatmix card
-    └── widget_builder.dart            # createCachedNetworkImage helper + BeatMix full-screen dialog
+    ├── search_result_tile.dart        # SearchTile rows for song/playlist results + matchSpans
+    └── widget_builder.dart            # image helper, the mix dialog, shared like/format helpers
 ```
 
 ## Domain models (`lib/models/beat_models.dart`)
 
 - `Beat`: id, sourceId, title, artist, thumbnailUrl, duration, a gradient fallback color and an optional `audioUrl` (the streaming url, null in sample data which makes those unplayable, `playBeat` skips them)
 - `BeatMix`: a playlist/mix with its beats embedded, plus thumbnailUrl and trackCount
-- `SearchResult`: holds either a beat or a beatmix for mixed search results
+- `SearchResult`: holds either a beat or a beatmix, cached beats also remember which playlists they sit in
+- `SearchOutcome`: a result list plus where it came from, cache or live servers, and how old the cache is
 
 Ids are only unique per server, so both `Beat` and `BeatMix` carry a `sourceId` (the server url) and expose `key` (`"sourceId:id"`). Active-track highlighting, play/pause toggling and the audio queue tags all use `key`.
 
-The file also keeps the eight gradient palette and the `sampleTracks` / `samplePlaylists` data used by the Liked and Library screens.
+The file also keeps the eight gradient palette and the `sampleTracks` / `samplePlaylists` data still used by the Library screen.
 
 ## Playback
 
@@ -112,7 +119,7 @@ A real `BaseAudioHandler` (with `SeekHandler`) around a `just_audio` `AudioPlaye
 
 ### `BackgroundAudioProvider` (`lib/providers/background_audio_provider.dart`)
 
-A thin `ChangeNotifier` facade the widgets watch. Exposes `currentBeat`, `isPlaying`, `progress`, `elapsed`, `shuffle`, `repeatMode`, `volume` and `recentBeats`, and registers itself with the service so position ticks and history changes reach the UI. `playBeat(beat)` toggles play/pause when the same beat is tapped again, `playBeatMix(mix, beat)` starts queue playback.
+A thin `ChangeNotifier` facade the widgets watch. Exposes `currentBeat`, `isPlaying`, `progress`, `elapsed`, `shuffle`, `repeatMode`, `volume` and `recentBeats`, and registers itself with the service so position ticks and history changes reach the UI. `playBeat(beat)` plays solo, `playBeatMix(mix, beat)` starts queue playback, both toggle play/pause when the tapped beat is already the current one instead of restarting it.
 
 ## Catalog & data access
 
@@ -125,8 +132,8 @@ Sign-in uses the default login (set under Settings → Servers → Default login
 ### Repositories (`lib/data/`)
 
 - `BaseRepository`: thin base that gives repositories the registry and an `isConnected` flag
-- `BeatRepository.findByTitle`: title search over `librebeats.beat`, the live query is currently commented out so beat search returns nothing
-- `BeatMixRepository.fetchMenuFromServer`: fetches all mixes (beats embedded) from one server via its `menu` edge function with a 10s timeout, throws on failure so the caller can mark the server failed
+- `BeatRepository.findByTitle`: title search over `librebeats.beat` on every healthy server, runs when the cache has no match
+- `BeatMixRepository`: fetches all mixes (beats embedded) from one server via its `menu` edge function with a 10s timeout, plus the same live title search for the beatmix table
 
 ### `LibreProvider` (`lib/providers/catalog_provider.dart`)
 
@@ -140,17 +147,25 @@ The cache has two modes, switched from the search screen header (choice persiste
 
 While the search tab is on screen and the app is foregrounded, a watcher checks every 30s and refreshes expired servers on its own, with a dismissible "Playlists were updated" banner. Everywhere else refreshing stays lazy and happens on the next visit.
 
-`findAllByTitle(query)` merges beat + beatmix title matches into a stream, beatmixes are filtered from the cached list.
+`findAllByTitle(query)` searches the cached catalog first (mix titles and the beats inside them) and only queries the servers live when the cache finds nothing. Results come back as a `SearchOutcome`: cached beats remember which playlists they came from (tapping one queues that playlist), and the screen shows where results came from and how fresh the cache is.
+
+## Liked beats & offline
+
+The heart in the full player likes the current beat. The record lands in a small [sembast](https://pub.dev/packages/sembast) database right away ([`liked_store.dart`](lib/data/liked_store.dart)), then audio and thumbnail download in the background into `<app support>/offline/` and playback switches to the file on disk. Records keep a full metadata snapshot plus relative file paths, so liked beats keep playing after their server is removed (and relative because absolute paths go stale on iOS). Un-liking removes the record and both files.
+
+Whole beatmixes work the same way: the heart in the beatmix dialog likes the mix, downloads its cover and every beat, and puts it in the Library. Liked mixes are their own thing, their beats do not show up in Liked Songs. Files are shared by identity, a beat liked on its own and inside a liked mix exists once on disk and only gets deleted when the last like pointing at it goes. Long pressing a mix in the Library removes it behind a confirm.
+
+On startup [`LikedProvider`](lib/providers/liked_provider.dart) reloads everything, sweeps files nothing points at anymore, and retries downloads that failed or never finished. The offline folder stays out of backups: Android has `allowBackup=false` anyway, iOS gets the do-not-back-up attribute through a small `librebeats/backup` channel in the Runner.
 
 ## Screens
 
 | Screen | Data source | Notes |
 |---|---|---|
 | **Home** | `recentBeats` | Greeting + a History row that scrolls sideways: the last 10 played beats, newest first. Replaying something moves it back to the front. Kept on device, so it's still there after a restart. |
-| **Search** | All servers via `LibreProvider` | Sticky pinned header. Search fires on submit, not per keystroke. Clearing the field restores the browse grid, a randomized merge of every server's mixes that drips in tile by tile on first visit and comes from the cache afterwards. Tapping a beatmix opens a full-screen track list dialog with play/shuffle. |
-| **Library** | `samplePlaylists` | Static prototype: inert filter chips, hardcoded "847 songs" Liked entry. |
-| **Liked** | `sampleTracks` | Static hero + sample track list, nothing here is playable (no audioUrl). |
-| **Settings** | `ServerRegistry` | Just servers and about, the prototype cards are gone until their features exist. The Servers card is expandable: collapsed it shows a one line fleet summary ("11 of 12 connected" + worst-status dot), expanded it groups servers by status with problems on top, gets a filter field past 8 servers, and has Add (QR scan, single or bulk), Share (the fleet as a QR), Retry all and the editable Default login. Tapping a server opens a detail sheet with retry, a per-server login override and remove-behind-confirmation. About shows the version and a working licenses page. |
+| **Search** | All servers via `LibreProvider` | Sticky pinned header. Search fires on submit, not per keystroke. Results come sectioned (songs, playlists) as uniform rows with the match tinted green, liked/downloaded glyphs, and a freshness line at the bottom. Songs from a cached playlist play inside it, skip walks the list. Clearing the field restores the browse grid: sharp square covers with the title below, a heart badge on mixes already in the library, still shuffled per refresh with the drip-in. Tapping a beatmix opens the full-screen mix view: cover, counts, shuffle/heart/play row (synced with the player, download progress when liked) and the track list with the playing beat highlighted. |
+| **Library** | `LikedProvider` | The Liked Songs entry (real count, jumps to the Liked tab) and the liked playlists: cover from disk, download progress while a mix is still fetching. Tap opens the mix view, long press removes behind a confirm. |
+| **Liked** | `LikedProvider` | The real liked list, newest first, the header counts songs and total playtime. Play and Shuffle queue the whole list, rows carry the unlike heart (undo in a snackbar) and the on-disk glyph. |
+| **Settings** | `ServerRegistry` + `LikedProvider` | Servers, storage, about. The Servers card is expandable: collapsed a problem-first summary ("1 unreachable · 11 connected"), expanded the fleet grouped by status with the error and its age on unreachable rows, Add/Share pills, an amber Retry all and the default login, filter field past 8 servers. The detail sheet has retry, copyable url/key, a login override and remove-behind-confirm. Storage shows what the downloads take on disk with a usage bar and a clear-everything action that states its numbers before deleting. About is the app identity row (tap copies the version) and licenses. |
 
 The `MiniPlayer` docks above the nav bar once something plays and opens the `FullPlayer` sheet: artwork with a paused-scale animation, seek slider (seeks on release), shuffle/repeat, volume, and skip previous/next against the current queue.
 
@@ -168,7 +183,9 @@ The `MiniPlayer` docks above the nav bar once something plays and opens the `Ful
 | `qr_flutter` | Rendering the Share-servers QR code |
 | `google_fonts` | Plus Jakarta Sans across the whole theme (bundled in `assets/google_fonts/`, runtime fetching disabled) |
 | `shared_preferences` | Persistence: server list, logins, catalog cache, play history |
-| `path_provider` | Declared for the planned download feature, not used yet |
+| `sembast` | The liked-beats database (pure Dart, tests run it in memory) |
+| `background_downloader` | Downloads liked beats, keeps going when the app gets backgrounded |
+| `path_provider` | The offline media folder in app support |
 
 ## Configuration
 
@@ -224,18 +241,19 @@ That takes care of Android (including adaptive icons), iOS (alpha stripped, the 
 | Multi-server sources (add/remove in settings, health dots) | Working, persisted, bulk QR add/share, per-server retry |
 | Catalog cache (20 min per-server timer, silent refresh) | Working, disk or in-memory, toggle on search |
 | Search for beatmixes | Working, filters the cached merged catalog |
-| Search for beats | Partial, query commented out, returns nothing |
+| Search for beats | Working, cached catalog first, live server query when that finds nothing |
 | Supabase auth | Partial, sign-in only (default login + per-server overrides), no registration |
 | Play history (last 10, on Home) | Working, persisted on device |
 | Home screen | Partial, greeting + history, nothing else yet |
-| Library / Liked screens | Sample data only |
-| Likes / playlists (user-owned) | Not implemented |
-| Offline downloads | Not implemented, `path_provider` unused |
+| Liked beats (heart in the full player) | Working, persisted + downloaded for offline playback (Android, see quirks) |
+| Liked beatmixes (heart in the mix dialog) | Working, whole mix downloaded, listed in Library, long press removes |
+| Library screen | Real liked playlists + Liked entry, filter chips still inert |
+| Playlists (user-owned) | Not implemented |
 
 ### Known quirks
 
-- The beatmix dialog's track tiles can't highlight the actively playing beat (no state hookup inside the dialog).
-- Search by title only sees the cached catalog, content newer than the cache window shows up after the next refresh.
+- Live search only kicks in when the cache has zero matches, so partial cached hits can hide newer server content until the next refresh.
+- Offline playback is Android-first: iOS AVPlayer cannot decode the opus files the backend produces (streamed or local), so iOS needs an AAC/M4A rendition server-side or a different player backend before liked playback works there.
 
 ## Testing
 
@@ -246,7 +264,7 @@ flutter test
 
 Tests run offline, no device or camera needed. Server connectivity is faked through the registry's `connector` and the provider takes small `cacheTtl`/`dripInterval` values in tests.
 
-Covered so far: the models (key identity across servers, playability), ServerRegistry (persistence, add/remove, reconnect logic), CatalogCacheStore and HistoryStore (round trips, corrupt data), LibreProvider (multi-server merge, drip loading, cache ttl, failure recovery, the visible-page watcher), the QR payload parser, the manual add-server dialog, BeatTile and the settings servers section.
+Covered so far: the models (key identity across servers, playability), ServerRegistry (persistence, add/remove, reconnect logic), CatalogCacheStore and HistoryStore (round trips, corrupt data), LibreProvider (multi-server merge, drip loading, cache ttl, failure recovery, the visible-page watcher, the two-phase search with playlist provenance), LikedStore and LikedProvider (download lifecycle, shared files between songs and mixes, unlike-while-downloading, restart recovery, the orphan sweep, clearAll), match highlighting, the row-heart undo flow, the QR payload parser, the manual add-server dialog, BeatTile, the browse grid, the library screen and the settings servers + storage sections.
 
 Not covered yet: MiniPlayer, FullPlayer and BackgroundAudioProvider (need an abstraction over just_audio's platform channels first) and the scanner screen itself (camera).
 

@@ -151,25 +151,28 @@ void main() {
     await setup();
     await provider.ensureCatalog();
 
-    var results = await provider.findAllByTitle('chi').first;
-    expect(results.single.beatMix?.title, 'Chill');
+    var outcome = await provider.findAllByTitle('chi').last;
+    expect(outcome.results.single.beatMix?.title, 'Chill');
+    expect(outcome.live, isFalse);
+    expect(outcome.cachedAt, isNotNull);
 
-    results = await provider.findAllByTitle('zzz').first;
-    expect(results, isEmpty);
+    outcome = await provider.findAllByTitle('zzz').last;
+    expect(outcome.results, isEmpty);
+    expect(outcome.live, isTrue);
   });
 
   test('cache hit never asks the servers', () async {
     await setup();
     await provider.ensureCatalog();
 
-    final results = await provider.findAllByTitle('chi').first;
+    final outcome = await provider.findAllByTitle('chi').last;
 
-    expect(results.single.beatMix?.title, 'Chill');
+    expect(outcome.results.single.beatMix?.title, 'Chill');
     expect(beatRepo.searchCount, 0);
     expect(repo.searchCount, 0);
   });
 
-  test('search finds beats inside cached mixes, deduped', () async {
+  test('cached beats are deduped and remember their playlists', () async {
     await setup();
     final deep = beat(serverA, 7, 'Deep Cut');
     repo.responses[serverA] = [
@@ -178,10 +181,13 @@ void main() {
     ];
     await provider.ensureCatalog();
 
-    final results = await provider.findAllByTitle('deep').first;
+    final outcome = await provider.findAllByTitle('deep').last;
 
-    // in two mixes but listed once, and the cache answered by itself
-    expect(results.single.beat?.key, '$serverA:7');
+    // in two mixes but listed once, provenance names the first + count
+    final result = outcome.results.single;
+    expect(result.beat?.key, '$serverA:7');
+    expect(result.inMix, isNotNull);
+    expect(result.inMixCount, 2);
     expect(beatRepo.searchCount, 0);
     expect(repo.searchCount, 0);
   });
@@ -192,10 +198,17 @@ void main() {
     beatRepo.searchResults.add(beat(serverA, 42, 'Obscure Song'));
     repo.searchResults.add(mix(serverB, 42, 'Obscure Mix'));
 
-    final results = await provider.findAllByTitle('obscure').first;
+    final emissions = await provider.findAllByTitle('obscure').toList();
 
-    expect(results.map((r) => r.beat?.title ?? r.beatMix?.title).toSet(),
+    // a searching emission first, then the live results
+    expect(emissions.first.searching, isTrue);
+    final outcome = emissions.last;
+    expect(outcome.live, isTrue);
+    expect(
+        outcome.results.map((r) => r.beat?.title ?? r.beatMix?.title).toSet(),
         {'Obscure Song', 'Obscure Mix'});
+    // live results carry no playlist context
+    expect(outcome.results.first.inMix, isNull);
     expect(beatRepo.searchCount, 1);
     expect(repo.searchCount, 1);
     // shown only, the cached catalog stays as it was

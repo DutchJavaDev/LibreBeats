@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:liberated_beats/config/helpers.dart';
 import 'package:liberated_beats/providers/catalog_provider.dart';
+import 'package:liberated_beats/providers/liked_provider.dart';
+import 'package:liberated_beats/widgets/browse_mix_card.dart';
 import 'package:liberated_beats/widgets/search_result_tile.dart';
+import 'package:liberated_beats/widgets/widget_builder.dart';
 import 'package:provider/provider.dart';
 import '../models/beat_models.dart';
 
@@ -46,6 +49,118 @@ class _SearchScreenState extends State<SearchScreen> {
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  Widget _resultHeader(String title, int count) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        child: Text(
+          '${title.toUpperCase()} · $count',
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+            color: Color(0xFF1ED760),
+          ),
+        ),
+      );
+
+  String _ago(DateTime? t) {
+    if (t == null) return 'just now';
+    final d = DateTime.now().difference(t);
+    if (d.inMinutes < 1) return 'just now';
+    if (d.inHours < 1) return '${d.inMinutes}m ago';
+    return '${d.inHours}h ago';
+  }
+
+  Widget _browseGrid(LibreProvider catalog, LikedProvider liked) {
+    // playlists sharing a title get a server label to tell them apart
+    final titleCounts = <String, int>{};
+    for (final m in catalog.beatMixes) {
+      final t = m.title.toLowerCase();
+      titleCounts[t] = (titleCounts[t] ?? 0) + 1;
+    }
+    String? hostFor(BeatMix mix) {
+      if ((titleCounts[mix.title.toLowerCase()] ?? 0) < 2) return null;
+      final host = Uri.tryParse(mix.sourceId)?.host;
+      return (host == null || host.isEmpty) ? mix.sourceId : host;
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 16,
+        crossAxisSpacing: 12,
+        childAspectRatio: 0.75,
+      ),
+      itemCount: catalog.beatMixes.length,
+      itemBuilder: (context, index) {
+        final beatMix = catalog.beatMixes[index];
+        return BrowseMixCard(
+          mix: beatMix,
+          liked: liked.isMixLiked(beatMix.key),
+          hostLabel: hostFor(beatMix),
+          onTap: () => showBeatMixDialog(context, beatMix),
+        );
+      },
+    );
+  }
+
+  Widget _results(SearchOutcome outcome, LikedProvider liked) {
+    final songs = [
+      for (final r in outcome.results)
+        if (r.beat != null) r
+    ];
+    final mixes = [
+      for (final r in outcome.results)
+        if (r.beatMix != null) r
+    ];
+
+    // duplicate titles get a server label so they can be told apart
+    final titleCounts = <String, int>{};
+    for (final r in songs) {
+      final t = r.beat!.title.toLowerCase();
+      titleCounts[t] = (titleCounts[t] ?? 0) + 1;
+    }
+    String? hostFor(Beat beat) {
+      if ((titleCounts[beat.title.toLowerCase()] ?? 0) < 2) return null;
+      final host = Uri.tryParse(beat.sourceId)?.host;
+      return (host == null || host.isEmpty) ? beat.sourceId : host;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (songs.isNotEmpty) ...[
+          _resultHeader('Songs', songs.length),
+          for (final r in songs)
+            SearchTile(
+              search: r,
+              query: _query,
+              liked: liked.isLiked(r.beat!.key),
+              downloaded: liked.isDownloaded(r.beat!.key),
+              hostLabel: hostFor(r.beat!),
+            ),
+        ],
+        if (mixes.isNotEmpty) ...[
+          _resultHeader('Playlists', mixes.length),
+          for (final r in mixes) SearchTile(search: r, query: _query),
+        ],
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Center(
+            child: Text(
+              outcome.live
+                  ? 'Nothing cached matched · live from your servers'
+                  : 'From your catalog · updated ${_ago(outcome.cachedAt)}',
+              style: const TextStyle(fontSize: 11, color: Color(0xFF777777)),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -182,49 +297,56 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
           ),
-        // Results or categories (unchanged)
+        // Results, sectioned into songs and playlists with a freshness line
         if (_query.isNotEmpty)
           SliverToBoxAdapter(
-            child: StreamBuilder<List<SearchResult>>(
+            child: StreamBuilder<SearchOutcome>(
               stream: catalog.findAllByTitle(_query),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   PrintLog("StreamError: ${snapshot.error.toString()}");
                 }
-                if (snapshot.connectionState == ConnectionState.done) {
-                  if (snapshot.hasData) {
-                    final searchResults = snapshot.data!;
-                    if (searchResults.isEmpty) {
-                      return const Center(
-                        child: Text("No results found",
-                            style: TextStyle(color: Colors.white)),
-                      );
-                    }
-                    return Column(
-                      children: searchResults
-                          .map((search) => SearchTile(
-                                search: search,
-                              ))
-                          .toList(),
-                    );
-                  } else {
-                    return const Center(
-                      child: Text("No results found",
-                          style: TextStyle(color: Colors.white)),
-                    );
-                  }
+                final outcome = snapshot.data;
+                if (outcome == null || outcome.searching) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 32),
+                    child: Column(
+                      children: [
+                        const Center(child: CircularProgressIndicator()),
+                        if (outcome?.searching ?? false) ...[
+                          const SizedBox(height: 12),
+                          const Text('Searching your servers…',
+                              style: TextStyle(
+                                  fontSize: 12, color: Color(0xFFA7A7A7))),
+                        ],
+                      ],
+                    ),
+                  );
                 }
-                return const Center(child: CircularProgressIndicator());
+                if (outcome.results.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 32),
+                    child: Center(
+                      child: Text(
+                          "Nothing matched '$_query', checked your servers too",
+                          style:
+                              const TextStyle(color: Color(0xFFA7A7A7))),
+                    ),
+                  );
+                }
+                return _results(outcome, context.watch<LikedProvider>());
               },
             ),
           )
         else ...[
-          const SliverToBoxAdapter(
+          SliverToBoxAdapter(
             child: Padding(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: Text(
-                'Browse Playlists',
-                style: TextStyle(
+                catalog.beatMixes.isEmpty
+                    ? 'Browse playlists'
+                    : 'Browse playlists · ${catalog.beatMixes.length}',
+                style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                   color: Colors.white,
@@ -245,23 +367,7 @@ class _SearchScreenState extends State<SearchScreen> {
                               style: TextStyle(color: Color(0xFFA7A7A7))),
                     ),
                   )
-                : GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 2.0,
-                    ),
-                    itemCount: catalog.beatMixes.length,
-                    itemBuilder: (context, index) {
-                      final beatMix = catalog.beatMixes[index];
-                      return SearchTile(
-                          search: SearchResult(beatMix: beatMix));
-                    },
-                  ),
+                : _browseGrid(catalog, context.watch<LikedProvider>()),
           )
         ],
         const SliverToBoxAdapter(child: SizedBox(height: 16)),

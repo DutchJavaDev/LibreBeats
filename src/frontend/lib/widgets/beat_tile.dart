@@ -12,12 +12,24 @@ class BeatTile extends StatelessWidget {
   final bool isPlaying;
   final VoidCallback onTap;
 
+  /// Shows the on-disk glyph next to the duration.
+  final bool downloaded;
+
+  /// Liked state for the trailing heart, null hides the heart entirely.
+  final bool? liked;
+
+  /// Tap on the heart. Only used when [liked] is set.
+  final VoidCallback? onLike;
+
   const BeatTile({
     super.key,
     required this.beat,
     required this.isActive,
     required this.isPlaying,
     required this.onTap,
+    this.downloaded = false,
+    this.liked,
+    this.onLike,
   });
 
   String _format(Duration d) {
@@ -42,7 +54,7 @@ class BeatTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
             ),
             child: createCachedNetworkImage(
-              imageUrl: beat.thumbnailUrl,
+              imageUrl: beat.localArtPath ?? beat.thumbnailUrl,
               fit: BoxFit.cover,
               width: double.infinity,
               height: double.infinity,
@@ -75,21 +87,40 @@ class BeatTile extends StatelessWidget {
           color: isActive ? const Color(0xFF1ED760) : Colors.white,
         ),
       ),
-      subtitle: Text(
-        beat.artist,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 12, color: Color(0xFFA7A7A7)),
-      ),
+      // ingest stores the title as artist too, repeating it says nothing
+      subtitle: beat.artist.isEmpty || beat.artist == beat.title
+          ? null
+          : Text(
+              beat.artist,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12, color: Color(0xFFA7A7A7)),
+            ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (liked != null)
+            IconButton(
+              padding: EdgeInsets.zero,
+              constraints:
+                  const BoxConstraints(minWidth: 36, minHeight: 36),
+              iconSize: 18,
+              onPressed: onLike,
+              icon: Icon(
+                liked! ? Icons.favorite : Icons.favorite_border,
+                color: liked!
+                    ? const Color(0xFF1ED760)
+                    : const Color(0xFFA7A7A7),
+              ),
+            ),
+          if (downloaded) ...[
+            const Icon(Icons.download_done, size: 14, color: Color(0xFFA7A7A7)),
+            const SizedBox(width: 6),
+          ],
           Text(
             _format(beat.duration),
             style: const TextStyle(fontSize: 13, color: Color(0xFFA7A7A7)),
           ),
-          const SizedBox(width: 4),
-          const Icon(Icons.more_vert, color: Color(0xFFA7A7A7), size: 18),
         ],
       ),
     );

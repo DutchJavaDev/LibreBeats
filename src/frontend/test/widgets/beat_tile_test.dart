@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/widgets/beat_tile.dart';
+import 'package:liberated_beats/widgets/widget_builder.dart';
 
 void main() {
   final beat = Beat(
@@ -15,7 +16,12 @@ void main() {
   );
 
   Widget host(
-      {bool isActive = false, bool isPlaying = false, VoidCallback? onTap}) {
+      {bool isActive = false,
+      bool isPlaying = false,
+      VoidCallback? onTap,
+      bool? liked,
+      VoidCallback? onLike,
+      bool downloaded = false}) {
     return MaterialApp(
       home: Scaffold(
         body: BeatTile(
@@ -23,6 +29,9 @@ void main() {
           isActive: isActive,
           isPlaying: isPlaying,
           onTap: onTap ?? () {},
+          liked: liked,
+          onLike: onLike,
+          downloaded: downloaded,
         ),
       ),
     );
@@ -63,5 +72,41 @@ void main() {
 
     await tester.tap(find.byType(BeatTile));
     expect(tapped, isTrue);
+  });
+
+  testWidgets('no heart by default, outline when unliked, filled when liked',
+      (tester) async {
+    await tester.pumpWidget(host());
+    expect(find.byIcon(Icons.favorite_border), findsNothing);
+    expect(find.byIcon(Icons.favorite), findsNothing);
+
+    await tester.pumpWidget(host(liked: false));
+    expect(find.byIcon(Icons.favorite_border), findsOneWidget);
+
+    await tester.pumpWidget(host(liked: true));
+    expect(find.byIcon(Icons.favorite), findsOneWidget);
+  });
+
+  testWidgets('heart tap hits onLike, not onTap', (tester) async {
+    var likes = 0;
+    var tapped = false;
+    await tester.pumpWidget(host(
+        liked: false, onLike: () => likes++, onTap: () => tapped = true));
+
+    await tester.tap(find.byIcon(Icons.favorite_border));
+    expect(likes, 1);
+    expect(tapped, isFalse);
+  });
+
+  testWidgets('download glyph shows next to the duration', (tester) async {
+    await tester.pumpWidget(host(downloaded: true));
+    expect(find.byIcon(Icons.download_done), findsOneWidget);
+  });
+
+  test('formatTotalDuration switches to hours past 60 minutes', () {
+    expect(formatTotalDuration(Duration.zero), '0m');
+    expect(formatTotalDuration(const Duration(minutes: 48)), '48m');
+    expect(formatTotalDuration(const Duration(minutes: 60)), '1h 0m');
+    expect(formatTotalDuration(const Duration(minutes: 108)), '1h 48m');
   });
 }

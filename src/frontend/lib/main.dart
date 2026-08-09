@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
@@ -5,9 +7,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:liberated_beats/data/beat_repository.dart';
+import 'package:liberated_beats/data/liked_store.dart';
+import 'package:liberated_beats/data/offline_media_store.dart';
 import 'package:liberated_beats/data/server_registry.dart';
 import 'package:liberated_beats/providers/background_audio_provider.dart';
+import 'package:liberated_beats/providers/liked_provider.dart';
 import 'package:liberated_beats/services/audio_playback_service.dart';
+import 'package:liberated_beats/services/beat_download_service.dart';
 import 'package:provider/provider.dart';
 
 import 'app.dart';
@@ -50,6 +56,18 @@ Future<void> main() async {
   final beatMixRepository = BeatMixRepository(serverRegistry);
   final beatRepository = BeatRepository(serverRegistry);
 
+  final likedProvider = LikedProvider(
+      LikedStore(), OfflineMediaStore(), BackgroundMediaDownloader());
+  // loads the liked list, cleans the offline dir and retries unfinished
+  // downloads, no need to hold up startup for it
+  unawaited(likedProvider.init());
+
+  // downloaded liked beats play from disk wherever they get tapped, the
+  // liked screen, home history, search. Resolved per play, so un-liking
+  // just makes the beat stream again.
+  audioPlaybackService.localSourceResolver =
+      (beat) => likedProvider.localAudioFor(beat.key);
+
   runApp(
     MultiProvider(
       providers: [
@@ -62,6 +80,7 @@ Future<void> main() async {
         ChangeNotifierProvider(
             create: (_) => LibreProvider(
                 serverRegistry, beatMixRepository, beatRepository)),
+        ChangeNotifierProvider<LikedProvider>.value(value: likedProvider),
       ],
       child: const LiberatedBeatsApp(),
     ),

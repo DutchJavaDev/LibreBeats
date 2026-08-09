@@ -15,7 +15,12 @@ class Beat {
   final Gradient color;
 
   /// Streaming url, null for sample data (which can not be played).
+  /// Always the remote url, downloaded liked beats get their file on disk
+  /// resolved at play time so stores never persist a device path.
   final String? audioUrl;
+
+  /// Downloaded artwork on disk, display only, never persisted.
+  final String? localArtPath;
 
   const Beat({
     required this.id,
@@ -26,6 +31,7 @@ class Beat {
     required this.duration,
     required this.color,
     this.audioUrl,
+    this.localArtPath,
   });
 
   String get key => '$sourceId:$id';
@@ -60,7 +66,34 @@ class SearchResult {
   final Beat? beat;
   final BeatMix? beatMix;
 
-  SearchResult({this.beat, this.beatMix});
+  /// For beats found in the cached catalog: the playlist it came from and
+  /// how many cached playlists contain it. Live query results have neither.
+  final BeatMix? inMix;
+  final int inMixCount;
+
+  SearchResult({this.beat, this.beatMix, this.inMix, this.inMixCount = 0});
+}
+
+/// One emission of a search: the results plus where they came from, so the
+/// screen can say "from your catalog" vs "live from your servers".
+class SearchOutcome {
+  final List<SearchResult> results;
+
+  /// True when the servers were queried because the cache had nothing.
+  final bool live;
+
+  /// Intermediate emission while the live query runs, shows the spinner.
+  final bool searching;
+
+  /// Oldest cache entry feeding these results, null for live results.
+  final DateTime? cachedAt;
+
+  const SearchOutcome({
+    required this.results,
+    this.live = false,
+    this.searching = false,
+    this.cachedAt,
+  });
 }
 
 // ---------------------------------------------------------------------------

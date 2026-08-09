@@ -40,6 +40,14 @@ final class BackgroundAudioProvider extends ChangeNotifier {
 
   // Set a beatmix, then from there play the selected beat
   Future<void> playBeatMix(BeatMix beatmix, Beat selectedBeat) async {
+    // Tapping the already-current track toggles play/pause instead of
+    // restarting, same as playBeat. Without this a tap on the playing row
+    // pauses, reloads the queue and plays again.
+    if (_playbackService.beatKey == selectedBeat.key) {
+      await togglePlay();
+      return;
+    }
+
     if (isPlaying) await togglePlay();
 
     // a failed load (dead server, bad url) should not flip to "playing"
@@ -49,24 +57,30 @@ final class BackgroundAudioProvider extends ChangeNotifier {
     await togglePlay();
   }
 
-  // This should only play a single beat, repeat it or stop after play
-  Future<void> playBeat(Beat beat) async {
+  // This should only play a single beat, repeat it or stop after play.
+  // False when there is nothing to play, the beat also gets dropped from
+  // the history so dead entries do not linger on home.
+  Future<bool> playBeat(Beat beat) async {
     // sample data has no stream to play
-    if (!beat.isPlayable) return;
+    if (!beat.isPlayable) return false;
 
     // Tapping the already-current track toggles play/pause instead of restarting.
     if (_playbackService.beatKey == beat.key) {
       await togglePlay();
-      return;
+      return true;
     }
 
     if (isPlaying) await togglePlay();
 
     // a failed load (dead server, bad url) should not flip to "playing"
     final loaded = await _playbackService.setBeatSource(beat);
-    if (!loaded) return;
+    if (!loaded) {
+      _playbackService.removeRecent(beat.key);
+      return false;
+    }
 
     await togglePlay();
+    return true;
   }
 
   Future<void> togglePlay() async {

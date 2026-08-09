@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:just_audio/just_audio.dart';
 import 'package:liberated_beats/providers/background_audio_provider.dart';
+import 'package:liberated_beats/providers/liked_provider.dart';
 import 'package:liberated_beats/widgets/widget_builder.dart';
 import 'package:provider/provider.dart';
 
 
 /// Full-screen "now playing" sheet, opened from the [MiniPlayer]. Drag down to
-/// dismiss. The like state is local to the sheet and resets on reopen.
+/// dismiss. The heart likes the current beat, which also downloads it for
+/// offline playback.
 class FullPlayer extends StatefulWidget {
   const FullPlayer({super.key});
 
@@ -15,8 +17,6 @@ class FullPlayer extends StatefulWidget {
 }
 
 class _FullPlayerState extends State<FullPlayer> {
-  bool _liked = false;
-
   String _format(Duration d) {
     final m = d.inMinutes.remainder(60);
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
@@ -26,9 +26,12 @@ class _FullPlayerState extends State<FullPlayer> {
   @override
   Widget build(BuildContext context) {
     final backgroundPlayer = context.watch<BackgroundAudioProvider>();
+    final likedProvider = context.watch<LikedProvider>();
     final track = backgroundPlayer.currentBeat;
 
     if (track == null) return const SizedBox.shrink();
+
+    final liked = likedProvider.isLiked(track.key);
 
     return DraggableScrollableSheet(
       initialChildSize: 1.0,
@@ -108,7 +111,7 @@ class _FullPlayerState extends State<FullPlayer> {
                             ],
                           ),
                           child: createCachedNetworkImage(
-                            imageUrl: track.thumbnailUrl,
+                            imageUrl: track.localArtPath ?? track.thumbnailUrl,
                             fit: BoxFit.cover,
                             width: double.infinity,
                             height: double.infinity,
@@ -144,12 +147,12 @@ class _FullPlayerState extends State<FullPlayer> {
                           ),
                           IconButton(
                             icon: Icon(
-                              _liked ? Icons.favorite : Icons.favorite_border,
-                              color: _liked
+                              liked ? Icons.favorite : Icons.favorite_border,
+                              color: liked
                                   ? const Color(0xFF1ED760)
                                   : const Color(0xFFA7A7A7),
                             ),
-                            onPressed: () => setState(() => _liked = !_liked),
+                            onPressed: () => likedProvider.toggleLike(track),
                           ),
                         ],
                       ),

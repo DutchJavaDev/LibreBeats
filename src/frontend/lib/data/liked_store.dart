@@ -17,6 +17,10 @@ class LikedBeat {
   final String audioPath; // relative
   final String artPath; // relative
 
+  /// The mix the beat came from when it was liked, null for standalone
+  /// likes and records from before the subtitle rule.
+  final String? mixTitle;
+
   const LikedBeat({
     required this.id,
     required this.sourceId,
@@ -29,6 +33,7 @@ class LikedBeat {
     required this.state,
     required this.audioPath,
     required this.artPath,
+    this.mixTitle,
   });
 
   String get key => '$sourceId:$id';
@@ -47,6 +52,7 @@ class LikedBeat {
         state: state,
         audioPath: audioPath,
         artPath: artPath,
+        mixTitle: mixTitle,
       );
 
   // same field names as the catalog cache where they overlap
@@ -62,6 +68,7 @@ class LikedBeat {
         'state': state,
         'audiopath': audioPath,
         'artpath': artPath,
+        'mixtitle': mixTitle,
       };
 
   static LikedBeat fromJson(Map<String, Object?> json) => LikedBeat(
@@ -77,6 +84,7 @@ class LikedBeat {
         state: json['state'] as String? ?? 'pending',
         audioPath: json['audiopath'] as String? ?? '',
         artPath: json['artpath'] as String? ?? '',
+        mixTitle: json['mixtitle'] as String?,
       );
 }
 

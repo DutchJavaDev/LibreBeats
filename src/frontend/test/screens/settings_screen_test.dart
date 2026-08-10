@@ -7,7 +7,9 @@ import 'package:liberated_beats/data/offline_media_store.dart';
 import 'package:liberated_beats/data/server_registry.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/providers/liked_provider.dart';
+import 'package:liberated_beats/providers/theme_provider.dart';
 import 'package:liberated_beats/screens/settings_screen.dart';
+import 'package:liberated_beats/theme/app_theme.dart';
 import 'package:provider/provider.dart';
 import 'package:sembast/sembast_memory.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -34,6 +36,12 @@ void main() {
       {List<(String, String)> seed = const [],
       Set<String>? failing,
       LikedProvider? liked}) async {
+    // tall surface: the appearance card pushed storage/about further down
+    // and lazy slivers never build below the fold
+    tester.view.physicalSize = const Size(800, 2000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
     final fails = failing ?? {};
     final registry = ServerRegistry(connector: (server) async {
       server.status = fails.contains(server.url)
@@ -57,13 +65,58 @@ void main() {
         providers: [
           ChangeNotifierProvider<ServerRegistry>.value(value: registry),
           ChangeNotifierProvider<LikedProvider>.value(value: likedProvider),
+          ChangeNotifierProvider<ThemeController>(
+              create: (_) => ThemeController()),
         ],
         // the scaffold hosts the snackbar after clearing downloads
-        child: const MaterialApp(home: Scaffold(body: SettingsScreen())),
+        child: MaterialApp(
+            theme: AppTheme.dark,
+            home: const Scaffold(body: SettingsScreen())),
       ),
     );
     return registry;
   }
+
+  testWidgets('appearance card offers all modes and switches them',
+      (tester) async {
+    final controller = ThemeController();
+    await controller.load(await SharedPreferences.getInstance());
+    final registry = ServerRegistry(
+        connector: (server) async => server.status = ServerStatus.healthy);
+    await registry.load();
+    final liked = LikedProvider(
+      LikedStore(
+          database: await newDatabaseFactoryMemory().openDatabase('liked.db')),
+      OfflineMediaStore(rootProvider: () async => Directory.systemTemp.path),
+      FakeDownloader(Directory.systemTemp.path),
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<ServerRegistry>.value(value: registry),
+          ChangeNotifierProvider<LikedProvider>.value(value: liked),
+          ChangeNotifierProvider<ThemeController>.value(value: controller),
+        ],
+        child: MaterialApp(
+            theme: AppTheme.dark,
+            home: const Scaffold(body: SettingsScreen())),
+      ),
+    );
+
+    // dark is the default when nothing is stored
+    expect(controller.mode, ThemeMode.dark);
+    expect(find.text('Dark'), findsOneWidget);
+    expect(find.text('System'), findsOneWidget);
+
+    await tester.tap(find.text('Light'));
+    await tester.pump();
+    expect(controller.mode, ThemeMode.light);
+
+    // the choice lands in shared_preferences
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString(ThemeController.prefKey), 'light');
+  });
 
   testWidgets('collapsed summary shows the fleet state, no rows', (tester) async {
     final registry = await pumpSettings(tester, seed: const [

@@ -50,6 +50,7 @@ class BeatMixRepository extends BaseRepository {
 
   // ---------------------------------------------------------------------------
   BeatMix _beatMixFromRow(Map<String, dynamic> row, String sourceId) {
+    final mixTitle = row['title'] as String;
     final beats = ((row['beatmixbeat'] as List<dynamic>?) ?? [])
         .map((junction) => junction['beat'])
         .whereType<Map<String, dynamic>>()
@@ -62,6 +63,7 @@ class BeatMixRepository extends BaseRepository {
               duration: Duration(seconds: b['rawbeat']?['duration'] ?? 0),
               color: sampleTracks.first.color,
               audioUrl: b['streamingurl'] as String?,
+              mixTitle: mixTitle,
             ))
         .toList();
 
@@ -76,21 +78,22 @@ class BeatMixRepository extends BaseRepository {
   }
 
   BeatMix _beatMixFromJson(dynamic json, String sourceId) {
+    final mixTitle = json['title'] as String;
     final beats = ((json['beats'] as List<dynamic>?) ?? [])
-        .map((beat) => _beatFromJson(beat, sourceId))
+        .map((beat) => _beatFromJson(beat, sourceId, mixTitle))
         .toList();
 
     return BeatMix(
       id: int.parse(json['id'].toString()),
       sourceId: sourceId,
-      title: json['title'] as String,
+      title: mixTitle,
       thumbnailUrl: json['thumbnailurl'] as String,
       trackCount: int.tryParse('${json['count']}') ?? beats.length,
       beats: beats,
     );
   }
 
-  Beat _beatFromJson(dynamic json, String sourceId) => Beat(
+  Beat _beatFromJson(dynamic json, String sourceId, String mixTitle) => Beat(
         id: int.parse(json['id'].toString()),
         sourceId: sourceId,
         title: json['title'] as String,
@@ -99,6 +102,7 @@ class BeatMixRepository extends BaseRepository {
         duration: Duration(seconds: json['duration'] ?? 0),
         color: sampleTracks.first.color,
         audioUrl: json['streamingurl'] as String?,
+        mixTitle: mixTitle,
       );
   // ---------------------------------------------------------------------------
 }

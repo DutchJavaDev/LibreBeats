@@ -62,8 +62,19 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     // rewind and stay paused.
     audioPlayer.processingStateStream.listen((state) async {
       if (state == ProcessingState.completed) {
+        if (_sleepEndOfTrack) _clearSleep();
         await audioPlayer.pause();
         await audioPlayer.seek(Duration.zero);
+      }
+    });
+
+    // End-of-track sleep: the queue advancing on its own is the track
+    // ending, so pause there instead of playing the next one.
+    audioPlayer.positionDiscontinuityStream.listen((discontinuity) async {
+      if (_sleepEndOfTrack &&
+          discontinuity.reason == PositionDiscontinuityReason.autoAdvance) {
+        _clearSleep();
+        await pause();
       }
     });
   }
@@ -113,6 +124,64 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   bool _isPlaying = false;
 
   bool _pausedByInterruption = false;
+
+  // Sleep timer, session-only: either a wall-clock deadline or pause when
+  // the current track ends. Never both at once.
+  Timer? _sleepTimer;
+
+  /// When the duration timer pauses playback, null when not armed.
+  DateTime? get sleepUntil => _sleepUntil;
+  DateTime? _sleepUntil;
+
+  /// The originally picked length, so the sheet can mark the armed option.
+  Duration? get sleepDuration => _sleepDuration;
+  Duration? _sleepDuration;
+
+  /// Pause when the current track finishes instead of at a fixed time.
+  bool get sleepEndOfTrack => _sleepEndOfTrack;
+  bool _sleepEndOfTrack = false;
+
+  void Function()? _sleepChanged;
+
+  void setSleepChangedCallback(void Function() sleepChanged) {
+    _sleepChanged = sleepChanged;
+  }
+
+  /// Arms the timer for [duration]; null disarms. Replaces any earlier
+  /// timer, including an end-of-track one.
+  void setSleepTimer(Duration? duration) {
+    _sleepTimer?.cancel();
+    _sleepTimer = null;
+    _sleepEndOfTrack = false;
+    _sleepDuration = duration;
+    _sleepUntil = duration == null ? null : DateTime.now().add(duration);
+    if (duration != null) {
+      _sleepTimer = Timer(duration, () async {
+        _clearSleep();
+        await pause();
+      });
+    }
+    _sleepChanged?.call();
+  }
+
+  /// Pause when the current track ends. Replaces a duration timer.
+  void setSleepEndOfTrack() {
+    _sleepTimer?.cancel();
+    _sleepTimer = null;
+    _sleepUntil = null;
+    _sleepDuration = null;
+    _sleepEndOfTrack = true;
+    _sleepChanged?.call();
+  }
+
+  void _clearSleep() {
+    _sleepTimer?.cancel();
+    _sleepTimer = null;
+    _sleepUntil = null;
+    _sleepDuration = null;
+    _sleepEndOfTrack = false;
+    _sleepChanged?.call();
+  }
 
   double _progress = 0.0;
 
@@ -165,9 +234,12 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     if (mix == null) return false;
 
     // sample data has no stream url, skip it instead of handing the player an
-    // unplayable source
-    final beats =
-        (mix.beats ?? const <Beat>[]).where((beat) => beat.isPlayable).toList();
+    // unplayable source. Queue items carry the owning mix for subtitles.
+    final beats = (mix.beats ?? const <Beat>[])
+        .where((beat) => beat.isPlayable)
+        .map((beat) =>
+            beat.mixTitle == null ? beat.copyWith(mixTitle: mix.title) : beat)
+        .toList();
     if (beats.isEmpty) {
       PrintLog('Nothing playable in "${mix.title}"');
       return false;
@@ -293,6 +365,8 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> skipToNext() async {
+    // a manual skip means someone is awake, drop an end-of-track sleep
+    if (_sleepEndOfTrack) _clearSleep();
     if (audioPlayer.hasNext) {
       await audioPlayer.seekToNext();
       _setCurrentBeat();
@@ -302,6 +376,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> skipToPrevious() async {
+    if (_sleepEndOfTrack) _clearSleep();
     if (audioPlayer.hasPrevious) {
       await audioPlayer.seekToPrevious();
       _setCurrentBeat();
@@ -396,9 +471,11 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
 
   MediaItem _createMediaItem(Beat beat) => MediaItem(
       id: beat.key,
-      album: _currentBeatMix?.title,
+      album: beat.mixTitle ?? _currentBeatMix?.title,
       title: beat.title,
-      artist: beat.artist,
+      // the notification's second line follows the app: owning mix, artist
+      // fallback, nothing when it would repeat the title
+      artist: beat.subtitle.isEmpty ? null : beat.subtitle,
       duration: beat.duration,
       artUri: beat.thumbnailUrl.isEmpty ? null : mediaUri(beat.thumbnailUrl));
 

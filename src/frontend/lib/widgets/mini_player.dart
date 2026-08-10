@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:liberated_beats/providers/background_audio_provider.dart';
+import 'package:liberated_beats/theme/lb_tokens.dart';
 import 'package:liberated_beats/widgets/widget_builder.dart';
 import 'package:provider/provider.dart';
 
@@ -16,6 +17,9 @@ class MiniPlayer extends StatelessWidget {
     final track = backgroundPlayer.currentBeat;
     if (track == null) return const SizedBox.shrink();
 
+    final theme = Theme.of(context);
+    final tokens = theme.extension<LbTokens>()!;
+
     return GestureDetector(
       onTap: () {
         showModalBottomSheet(
@@ -31,25 +35,15 @@ class MiniPlayer extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1A1A),
-          borderRadius: BorderRadius.circular(12),
+          color: theme.colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(LbRadius.card),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(12)),
-              child: LinearProgressIndicator(
-                value: backgroundPlayer.progress,
-                minHeight: 3,
-                backgroundColor: Colors.white.withValues(alpha: 0.15),
-                valueColor:
-                    const AlwaysStoppedAnimation<Color>(Color(0xFF1ED760)),
-              ),
-            ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
               child: Row(
                 children: [
                   Container(
@@ -58,13 +52,17 @@ class MiniPlayer extends StatelessWidget {
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       gradient: track.color,
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(LbRadius.art),
                     ),
-                    child: createCachedNetworkImage(
-                      imageUrl: track.localArtPath ?? track.thumbnailUrl,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      height: double.infinity,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(LbRadius.art),
+                      child: createCachedNetworkImage(
+                        imageUrl: track.localArtPath ?? track.thumbnailUrl,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: double.infinity,
+                        memCacheWidth: 42,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -77,36 +75,62 @@ class MiniPlayer extends StatelessWidget {
                           track.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white),
+                          style: theme.textTheme.titleSmall,
                         ),
-                        Text(
-                          track.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 12, color: Color(0xFFA7A7A7)),
-                        ),
+                        // owning playlist when known, artist otherwise,
+                        // nothing when that would repeat the title
+                        if (track.subtitle.isNotEmpty)
+                          Text(
+                            track.subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall,
+                          ),
                       ],
                     ),
                   ),
                   IconButton(
                     visualDensity: VisualDensity.compact,
                     iconSize: 26,
-                    icon: Icon(
-                        backgroundPlayer.isPlaying ? Icons.pause : Icons.play_arrow,
-                        color: Colors.white),
+                    icon: Icon(backgroundPlayer.isPlaying
+                        ? Icons.pause
+                        : Icons.play_arrow),
                     onPressed: backgroundPlayer.togglePlay,
                   ),
                   IconButton(
                     visualDensity: VisualDensity.compact,
                     iconSize: 26,
-                    icon: const Icon(Icons.skip_next, color: Colors.white),
+                    icon: const Icon(Icons.skip_next),
                     onPressed: () => backgroundPlayer.skipToNext(),
                   ),
                 ],
+              ),
+            ),
+            // rounded gradient progress bar inside the card bottom
+            Padding(
+              padding: const EdgeInsets.fromLTRB(9, 0, 9, 7),
+              child: SizedBox(
+                height: 3,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: FractionallySizedBox(
+                      widthFactor:
+                          backgroundPlayer.progress.clamp(0.0, 1.0),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: tokens.brandGradient,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                        child: const SizedBox(height: 3),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
           ],

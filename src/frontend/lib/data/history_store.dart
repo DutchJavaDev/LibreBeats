@@ -42,6 +42,7 @@ class HistoryStore {
         'thumbnailurl': b.thumbnailUrl,
         'streamingurl': b.audioUrl,
         'duration': b.duration.inSeconds,
+        'mixtitle': b.mixTitle,
       };
 
   Beat _beatFromJson(dynamic json) => Beat(
@@ -53,5 +54,7 @@ class HistoryStore {
         duration: Duration(seconds: json['duration'] as int? ?? 0),
         color: sampleTracks.first.color,
         audioUrl: json['streamingurl'] as String?,
+        // entries saved before the subtitle rule have no mix title
+        mixTitle: json['mixtitle'] as String?,
       );
 }

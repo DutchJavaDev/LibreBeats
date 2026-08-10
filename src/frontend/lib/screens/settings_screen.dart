@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:liberated_beats/providers/liked_provider.dart';
+import 'package:liberated_beats/providers/theme_provider.dart';
+import 'package:liberated_beats/theme/lb_tokens.dart';
+import 'package:liberated_beats/widgets/lb_brand.dart';
 import 'package:provider/provider.dart';
 
 import '../widgets/servers_section.dart';
@@ -30,9 +33,9 @@ class _SettingsHeaderDelegate extends SliverPersistentHeaderDelegate {
   }
 }
 
-/// Only holds settings that actually do something: server management,
-/// offline storage and about. The remaining prototype cards (audio,
-/// notifications, ...) come back once their features exist.
+/// Only holds settings that actually do something: appearance, server
+/// management, offline storage and about. The remaining prototype cards
+/// (audio, notifications, ...) come back once their features exist.
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
@@ -43,37 +46,31 @@ class SettingsScreen extends StatelessWidget {
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
-  Widget _sectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 6),
-      child: Text(
-        title.toUpperCase(),
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 1.2,
-          color: Color(0xFF1ED760),
-        ),
-      ),
-    );
-  }
-
-  Widget _iconBox(IconData icon,
-      {Color background = const Color(0xFF282828),
-      Color color = const Color(0xFFA7A7A7)}) {
+  Widget _iconBox(BuildContext context, IconData icon,
+      {Color? background, Color? color}) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       width: 38,
       height: 38,
       alignment: Alignment.center,
-      decoration: BoxDecoration(color: background, shape: BoxShape.circle),
-      child: Icon(icon, size: 18, color: color),
+      decoration: BoxDecoration(
+          color: background ?? scheme.surfaceContainerHighest,
+          shape: BoxShape.circle),
+      child: Icon(icon, size: 18, color: color ?? scheme.onSurfaceVariant),
     );
   }
+
+  // wraps a settings block in the outlined card, 16px gutters
+  Widget _card(Widget child) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Card(clipBehavior: Clip.antiAlias, child: child),
+      );
 
   Future<void> _confirmClearDownloads(BuildContext context) async {
     // grab everything before the dialog await, no context across the gap
     final likedProvider = context.read<LikedProvider>();
     final messenger = ScaffoldMessenger.of(context);
+    final error = Theme.of(context).colorScheme.error;
     final size = formatBytes(likedProvider.offlineBytes);
     final beats = likedProvider.count;
     final mixes = likedProvider.mixCount;
@@ -85,23 +82,19 @@ class SettingsScreen extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF282828),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Delete $size?',
-            style: const TextStyle(color: Colors.white, fontSize: 18)),
+        title: Text('Delete $size?'),
         content: Text(
             'Removes $what and their downloads from this device. '
-            'This cannot be undone.',
-            style: const TextStyle(color: Color(0xFFA7A7A7), fontSize: 14)),
+            'This cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white)),
+            child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete downloads',
-                style: TextStyle(color: Color(0xFFE8453C))),
+            style: TextButton.styleFrom(foregroundColor: error),
+            child: const Text('Delete downloads'),
           ),
         ],
       ),
@@ -110,20 +103,20 @@ class SettingsScreen extends StatelessWidget {
 
     await likedProvider.clearAll();
     messenger.showSnackBar(SnackBar(
-      backgroundColor: const Color(0xFF282828),
-      content: Text('Cleared $what, freed $size',
-          style: const TextStyle(color: Colors.white)),
+      content: Text('Cleared $what, freed $size'),
     ));
   }
 
   // "12 of 13 on disk · 2 playlists · 1 downloading", colored where it matters
-  Widget _storageStatus(LikedProvider likedProvider) {
+  Widget _storageStatus(BuildContext context, LikedProvider likedProvider) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<LbTokens>()!;
     final pending = likedProvider.pendingTrackCount;
     final failed = likedProvider.failedTrackCount;
 
     return Text.rich(
       TextSpan(
-        style: const TextStyle(fontSize: 12, color: Color(0xFFA7A7A7)),
+        style: theme.textTheme.bodySmall,
         children: [
           TextSpan(
               text: '${likedProvider.totalDownloadedCount} of '
@@ -133,24 +126,55 @@ class SettingsScreen extends StatelessWidget {
           if (pending > 0)
             TextSpan(
                 text: ' · $pending downloading',
-                style: const TextStyle(color: Color(0xFFE8C32E))),
+                style: TextStyle(color: tokens.warning)),
           if (failed > 0)
             TextSpan(
                 text: ' · $failed failed',
-                style: const TextStyle(color: Color(0xFFE8453C))),
+                style: TextStyle(color: theme.colorScheme.error)),
         ],
       ),
+    );
+  }
+
+  // one appearance choice: icon, label, check when active
+  Widget _themeModeRow(BuildContext context, ThemeController controller,
+      ThemeMode value, IconData icon, String label) {
+    final scheme = Theme.of(context).colorScheme;
+    final selected = controller.mode == value;
+    return ListTile(
+      onTap: () => controller.setMode(value),
+      leading: _iconBox(context, icon,
+          color: selected ? scheme.primary : null),
+      title: Text(label),
+      trailing: selected
+          ? Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                  color: scheme.primary, shape: BoxShape.circle),
+              child: Icon(Icons.check, size: 13, color: scheme.onPrimary),
+            )
+          : Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: scheme.outline),
+              ),
+            ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final likedProvider = context.watch<LikedProvider>();
+    final themeController = context.watch<ThemeController>();
+    final theme = Theme.of(context);
     final topInset = MediaQuery.of(context).padding.top;
     final total = likedProvider.totalTrackCount;
 
-    // topInset + top padding (16) + title line (~30) + bottom padding (8)
-    final headerHeight = topInset + 16 + 30 + 8;
+    // topInset + top padding (20) + title line (~30) + rule gap (6+3) + bottom (8)
+    final headerHeight = topInset + 20 + 30 + 9 + 8;
 
     return CustomScrollView(
       slivers: [
@@ -159,168 +183,138 @@ class SettingsScreen extends StatelessWidget {
           delegate: _SettingsHeaderDelegate(
             height: headerHeight,
             child: Container(
-              color: const Color(0xFF121212),
+              color: theme.colorScheme.surface,
               alignment: Alignment.centerLeft,
-              padding: EdgeInsets.fromLTRB(16, topInset + 16, 16, 8),
-              child: const Text(
-                'Settings',
-                style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white),
+              padding: EdgeInsets.fromLTRB(16, topInset + 20, 16, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Settings', style: theme.textTheme.headlineMedium),
+                  const SizedBox(height: 6),
+                  const BrandRule(),
+                ],
               ),
             ),
           ),
         ),
-        // SERVERS.
-        SliverToBoxAdapter(child: _sectionHeader('Servers')),
+        // Appearance: dark is the default, light and follow-the-system opt in.
+        const SliverToBoxAdapter(child: SectionHeader('Appearance')),
+        SliverToBoxAdapter(
+          child: _card(
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _themeModeRow(context, themeController, ThemeMode.dark,
+                    Icons.dark_mode_outlined, 'Dark'),
+                const Divider(indent: 70),
+                _themeModeRow(context, themeController, ThemeMode.light,
+                    Icons.light_mode_outlined, 'Light'),
+                const Divider(indent: 70),
+                _themeModeRow(context, themeController, ThemeMode.system,
+                    Icons.smartphone_outlined, 'System'),
+              ],
+            ),
+          ),
+        ),
+        // Servers.
+        const SliverToBoxAdapter(child: SectionHeader('Servers')),
         const SliverToBoxAdapter(child: ServersSection()),
-        // STORAGE.
-        SliverToBoxAdapter(child: _sectionHeader('Storage')),
+        // Storage.
+        const SliverToBoxAdapter(child: SectionHeader('Storage')),
         SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Material(
-              color: const Color(0xFF181818),
-              borderRadius: BorderRadius.circular(16),
-              clipBehavior: Clip.antiAlias,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // info only, downloads cover both liked beats and mixes
-                  // so there is no single place to navigate to
-                  ListTile(
-                    leading: _iconBox(Icons.favorite_border,
-                        color: const Color(0xFF1ED760)),
-                    title: Row(
-                      children: [
-                        const Expanded(
-                          child: Text('Liked downloads',
-                              style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.white)),
-                        ),
-                        Text(formatBytes(likedProvider.offlineBytes),
-                            style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white)),
-                      ],
-                    ),
-                    subtitle: total == 0
-                        ? const Padding(
-                            padding: EdgeInsets.only(top: 2),
-                            child: Text('Nothing downloaded yet',
-                                style: TextStyle(
-                                    fontSize: 12, color: Color(0xFFA7A7A7))),
-                          )
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(height: 6),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(2),
-                                child: LinearProgressIndicator(
-                                  value: likedProvider.totalDownloadedCount /
-                                      total,
-                                  minHeight: 4,
-                                  backgroundColor: const Color(0xFF282828),
-                                  color: const Color(0xFF1ED760),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              _storageStatus(likedProvider),
-                            ],
-                          ),
+          child: _card(
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // info only, downloads cover both liked beats and mixes
+                // so there is no single place to navigate to
+                ListTile(
+                  leading: _iconBox(context, Icons.favorite_border,
+                      color: theme.colorScheme.primary),
+                  title: Row(
+                    children: [
+                      const Expanded(child: Text('Liked downloads')),
+                      Text(formatBytes(likedProvider.offlineBytes),
+                          style: theme.textTheme.titleSmall!
+                              .copyWith(fontSize: 13)),
+                    ],
                   ),
-                  if (total > 0) ...[
-                    const Divider(
-                        indent: 70, height: 1, color: Color(0x1AFFFFFF)),
-                    ListTile(
-                      onTap: () => _confirmClearDownloads(context),
-                      leading: _iconBox(Icons.delete_outline,
-                          background: const Color(0xFF2A1215),
-                          color: const Color(0xFFE8453C)),
-                      title: const Text('Clear liked downloads',
-                          style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFFE8453C))),
-                    ),
-                  ],
+                  subtitle: total == 0
+                      ? const Padding(
+                          padding: EdgeInsets.only(top: 2),
+                          child: Text('Nothing downloaded yet'),
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 6),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(2),
+                              child: LinearProgressIndicator(
+                                value:
+                                    likedProvider.totalDownloadedCount / total,
+                                minHeight: 4,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            _storageStatus(context, likedProvider),
+                          ],
+                        ),
+                ),
+                if (total > 0) ...[
+                  const Divider(indent: 70),
+                  ListTile(
+                    onTap: () => _confirmClearDownloads(context),
+                    leading: _iconBox(context, Icons.delete_outline,
+                        background: theme
+                            .extension<LbTokens>()!
+                            .dangerContainer,
+                        color: theme.colorScheme.error),
+                    title: Text('Clear liked downloads',
+                        style: theme.textTheme.titleSmall!
+                            .copyWith(color: theme.colorScheme.error)),
+                  ),
                 ],
-              ),
+              ],
             ),
           ),
         ),
-        // ABOUT.
-        SliverToBoxAdapter(child: _sectionHeader('About')),
+        // About.
+        const SliverToBoxAdapter(child: SectionHeader('About')),
         SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Material(
-              color: const Color(0xFF181818),
-              borderRadius: BorderRadius.circular(16),
-              clipBehavior: Clip.antiAlias,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // app identity, tapping copies the version for bug reports
-                  ListTile(
-                    onTap: () {
-                      Clipboard.setData(
-                          const ClipboardData(text: 'Liberated Beats 0.1.0'));
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        backgroundColor: Color(0xFF282828),
-                        content: Text('Version copied',
-                            style: TextStyle(color: Colors.white)),
-                      ));
-                    },
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.asset(
-                        'assets/images/librebeats-icon-1024.png',
-                        width: 38,
-                        height: 38,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            _iconBox(Icons.music_note),
-                      ),
-                    ),
-                    title: const Text('Liberated Beats',
-                        style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.white)),
-                    subtitle: const Text('0.1.0 · open source',
-                        style: TextStyle(
-                            fontSize: 12, color: Color(0xFFA7A7A7))),
-                    trailing: const Icon(Icons.copy,
-                        size: 14, color: Color(0xFFA7A7A7)),
+          child: _card(
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // app identity, tapping copies the version for bug reports
+                ListTile(
+                  onTap: () {
+                    Clipboard.setData(
+                        const ClipboardData(text: 'Liberated Beats 0.1.0'));
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('Version copied'),
+                    ));
+                  },
+                  leading: const LbEmblem(size: 38),
+                  title: const Text('Liberated Beats'),
+                  subtitle: const Text('0.1.0 · open source'),
+                  trailing: Icon(Icons.copy,
+                      size: 14, color: theme.colorScheme.onSurfaceVariant),
+                ),
+                const Divider(indent: 70),
+                ListTile(
+                  onTap: () => showLicensePage(
+                    context: context,
+                    applicationName: 'Liberated Beats',
+                    applicationVersion: '0.1.0',
                   ),
-                  const Divider(
-                      indent: 70, height: 1, color: Color(0x1AFFFFFF)),
-                  ListTile(
-                    onTap: () => showLicensePage(
-                      context: context,
-                      applicationName: 'Liberated Beats',
-                      applicationVersion: '0.1.0',
-                    ),
-                    leading: _iconBox(Icons.description),
-                    title: const Text('Licenses',
-                        style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.white)),
-                    subtitle: const Text('Third-party open source licenses',
-                        style: TextStyle(
-                            fontSize: 12, color: Color(0xFFA7A7A7))),
-                    trailing: const Icon(Icons.chevron_right,
-                        color: Color(0xFFA7A7A7)),
-                  ),
-                ],
-              ),
+                  leading: _iconBox(context, Icons.description),
+                  title: const Text('Licenses'),
+                  subtitle: const Text('Third-party open source licenses'),
+                  trailing: Icon(Icons.chevron_right,
+                      size: 16, color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ],
             ),
           ),
         ),

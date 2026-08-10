@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/catalog_provider.dart';
+import '../widgets/lb_brand.dart';
 import '../widgets/mini_player.dart';
 import 'home_screen.dart';
 import 'library_screen.dart';
@@ -75,7 +76,6 @@ class _MainScaffoldState extends State<MainScaffold>
     ];
 
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
       body: IndexedStack(
         index: _selectedIndex,
         children: [
@@ -90,29 +90,32 @@ class _MainScaffoldState extends State<MainScaffold>
           NavigationBar(
             selectedIndex: _selectedIndex,
             onDestinationSelected: _selectTab,
+            // the active tab gets a small gradient underline instead of the
+            // M3 pill (indicator is transparent in the theme)
             destinations: const [
               NavigationDestination(
                 icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home),
+                selectedIcon: NavUnderlineIcon(Icons.home),
                 label: 'Home',
               ),
               NavigationDestination(
                 icon: Icon(Icons.search),
+                selectedIcon: NavUnderlineIcon(Icons.search),
                 label: 'Search',
               ),
               NavigationDestination(
                 icon: Icon(Icons.library_music_outlined),
-                selectedIcon: Icon(Icons.library_music),
+                selectedIcon: NavUnderlineIcon(Icons.library_music),
                 label: 'Library',
               ),
               NavigationDestination(
                 icon: Icon(Icons.favorite_border),
-                selectedIcon: Icon(Icons.favorite),
+                selectedIcon: NavUnderlineIcon(Icons.favorite),
                 label: 'Liked',
               ),
               NavigationDestination(
                 icon: Icon(Icons.settings_outlined),
-                selectedIcon: Icon(Icons.settings),
+                selectedIcon: NavUnderlineIcon(Icons.settings),
                 label: 'Settings',
               ),
             ],

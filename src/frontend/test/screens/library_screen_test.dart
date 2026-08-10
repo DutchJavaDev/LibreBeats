@@ -7,6 +7,7 @@ import 'package:liberated_beats/data/offline_media_store.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/providers/liked_provider.dart';
 import 'package:liberated_beats/screens/library_screen.dart';
+import 'package:liberated_beats/theme/app_theme.dart';
 import 'package:provider/provider.dart';
 import 'package:sembast/sembast_memory.dart';
 
@@ -50,7 +51,9 @@ void main() {
     await tester.pumpWidget(
       ChangeNotifierProvider<LikedProvider>.value(
         value: liked,
-        child: const MaterialApp(home: Scaffold(body: LibraryScreen())),
+        child: MaterialApp(
+            theme: AppTheme.dark,
+            home: const Scaffold(body: LibraryScreen())),
       ),
     );
   }

@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:liberated_beats/providers/background_audio_provider.dart';
 import 'package:liberated_beats/providers/liked_provider.dart';
+import 'package:liberated_beats/theme/lb_tokens.dart';
+import 'package:liberated_beats/widgets/lb_brand.dart';
 import 'package:provider/provider.dart';
 
 import '../models/beat_models.dart';
@@ -29,64 +31,70 @@ class LikedScreen extends StatelessWidget {
     final beats = [
       for (final record in likedProvider.liked) likedProvider.beatFor(record)
     ];
+    final theme = Theme.of(context);
+    final tokens = theme.extension<LbTokens>()!;
     final topInset = MediaQuery.of(context).padding.top;
 
-    // the big play button mirrors the player whenever a liked beat is up
+    // the play pill mirrors the player whenever a liked beat is up
     final currentKey = backgroundPlayer.currentBeat?.key;
     final playingLiked =
         currentKey != null && beats.any((b) => b.key == currentKey);
     final shuffleOn = backgroundPlayer.shuffle;
 
+    final stats = likedProvider.count == 0
+        ? '0 songs'
+        : '${likedProvider.count} songs · '
+            '${formatTotalDuration(likedProvider.likedDuration)} · on this device';
+
     // header stays put, only the track list below scrolls
     return Column(
       children: [
-        Container(
-          padding: EdgeInsets.fromLTRB(16, topInset + 16, 16, 24),
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFF450AF5), Color(0xFF121212)],
-            ),
-          ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(16, topInset + 20, 16, 16),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 160,
-                height: 160,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF450AF5), Color(0xFFC4EFD9)],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      blurRadius: 32,
-                      offset: const Offset(0, 16),
-                    ),
-                  ],
-                ),
-                child: const Icon(Icons.favorite, color: Colors.white, size: 72),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Liked Songs',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                  likedProvider.count == 0
-                      ? '0 songs'
-                      : '${likedProvider.count} songs · '
-                          '${formatTotalDuration(likedProvider.likedDuration)}',
-                  style: const TextStyle(fontSize: 13, color: Color(0xFFA7A7A7))),
-              const SizedBox(height: 16),
               Row(
                 children: [
+                  const LbEmblem(size: 74, showHeart: true),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Liked Songs',
+                            style: theme.textTheme.headlineMedium),
+                        const SizedBox(height: 5),
+                        const BrandRule(width: 44),
+                        const SizedBox(height: 5),
+                        Text(stats, style: theme.textTheme.bodySmall),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  GradientPillButton(
+                    label: playingLiked && backgroundPlayer.isPlaying
+                        ? 'Pause'
+                        : 'Play',
+                    icon: playingLiked && backgroundPlayer.isPlaying
+                        ? Icons.pause
+                        : Icons.play_arrow,
+                    onPressed: beats.isEmpty
+                        ? null
+                        : () {
+                            if (playingLiked) {
+                              backgroundPlayer.togglePlay();
+                              return;
+                            }
+                            backgroundPlayer.playBeatMix(
+                                _asMix(beats), beats.first);
+                          },
+                  ),
+                  const SizedBox(width: 10),
                   OutlinedButton.icon(
                     onPressed: beats.isEmpty
                         ? null
@@ -103,56 +111,30 @@ class LikedScreen extends StatelessWidget {
                             backgroundPlayer.playBeatMix(_asMix(beats),
                                 beats[Random().nextInt(beats.length)]);
                           },
-                    icon: Icon(Icons.shuffle,
-                        color: shuffleOn ? const Color(0xFF1ED760) : Colors.white),
-                    label: Text(shuffleOn ? 'Shuffle on' : 'Shuffle',
-                        style: TextStyle(
-                            color: shuffleOn
-                                ? const Color(0xFF1ED760)
-                                : Colors.white)),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      side: BorderSide(
-                          color: shuffleOn
-                              ? const Color(0xFF1ED760)
-                              : const Color(0x4DFFFFFF)),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                    ),
-                  ),
-                  const Spacer(),
-                  FloatingActionButton(
-                    backgroundColor: const Color(0xFF1ED760),
-                    foregroundColor: Colors.black,
-                    elevation: 4,
-                    onPressed: beats.isEmpty
-                        ? null
-                        : () {
-                            if (playingLiked) {
-                              backgroundPlayer.togglePlay();
-                              return;
-                            }
-                            backgroundPlayer.playBeatMix(
-                                _asMix(beats), beats.first);
-                          },
-                    child: Icon(
-                        playingLiked && backgroundPlayer.isPlaying
-                            ? Icons.pause
-                            : Icons.play_arrow,
-                        size: 32),
+                    style: shuffleOn
+                        ? OutlinedButton.styleFrom(
+                            foregroundColor: tokens.nowPlaying,
+                            side: BorderSide(color: tokens.nowPlaying),
+                          )
+                        : null,
+                    icon: const Icon(Icons.shuffle, size: 16),
+                    label: Text(shuffleOn ? 'Shuffle on' : 'Shuffle'),
                   ),
                 ],
               ),
             ],
           ),
         ),
+        const Divider(indent: 16, endIndent: 16),
         Expanded(
           child: beats.isEmpty
-              ? const Center(
-                  child: Text('Nothing liked yet, tap the heart on a playing song',
-                      style: TextStyle(color: Color(0xFFA7A7A7))),
+              ? Center(
+                  child: Text(
+                      'Nothing liked yet, tap the heart on a playing song',
+                      style: theme.textTheme.bodyMedium),
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.only(top: 4, bottom: 16),
                   itemCount: beats.length,
                   itemBuilder: (context, i) {
                     final t = beats[i];
@@ -167,7 +149,8 @@ class LikedScreen extends StatelessWidget {
                       onLike: () => toggleBeatLike(context, likedProvider, t),
                       // whole list as the queue, like a beatmix, so skip
                       // next/previous walks through the liked songs
-                      onTap: () => backgroundPlayer.playBeatMix(_asMix(beats), t),
+                      onTap: () =>
+                          backgroundPlayer.playBeatMix(_asMix(beats), t),
                     );
                   },
                 ),

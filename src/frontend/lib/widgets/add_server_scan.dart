@@ -79,14 +79,12 @@ class _AddServerScanScreenState extends State<AddServerScanScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: Colors.black,
       appBar: AppBar(
-        backgroundColor: Colors.black,
-        title: const Text('Scan server QR',
-            style: TextStyle(color: Colors.white, fontSize: 18)),
+        title: const Text('Scan server QR'),
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
+          icon: const Icon(Icons.close),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -97,30 +95,33 @@ class _AddServerScanScreenState extends State<AddServerScanScreen> {
             alignment: Alignment.bottomCenter,
             child: Container(
               width: double.infinity,
+              // deliberate hardcoded scrim: the camera preview behind it is
+              // dark no matter the theme
               color: Colors.black.withValues(alpha: 0.6),
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_error != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(_error!,
-                          style: const TextStyle(
-                              color: Color(0xFFE8453C), fontSize: 13)),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_error != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(_error!,
+                            style: theme.textTheme.bodySmall!
+                                .copyWith(color: theme.colorScheme.error)),
+                      ),
+                    Text(
+                      'Point the camera at a server QR code:\n{"url": "https://…", "key": "sb_publishable_…"}',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodySmall,
                     ),
-                  const Text(
-                    'Point the camera at a server QR code:\n{"url": "https://…", "key": "sb_publishable_…"}',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Color(0xFFA7A7A7), fontSize: 12),
-                  ),
-                  TextButton(
-                    onPressed: _enterManually,
-                    child: const Text('Enter manually',
-                        style:
-                            TextStyle(color: Color(0xFF1ED760), fontSize: 13)),
-                  ),
-                ],
+                    TextButton(
+                      onPressed: _enterManually,
+                      child: const Text('Enter manually'),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -160,15 +161,12 @@ class AddServerDialogState extends State<AddServerDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: const Color(0xFF181818),
-      title: const Text('Add server',
-          style: TextStyle(color: Colors.white, fontSize: 18)),
+      title: const Text('Add server'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           TextField(
             controller: _urlController,
-            style: const TextStyle(color: Colors.white, fontSize: 14),
             decoration: const InputDecoration(
               labelText: 'Server URL',
               hintText: 'https://your-server.example.com',
@@ -177,7 +175,6 @@ class AddServerDialogState extends State<AddServerDialog> {
           const SizedBox(height: 12),
           TextField(
             controller: _keyController,
-            style: const TextStyle(color: Colors.white, fontSize: 14),
             decoration: const InputDecoration(
               labelText: 'Publishable key',
               hintText: 'sb_publishable_…',
@@ -188,12 +185,11 @@ class AddServerDialogState extends State<AddServerDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child:
-              const Text('Cancel', style: TextStyle(color: Color(0xFFA7A7A7))),
+          child: const Text('Cancel'),
         ),
         TextButton(
           onPressed: _submit,
-          child: const Text('Add', style: TextStyle(color: Color(0xFF1ED760))),
+          child: const Text('Add'),
         ),
       ],
     );

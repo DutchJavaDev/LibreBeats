@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:liberated_beats/models/beat_models.dart';
+import 'package:liberated_beats/theme/lb_tokens.dart';
 import 'package:liberated_beats/widgets/widget_builder.dart';
 
 /// One playlist in the browse grid: the cover sharp and unobstructed,
@@ -12,19 +13,31 @@ class BrowseMixCard extends StatelessWidget {
   /// Set when another playlist shares this title, names the server.
   final String? hostLabel;
 
+  /// Cover fallback when there is no thumbnail (the mocked home sections),
+  /// defaults to the flat artwork placeholder.
+  final Gradient? fallbackArt;
+
+  /// Replaces the "n songs" subtitle when set (e.g. "42 plays · 18 songs").
+  final String? subtitleOverride;
+
   const BrowseMixCard({
     super.key,
     required this.mix,
     required this.onTap,
     this.liked = false,
     this.hostLabel,
+    this.fallbackArt,
+    this.subtitleOverride,
   });
 
   @override
   Widget build(BuildContext context) {
-    final subtitle = hostLabel == null
-        ? '${mix.trackCount} songs'
-        : '${mix.trackCount} songs · $hostLabel';
+    final theme = Theme.of(context);
+    final tokens = theme.extension<LbTokens>()!;
+    final subtitle = subtitleOverride ??
+        (hostLabel == null
+            ? '${mix.trackCount} songs'
+            : '${mix.trackCount} songs · $hostLabel');
 
     return GestureDetector(
       onTap: onTap,
@@ -34,16 +47,22 @@ class BrowseMixCard extends StatelessWidget {
           Stack(
             children: [
               ClipRRect(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(LbRadius.card),
                 child: AspectRatio(
                   aspectRatio: 1,
-                  child: ColoredBox(
-                    color: const Color(0xFF282828),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: fallbackArt == null
+                          ? tokens.artworkPlaceholder
+                          : null,
+                      gradient: fallbackArt,
+                    ),
                     child: createCachedNetworkImage(
                       imageUrl: mix.thumbnailUrl,
                       width: double.infinity,
                       height: double.infinity,
                       fit: BoxFit.cover,
+                      memCacheWidth: 200,
                     ),
                   ),
                 ),
@@ -58,8 +77,8 @@ class BrowseMixCard extends StatelessWidget {
                       color: Colors.black45,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.favorite,
-                        size: 12, color: Color(0xFF1ED760)),
+                    child: Icon(Icons.favorite,
+                        size: 12, color: tokens.nowPlaying),
                   ),
                 ),
             ],
@@ -69,10 +88,9 @@ class BrowseMixCard extends StatelessWidget {
             mix.title,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: Colors.white,
+            style: theme.textTheme.bodySmall!.copyWith(
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.onSurface,
                 height: 1.3),
           ),
           const SizedBox(height: 2),
@@ -80,7 +98,8 @@ class BrowseMixCard extends StatelessWidget {
             subtitle,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 10, color: Color(0xFFA7A7A7)),
+            style: theme.textTheme.labelSmall!
+                .copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
         ],
       ),

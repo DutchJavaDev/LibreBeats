@@ -9,6 +9,8 @@ final class BackgroundAudioProvider extends ChangeNotifier {
     // repaint the history UI when a play is recorded or the persisted
     // history finishes loading on startup
     _playbackService.setRecentsChangedCallback(notifyListeners);
+    // repaint when the sleep timer arms, disarms or fires
+    _playbackService.setSleepChangedCallback(notifyListeners);
   }
 
   final AudioPlaybackService _playbackService;
@@ -36,6 +38,32 @@ final class BackgroundAudioProvider extends ChangeNotifier {
     final track = _playbackService.currentBeat;
     if (track == null) return Duration.zero;
     return track.duration * progress;
+  }
+
+  /// Time left on the sleep timer, null when no duration timer is armed.
+  /// The label rides the position tick, no extra timer needed for the UI.
+  Duration? get sleepRemaining {
+    final until = _playbackService.sleepUntil;
+    if (until == null) return null;
+    final left = until.difference(DateTime.now());
+    return left.isNegative ? Duration.zero : left;
+  }
+
+  bool get sleepEndOfTrack => _playbackService.sleepEndOfTrack;
+
+  /// The originally picked length, for marking the armed sheet option.
+  Duration? get sleepDuration => _playbackService.sleepDuration;
+
+  bool get sleepArmed => sleepRemaining != null || sleepEndOfTrack;
+
+  void setSleepTimer(Duration? duration) {
+    _playbackService.setSleepTimer(duration);
+    notifyListeners();
+  }
+
+  void setSleepEndOfTrack() {
+    _playbackService.setSleepEndOfTrack();
+    notifyListeners();
   }
 
   // Set a beatmix, then from there play the selected beat

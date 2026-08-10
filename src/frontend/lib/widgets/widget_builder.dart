@@ -6,19 +6,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/providers/liked_provider.dart';
+import 'package:liberated_beats/theme/lb_tokens.dart';
 import 'package:liberated_beats/widgets/beatmix_view.dart';
 
+/// Thumbnail loader. Placeholder is a flat surface (no spinner animating
+/// inside every list tile); pass [showSpinner] for hero-sized slots where
+/// a loading indicator earns its keep. [memCacheWidth] is the slot width
+/// in logical pixels, scaled to device pixels to cap decode cost.
 Widget createCachedNetworkImage({
   required String imageUrl,
   BoxFit? fit,
   double? width,
   double? height,
+  bool showSpinner = false,
+  int? memCacheWidth,
 }) {
   // downloaded thumbnails are plain file paths, not urls
   if (imageUrl.isNotEmpty && !imageUrl.startsWith('http')) {
     final file = File(imageUrl);
     if (file.existsSync()) {
-      return Image.file(file, fit: fit, width: width, height: height);
+      return Image.file(file,
+          fit: fit,
+          width: width,
+          height: height,
+          // a file deleted between exists check and decode should show the
+          // gradient fallback behind it, not crash the tile
+          errorBuilder: (_, __, ___) => const SizedBox.shrink());
     }
   }
 
@@ -28,29 +41,50 @@ Widget createCachedNetworkImage({
     return const SizedBox.shrink();
   }
 
+  final pixelRatio = WidgetsBinding
+          .instance.platformDispatcher.implicitView?.devicePixelRatio ??
+      2.0;
+
   return CachedNetworkImage(
     imageUrl: imageUrl,
     fit: fit,
     width: width,
     height: height,
-    placeholder: (context, url) =>
-        const Center(child: CircularProgressIndicator()),
-    errorWidget: (context, error, stackTrace) => const Icon(Icons.error),
+    memCacheWidth:
+        memCacheWidth == null ? null : (memCacheWidth * pixelRatio).round(),
+    placeholder: (context, url) {
+      final placeholder =
+          Theme.of(context).extension<LbTokens>()!.artworkPlaceholder;
+      if (!showSpinner) return ColoredBox(color: placeholder);
+      return ColoredBox(
+        color: placeholder,
+        child: const Center(
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    },
+    errorWidget: (context, error, stackTrace) => Icon(Icons.music_note,
+        size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
   );
 }
 
 void showBeatMixDialog(BuildContext context, BeatMix beatMix) {
   FocusScope.of(context).unfocus();
   SystemChannels.textInput.invokeMethod('TextInput.hide');
+  final surface = Theme.of(context).colorScheme.surface;
   showDialog(
     context: context,
     // own messenger + scaffold, snackbars from the row hearts would end up
     // behind a fullscreen dialog otherwise
     builder: (context) => Dialog.fullscreen(
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: surface,
       child: ScaffoldMessenger(
         child: Scaffold(
-          backgroundColor: const Color(0xFF121212),
+          backgroundColor: surface,
           body: BeatMixView(beatMix: beatMix),
         ),
       ),
@@ -72,12 +106,9 @@ void toggleBeatLike(
   if (!wasLiked) return;
 
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-    backgroundColor: const Color(0xFF282828),
-    content: Text('${beat.title} removed from Liked Songs',
-        style: const TextStyle(color: Colors.white)),
+    content: Text('${beat.title} removed from Liked Songs'),
     action: SnackBarAction(
       label: 'Undo',
-      textColor: const Color(0xFF1ED760),
       onPressed: () => likedProvider.toggleLike(beat),
     ),
   ));

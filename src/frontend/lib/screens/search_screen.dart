@@ -3,6 +3,7 @@ import 'package:liberated_beats/config/helpers.dart';
 import 'package:liberated_beats/providers/catalog_provider.dart';
 import 'package:liberated_beats/providers/liked_provider.dart';
 import 'package:liberated_beats/widgets/browse_mix_card.dart';
+import 'package:liberated_beats/widgets/lb_brand.dart';
 import 'package:liberated_beats/widgets/search_result_tile.dart';
 import 'package:liberated_beats/widgets/widget_builder.dart';
 import 'package:provider/provider.dart';
@@ -51,19 +52,6 @@ class _SearchScreenState extends State<SearchScreen> {
     super.dispose();
   }
 
-  Widget _resultHeader(String title, int count) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-        child: Text(
-          '${title.toUpperCase()} · $count',
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.2,
-            color: Color(0xFF1ED760),
-          ),
-        ),
-      );
-
   String _ago(DateTime? t) {
     if (t == null) return 'just now';
     final d = DateTime.now().difference(t);
@@ -71,6 +59,9 @@ class _SearchScreenState extends State<SearchScreen> {
     if (d.inHours < 1) return '${d.inMinutes}m ago';
     return '${d.inHours}h ago';
   }
+
+  Widget _countTrailing(int count) => Text('$count',
+      style: Theme.of(context).textTheme.bodySmall);
 
   Widget _browseGrid(LibreProvider catalog, LikedProvider liked) {
     // playlists sharing a title get a server label to tell them apart
@@ -134,7 +125,9 @@ class _SearchScreenState extends State<SearchScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (songs.isNotEmpty) ...[
-          _resultHeader('Songs', songs.length),
+          SectionHeader('Songs',
+              trailing: _countTrailing(songs.length),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0)),
           for (final r in songs)
             SearchTile(
               search: r,
@@ -145,7 +138,9 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
         ],
         if (mixes.isNotEmpty) ...[
-          _resultHeader('Playlists', mixes.length),
+          SectionHeader('Playlists',
+              trailing: _countTrailing(mixes.length),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0)),
           for (final r in mixes) SearchTile(search: r, query: _query),
         ],
         Padding(
@@ -155,7 +150,7 @@ class _SearchScreenState extends State<SearchScreen> {
               outcome.live
                   ? 'Nothing cached matched · live from your servers'
                   : 'From your catalog · updated ${_ago(outcome.cachedAt)}',
-              style: const TextStyle(fontSize: 11, color: Color(0xFF777777)),
+              style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
         ),
@@ -166,12 +161,13 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final catalog = context.watch<LibreProvider>();
+    final theme = Theme.of(context);
     final topInset = MediaQuery.of(context).padding.top;
 
     // Fixed height for the sticky header:
-    // topInset + top padding (16) + "Search" text height (~30) + gap (16) + text field height (50) + bottom padding (16)
-    // Increase the height by 10 pixels to avoid bottom overflow
-    final headerHeight = topInset + 16 + 30 + 16 + 50 + 16 + 10;
+    // topInset + top padding (20) + title line (~30) + rule gap (6+3) +
+    // gap (12) + text field height (50) + bottom padding (16) + slack (10)
+    final headerHeight = topInset + 20 + 30 + 9 + 12 + 50 + 16 + 10;
 
     return CustomScrollView(
       slivers: [
@@ -181,23 +177,25 @@ class _SearchScreenState extends State<SearchScreen> {
           delegate: _SearchHeaderDelegate(
             height: headerHeight,
             child: Container(
-              color: const Color(
-                  0xFF121212), // Solid background to cover scrolled content
+              // solid background to cover scrolled content
+              color: theme.colorScheme.surface,
               child: Padding(
-                padding: EdgeInsets.fromLTRB(16, topInset + 16, 16, 16),
+                padding: EdgeInsets.fromLTRB(16, topInset + 20, 16, 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Search',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                          ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Search',
+                                style: theme.textTheme.headlineMedium),
+                            const SizedBox(height: 6),
+                            const BrandRule(),
+                          ],
                         ),
                         // switch between disk and in-memory server results
                         SizedBox(
@@ -206,6 +204,8 @@ class _SearchScreenState extends State<SearchScreen> {
                             onPressed: () => catalog
                                 .setPersistentCache(!catalog.persistentCache),
                             style: TextButton.styleFrom(
+                              foregroundColor:
+                                  theme.colorScheme.onSurfaceVariant,
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 8),
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -215,45 +215,30 @@ class _SearchScreenState extends State<SearchScreen> {
                                   ? Icons.save_outlined
                                   : Icons.memory,
                               size: 16,
-                              color: const Color(0xFFA7A7A7),
                             ),
                             label: Text(
                               catalog.persistentCache
                                   ? 'Cache: disk'
                                   : 'Cache: memory',
-                              style: const TextStyle(
-                                  fontSize: 12, color: Color(0xFFA7A7A7)),
+                              style: theme.textTheme.bodySmall,
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                     SizedBox(
-                      height: 50, // Fixed height for the text field
+                      height: 50, // fixed height for the text field
                       child: TextField(
                         controller: _controller,
                         onChanged: (v) =>
                             v.isEmpty ? setState(() => _query = v) : null,
                         onEditingComplete: () =>
                             setState(() => _query = _controller.text),
-                        style: const TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Artists, songs, or podcasts',
-                          hintStyle: const TextStyle(color: Colors.black54),
-                          prefixIcon:
-                              const Icon(Icons.search, color: Colors.black54),
-                          filled: true,
-                          fillColor: Colors.white,
-                          contentPadding:
-                              const EdgeInsets.symmetric(vertical: 12),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide.none,
-                          ),
+                        style: theme.textTheme.bodyLarge,
+                        decoration: const InputDecoration(
+                          hintText: 'Artists, songs, or beatmixes',
+                          prefixIcon: Icon(Icons.search),
                         ),
                       ),
                     ),
@@ -270,28 +255,28 @@ class _SearchScreenState extends State<SearchScreen> {
               margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xFF1ED760).withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0x661ED760)),
+                color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.4)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.autorenew,
-                      size: 16, color: Color(0xFF1ED760)),
+                  Icon(Icons.autorenew,
+                      size: 16, color: theme.colorScheme.primary),
                   const SizedBox(width: 8),
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Playlists were updated',
-                      style: TextStyle(
-                          fontSize: 13,
+                      style: theme.textTheme.bodySmall!.copyWith(
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF1ED760)),
+                          color: theme.colorScheme.primary),
                     ),
                   ),
                   InkWell(
                     onTap: catalog.clearUpdateNotice,
-                    child: const Icon(Icons.close,
-                        size: 16, color: Color(0xFF1ED760)),
+                    child: Icon(Icons.close,
+                        size: 16, color: theme.colorScheme.primary),
                   ),
                 ],
               ),
@@ -315,9 +300,8 @@ class _SearchScreenState extends State<SearchScreen> {
                         const Center(child: CircularProgressIndicator()),
                         if (outcome?.searching ?? false) ...[
                           const SizedBox(height: 12),
-                          const Text('Searching your servers…',
-                              style: TextStyle(
-                                  fontSize: 12, color: Color(0xFFA7A7A7))),
+                          Text('Searching your servers…',
+                              style: theme.textTheme.bodySmall),
                         ],
                       ],
                     ),
@@ -329,8 +313,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     child: Center(
                       child: Text(
                           "Nothing matched '$_query', checked your servers too",
-                          style:
-                              const TextStyle(color: Color(0xFFA7A7A7))),
+                          style: theme.textTheme.bodyMedium),
                     ),
                   );
                 }
@@ -340,18 +323,12 @@ class _SearchScreenState extends State<SearchScreen> {
           )
         else ...[
           SliverToBoxAdapter(
-            child: Padding(
+            child: SectionHeader(
+              'Browse playlists',
+              trailing: catalog.beatMixes.isEmpty
+                  ? null
+                  : _countTrailing(catalog.beatMixes.length),
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Text(
-                catalog.beatMixes.isEmpty
-                    ? 'Browse playlists'
-                    : 'Browse playlists · ${catalog.beatMixes.length}',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
             ),
           ),
           SliverToBoxAdapter(
@@ -360,11 +337,10 @@ class _SearchScreenState extends State<SearchScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 48),
                     child: Center(
                       child: catalog.isFetching
-                          ? const CircularProgressIndicator(
-                              color: Color(0xFF1ED760))
-                          : const Text(
+                          ? const CircularProgressIndicator()
+                          : Text(
                               'No playlists yet — check your servers in Settings',
-                              style: TextStyle(color: Color(0xFFA7A7A7))),
+                              style: theme.textTheme.bodyMedium),
                     ),
                   )
                 : _browseGrid(catalog, context.watch<LikedProvider>()),

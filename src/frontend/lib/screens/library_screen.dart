@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:liberated_beats/data/liked_store.dart';
 import 'package:liberated_beats/providers/liked_provider.dart';
+import 'package:liberated_beats/theme/lb_tokens.dart';
+import 'package:liberated_beats/widgets/lb_brand.dart';
 import 'package:liberated_beats/widgets/widget_builder.dart';
 import 'package:provider/provider.dart';
 
@@ -12,26 +14,23 @@ class LibraryScreen extends StatelessWidget {
 
   Future<void> _confirmRemoveMix(
       BuildContext context, LikedProvider likedProvider, LikedMix mix) async {
+    final error = Theme.of(context).colorScheme.error;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF282828),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Remove ${mix.title}?',
-            style: const TextStyle(color: Colors.white, fontSize: 18)),
+        title: Text('Remove ${mix.title}?'),
         content: const Text(
             'Its downloads get deleted from this device. Songs you also '
-            'liked individually stay.',
-            style: TextStyle(color: Color(0xFFA7A7A7), fontSize: 14)),
+            'liked individually stay.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white)),
+            child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Remove',
-                style: TextStyle(color: Color(0xFFE8453C))),
+            style: TextButton.styleFrom(foregroundColor: error),
+            child: const Text('Remove'),
           ),
         ],
       ),
@@ -45,6 +44,8 @@ class LibraryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final likedProvider = context.watch<LikedProvider>();
+    final theme = Theme.of(context);
+    final tokens = theme.extension<LbTokens>()!;
     final topInset = MediaQuery.of(context).padding.top;
 
     return CustomScrollView(
@@ -52,67 +53,35 @@ class LibraryScreen extends StatelessWidget {
         // Header.
         SliverToBoxAdapter(
           child: Padding(
-            padding: EdgeInsets.fromLTRB(16, topInset + 16, 16, 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            padding: EdgeInsets.fromLTRB(16, topInset + 20, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Your Library',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white),
-                ),
-                Material(
-                  color: Colors.white.withValues(alpha: 0.1),
-                  shape: const CircleBorder(),
-                  child: const SizedBox.shrink(),
-                ),
+                Text('Your Library', style: theme.textTheme.headlineMedium),
+                const SizedBox(height: 6),
+                const BrandRule(),
               ],
             ),
-          ),
-        ),
-        // Filter chips.
-        const SliverToBoxAdapter(
-          child: Padding(
-            padding: EdgeInsets.symmetric(vertical: 10),
-            child: SizedBox.shrink(),
           ),
         ),
         // Liked Songs entry.
         SliverToBoxAdapter(
           child: ListTile(
             onTap: () => onOpenLiked?.call(),
-            leading: Container(
-              width: 56,
-              height: 56,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFF450AF5), Color(0xFFC4EFD9)],
-                ),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.favorite, color: Colors.white, size: 24),
-            ),
-            title: const Text(
-              'Liked Songs',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14),
-            ),
-            subtitle: Text(
-              'Playlist · ${likedProvider.count} songs',
-              style: const TextStyle(color: Color(0xFFA7A7A7), fontSize: 12),
-            ),
+            leading: const LbEmblem(size: 52, showHeart: true),
+            title: const Text('Liked Songs'),
+            subtitle: Text('Playlist · ${likedProvider.count} songs'),
           ),
         ),
         // Liked beatmixes, tap plays, long press removes.
         if (likedProvider.likedMixes.isEmpty)
-          const SliverToBoxAdapter(
+          SliverToBoxAdapter(
             child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 35),
+              padding: const EdgeInsets.symmetric(vertical: 35),
               child: Center(
                 child: Text(
                     'No liked playlists yet, tap the heart on a playlist in search',
-                    style: TextStyle(color: Color(0xFFA7A7A7))),
+                    style: theme.textTheme.bodyMedium),
               ),
             ),
           )
@@ -128,17 +97,18 @@ class LibraryScreen extends StatelessWidget {
                   onLongPress: () =>
                       _confirmRemoveMix(context, likedProvider, mix),
                   leading: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(LbRadius.art),
                     child: SizedBox(
-                      width: 56,
-                      height: 56,
+                      width: 52,
+                      height: 52,
                       child: ColoredBox(
-                        color: const Color(0xFF282828),
+                        color: tokens.artworkPlaceholder,
                         child: createCachedNetworkImage(
                           imageUrl: localArt ?? mix.thumbnailUrl,
-                          width: 56,
-                          height: 56,
+                          width: 52,
+                          height: 52,
                           fit: BoxFit.cover,
+                          memCacheWidth: 52,
                         ),
                       ),
                     ),
@@ -147,16 +117,13 @@ class LibraryScreen extends StatelessWidget {
                     mix.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14),
                   ),
                   subtitle: mix.complete
-                      ? Text(
-                          'Playlist · ${mix.beats.length} songs',
-                          style: const TextStyle(color: Color(0xFFA7A7A7), fontSize: 12),
-                        )
+                      ? Text('Playlist · ${mix.beats.length} songs')
                       : Text(
                           'Playlist · ${mix.downloadedCount} of ${mix.beats.length} downloaded',
-                          style: const TextStyle(color: Color(0xFFE8C32E), fontSize: 12),
+                          style: theme.textTheme.bodySmall!
+                              .copyWith(color: tokens.warning),
                         ),
                 );
               },

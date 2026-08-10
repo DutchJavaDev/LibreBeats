@@ -12,9 +12,11 @@ import 'package:liberated_beats/data/offline_media_store.dart';
 import 'package:liberated_beats/data/server_registry.dart';
 import 'package:liberated_beats/providers/background_audio_provider.dart';
 import 'package:liberated_beats/providers/liked_provider.dart';
+import 'package:liberated_beats/providers/theme_provider.dart';
 import 'package:liberated_beats/services/audio_playback_service.dart';
 import 'package:liberated_beats/services/beat_download_service.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
 import 'data/beatmix_repository.dart';
@@ -34,11 +36,10 @@ Future<void> main() async {
   GoogleFonts.config.allowRuntimeFetching = false;
 
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light,
-    systemNavigationBarColor: Colors.black,
-  ));
+
+  // dark unless the user chose otherwise; also styles the system chrome
+  final themeController = ThemeController();
+  await themeController.load(await SharedPreferences.getInstance());
 
   final serverRegistry = ServerRegistry();
   final audioPlaybackService = AudioPlaybackService();
@@ -71,6 +72,7 @@ Future<void> main() async {
   runApp(
     MultiProvider(
       providers: [
+        ChangeNotifierProvider<ThemeController>.value(value: themeController),
         ChangeNotifierProvider<ServerRegistry>.value(value: serverRegistry),
         Provider<BeatMixRepository>.value(value: beatMixRepository),
         Provider<BeatRepository>.value(value: beatRepository),

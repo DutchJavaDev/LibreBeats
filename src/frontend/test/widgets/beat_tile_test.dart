@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liberated_beats/models/beat_models.dart';
+import 'package:liberated_beats/theme/app_theme.dart';
 import 'package:liberated_beats/widgets/beat_tile.dart';
+import 'package:liberated_beats/widgets/lb_brand.dart';
 import 'package:liberated_beats/widgets/widget_builder.dart';
 
 void main() {
@@ -16,16 +18,18 @@ void main() {
   );
 
   Widget host(
-      {bool isActive = false,
+      {Beat? tileBeat,
+      bool isActive = false,
       bool isPlaying = false,
       VoidCallback? onTap,
       bool? liked,
       VoidCallback? onLike,
       bool downloaded = false}) {
     return MaterialApp(
+      theme: AppTheme.dark,
       home: Scaffold(
         body: BeatTile(
-          beat: beat,
+          beat: tileBeat ?? beat,
           isActive: isActive,
           isPlaying: isPlaying,
           onTap: onTap ?? () {},
@@ -47,23 +51,37 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('inactive tile has a white title and no overlay', (tester) async {
-    await tester.pumpWidget(host());
+  testWidgets('subtitle prefers the owning playlist over the artist',
+      (tester) async {
+    await tester
+        .pumpWidget(host(tileBeat: beat.copyWith(mixTitle: 'Deep Focus')));
 
-    expect(tester.widget<Text>(find.text('Test Song')).style?.color,
-        Colors.white);
-    expect(find.byIcon(Icons.play_arrow), findsNothing);
-    expect(find.byIcon(Icons.pause), findsNothing);
+    expect(find.text('Deep Focus'), findsOneWidget);
+    expect(find.text('Test Artist'), findsNothing);
   });
 
-  testWidgets('active tile is green with a play/pause overlay', (tester) async {
+  testWidgets('inactive tile has a mint title and no equalizer',
+      (tester) async {
+    await tester.pumpWidget(host());
+
+    final style = tester.widget<Text>(find.text('Test Song')).style;
+    expect(style?.color, AppTheme.darkScheme.onSurface);
+    expect(style?.fontWeight, FontWeight.w600);
+    expect(find.byType(PlayingBarsIndicator), findsNothing);
+  });
+
+  testWidgets('active tile gets the equalizer and a heavier title',
+      (tester) async {
     await tester.pumpWidget(host(isActive: true, isPlaying: true));
-    expect(tester.widget<Text>(find.text('Test Song')).style?.color,
-        const Color(0xFF1ED760));
-    expect(find.byIcon(Icons.pause), findsOneWidget);
+
+    final style = tester.widget<Text>(find.text('Test Song')).style;
+    // still mint, the active cue is the edge bar + equalizer, not a tint
+    expect(style?.color, AppTheme.darkScheme.onSurface);
+    expect(style?.fontWeight, FontWeight.w700);
+    expect(find.byType(PlayingBarsIndicator), findsOneWidget);
 
     await tester.pumpWidget(host(isActive: true, isPlaying: false));
-    expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+    expect(find.byType(PlayingBarsIndicator), findsOneWidget);
   });
 
   testWidgets('tap hits onTap', (tester) async {

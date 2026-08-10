@@ -1,11 +1,11 @@
 {
-    "name": "frontend",
-    "short_name": "frontend",
+    "name": "LibreBeats",
+    "short_name": "LibreBeats",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#121212",
-    "theme_color": "#1ED760",
-    "description": "A new Flutter project.",
+    "background_color": "#0E0E0E",
+    "theme_color": "#24E068",
+    "description": "LibreBeats, the self-hosted music player.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -22,6 +22,12 @@ class Beat {
   /// Downloaded artwork on disk, display only, never persisted.
   final String? localArtPath;
 
+  /// Title of the beatmix this beat belongs to, only known client-side:
+  /// stamped when beats arrive embedded in a mix or enter a mix queue.
+  /// Subtitles show this over [artist] (the ingest often stores the title
+  /// as artist too, the owning mix says more).
+  final String? mixTitle;
+
   const Beat({
     required this.id,
     this.sourceId = 'sample',
@@ -32,11 +38,34 @@ class Beat {
     required this.color,
     this.audioUrl,
     this.localArtPath,
+    this.mixTitle,
   });
 
   String get key => '$sourceId:$id';
 
   bool get isPlayable => audioUrl != null && audioUrl!.isNotEmpty;
+
+  /// What tiles and players show under the title: the owning mix when
+  /// known, otherwise the artist — and empty when that would just repeat
+  /// the title (the ingest often stores the title as artist too). Callers
+  /// hide the line when this is empty.
+  String get subtitle {
+    final line = mixTitle ?? artist;
+    return line == title ? '' : line;
+  }
+
+  Beat copyWith({String? mixTitle, String? localArtPath}) => Beat(
+        id: id,
+        sourceId: sourceId,
+        title: title,
+        artist: artist,
+        thumbnailUrl: thumbnailUrl,
+        duration: duration,
+        color: color,
+        audioUrl: audioUrl,
+        localArtPath: localArtPath ?? this.localArtPath,
+        mixTitle: mixTitle ?? this.mixTitle,
+      );
 }
 
 class BeatMix {

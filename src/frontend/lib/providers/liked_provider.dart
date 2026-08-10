@@ -89,6 +89,7 @@ class LikedProvider extends ChangeNotifier {
         state: 'pending',
         audioPath: _files.audioRelPath(beat),
         artPath: _files.artRelPath(beat),
+        mixTitle: beat.mixTitle,
       );
 
   Future<void> toggleLike(Beat beat) async {
@@ -116,7 +117,12 @@ class LikedProvider extends ChangeNotifier {
       thumbnailUrl: mix.thumbnailUrl,
       artPath: _files.mixArtRelPath(mix),
       likedAt: likedAt,
-      beats: [for (final b in beats) _recordFor(b, likedAt)],
+      beats: [
+        // stamp the owning mix on beats that do not carry one yet
+        for (final b in beats)
+          _recordFor(
+              b.mixTitle == null ? b.copyWith(mixTitle: mix.title) : b, likedAt)
+      ],
     );
     await _store.putMix(record);
     _likedMixes.insert(0, record);
@@ -251,6 +257,7 @@ class LikedProvider extends ChangeNotifier {
       duration: record.duration,
       color: sampleTracks.first.color,
       audioUrl: record.streamingUrl,
+      mixTitle: record.mixTitle,
     );
   }
 

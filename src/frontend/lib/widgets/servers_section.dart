@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:liberated_beats/theme/lb_tokens.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -29,11 +30,14 @@ class _ServersSectionState extends State<ServersSection> {
     super.dispose();
   }
 
-  Color _statusColor(ServerStatus status) => switch (status) {
-        ServerStatus.healthy => const Color(0xFF1ED760),
-        ServerStatus.connecting => const Color(0xFFE8C32E),
-        ServerStatus.failed => const Color(0xFFE8453C),
-      };
+  Color _statusColor(ServerStatus status) {
+    final tokens = Theme.of(context).extension<LbTokens>()!;
+    return switch (status) {
+      ServerStatus.healthy => tokens.success,
+      ServerStatus.connecting => tokens.warning,
+      ServerStatus.failed => Theme.of(context).colorScheme.error,
+    };
+  }
 
   String _statusLabel(ServerStatus status) => switch (status) {
         ServerStatus.healthy => 'Connected',
@@ -43,14 +47,15 @@ class _ServersSectionState extends State<ServersSection> {
 
   // problems first and colored, "1 unreachable · 11 connected"
   Widget _fleetSummary(ServerRegistry registry) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<LbTokens>()!;
     final servers = registry.servers;
     if (servers.isEmpty) {
-      return const Text('None added yet',
-          style: TextStyle(fontSize: 12, color: Color(0xFFA7A7A7)));
+      return Text('None added yet', style: theme.textTheme.bodySmall);
     }
     if (!registry.hasDefaultLogin && servers.any((s) => s.email == null)) {
-      return const Text('No default login set',
-          style: TextStyle(fontSize: 12, color: Color(0xFFE8C32E)));
+      return Text('No default login set',
+          style: theme.textTheme.bodySmall?.copyWith(color: tokens.warning));
     }
 
     final failed =
@@ -66,12 +71,12 @@ class _ServersSectionState extends State<ServersSection> {
           text: text, style: color == null ? null : TextStyle(color: color)));
     }
 
-    if (failed > 0) add('$failed unreachable', const Color(0xFFE8453C));
-    if (connecting > 0) add('$connecting connecting', const Color(0xFFE8C32E));
+    if (failed > 0) add('$failed unreachable', theme.colorScheme.error);
+    if (connecting > 0) add('$connecting connecting', tokens.warning);
     if (connected > 0 || parts.isEmpty) add('$connected connected');
 
     return Text.rich(TextSpan(
-      style: const TextStyle(fontSize: 12, color: Color(0xFFA7A7A7)),
+      style: theme.textTheme.bodySmall,
       children: parts,
     ));
   }
@@ -86,6 +91,9 @@ class _ServersSectionState extends State<ServersSection> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final tokens = theme.extension<LbTokens>()!;
     final registry = context.watch<ServerRegistry>();
     final total = registry.servers.length;
 
@@ -106,8 +114,11 @@ class _ServersSectionState extends State<ServersSection> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Material(
-        color: const Color(0xFF181818),
-        borderRadius: BorderRadius.circular(16),
+        color: cs.surfaceContainer,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(LbRadius.hero),
+          side: BorderSide(color: cs.outlineVariant),
+        ),
         clipBehavior: Clip.antiAlias,
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -119,22 +130,16 @@ class _ServersSectionState extends State<ServersSection> {
                 width: 38,
                 height: 38,
                 alignment: Alignment.center,
-                decoration: const BoxDecoration(
-                    color: Color(0xFF282828), shape: BoxShape.circle),
-                child:
-                    const Icon(Icons.dns, size: 18, color: Color(0xFFA7A7A7)),
+                decoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest, shape: BoxShape.circle),
+                child: const Icon(Icons.dns, size: 18),
               ),
-              title: const Text('Servers',
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.white)),
+              title: const Text('Servers'),
               subtitle: _fleetSummary(registry),
-              trailing: Icon(_expanded ? Icons.expand_less : Icons.expand_more,
-                  color: const Color(0xFFA7A7A7)),
+              trailing: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
             ),
             if (_expanded) ...[
-              const Divider(indent: 70, height: 1, color: Color(0x1AFFFFFF)),
+              const Divider(indent: 70, height: 1),
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
                 child: Row(
@@ -142,14 +147,11 @@ class _ServersSectionState extends State<ServersSection> {
                     // adding is the main thing to do here, it gets the accent
                     OutlinedButton.icon(
                       onPressed: _addServers,
-                      icon: const Icon(Icons.qr_code_scanner,
-                          size: 16, color: Color(0xFF1ED760)),
-                      label: const Text('Add',
-                          style: TextStyle(
-                              fontSize: 13, color: Color(0xFF1ED760))),
+                      icon: const Icon(Icons.qr_code_scanner, size: 16),
+                      label: const Text('Add'),
                       style: OutlinedButton.styleFrom(
-                        shape: const StadiumBorder(),
-                        side: const BorderSide(color: Color(0xFF1ED760)),
+                        foregroundColor: cs.primary,
+                        side: BorderSide(color: cs.primary),
                         padding: const EdgeInsets.symmetric(horizontal: 14),
                         visualDensity: VisualDensity.compact,
                       ),
@@ -158,14 +160,9 @@ class _ServersSectionState extends State<ServersSection> {
                     if (total > 0)
                       OutlinedButton.icon(
                         onPressed: () => _showShareQr(registry),
-                        icon: const Icon(Icons.qr_code,
-                            size: 16, color: Color(0xFFA7A7A7)),
-                        label: const Text('Share',
-                            style: TextStyle(
-                                fontSize: 13, color: Color(0xFFA7A7A7))),
+                        icon: const Icon(Icons.qr_code, size: 16),
+                        label: const Text('Share'),
                         style: OutlinedButton.styleFrom(
-                          shape: const StadiumBorder(),
-                          side: const BorderSide(color: Color(0x4DFFFFFF)),
                           padding: const EdgeInsets.symmetric(horizontal: 14),
                           visualDensity: VisualDensity.compact,
                         ),
@@ -175,41 +172,36 @@ class _ServersSectionState extends State<ServersSection> {
                     if (failed.isNotEmpty)
                       TextButton(
                         onPressed: registry.reconnectFailed,
-                        child: const Text('Retry all',
-                            style: TextStyle(
-                                fontSize: 13, color: Color(0xFFE8C32E))),
+                        style: TextButton.styleFrom(
+                            foregroundColor: tokens.warning),
+                        child: const Text('Retry all'),
                       ),
                   ],
                 ),
               ),
               if (total == 0)
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                   child: Text(
                       'No servers yet. Scan a QR from another device or add '
                       'your own deployment to get started.',
-                      style:
-                          TextStyle(fontSize: 12, color: Color(0xFFA7A7A7))),
+                      style: theme.textTheme.bodySmall),
                 ),
               ListTile(
                 dense: true,
                 onTap: () => _editDefaultLogin(registry),
                 leading: Icon(Icons.person_outline,
                     size: 18,
-                    color: registry.hasDefaultLogin
-                        ? const Color(0xFFA7A7A7)
-                        : const Color(0xFFE8C32E)),
-                title: const Text('Default login',
-                    style: TextStyle(fontSize: 13, color: Colors.white)),
+                    color: registry.hasDefaultLogin ? null : tokens.warning),
+                title: const Text('Default login'),
                 subtitle: Text(
                     registry.hasDefaultLogin
                         ? registry.defaultEmail
                         : 'Not set, servers need this to sign in',
-                    style: TextStyle(
-                        fontSize: 11,
-                        color: registry.hasDefaultLogin
-                            ? const Color(0xFFA7A7A7)
-                            : const Color(0xFFE8C32E))),
+                    style: registry.hasDefaultLogin
+                        ? null
+                        : theme.textTheme.bodySmall
+                            ?.copyWith(color: tokens.warning)),
               ),
               // filter only matters once the list gets long
               if (total > 8)
@@ -220,32 +212,20 @@ class _ServersSectionState extends State<ServersSection> {
                     child: TextField(
                       controller: _filterController,
                       onChanged: (v) => setState(() => _filter = v),
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                      decoration: InputDecoration(
+                      decoration: const InputDecoration(
                         hintText: 'Filter servers',
-                        hintStyle: const TextStyle(color: Color(0xFFA7A7A7)),
-                        prefixIcon: const Icon(Icons.search,
-                            color: Color(0xFFA7A7A7), size: 18),
-                        filled: true,
-                        fillColor: const Color(0xFF282828),
+                        prefixIcon: Icon(Icons.search, size: 18),
                         contentPadding: EdgeInsets.zero,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide.none,
-                        ),
                       ),
                     ),
                   ),
                 ),
               if (failed.isNotEmpty)
-                ..._group('Unreachable', failed, registry,
-                    const Color(0xFFE8453C)),
+                ..._group('Unreachable', failed, registry, cs.error),
               if (connecting.isNotEmpty)
-                ..._group('Connecting', connecting, registry,
-                    const Color(0xFFE8C32E)),
+                ..._group('Connecting', connecting, registry, tokens.warning),
               if (healthy.isNotEmpty)
-                ..._group('Connected', healthy, registry,
-                    const Color(0xFF5AA871)),
+                ..._group('Connected', healthy, registry, tokens.success),
               const SizedBox(height: 8),
             ],
           ],
@@ -258,6 +238,7 @@ class _ServersSectionState extends State<ServersSection> {
   // matters: failures show their error and age, healthy rows stay quiet
   List<Widget> _group(String title, List<ServerConnection> servers,
       ServerRegistry registry, Color color) {
+    final theme = Theme.of(context);
     return [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -265,8 +246,7 @@ class _ServersSectionState extends State<ServersSection> {
           alignment: Alignment.centerLeft,
           child: Text(
             '${title.toUpperCase()} · ${servers.length}',
-            style: TextStyle(
-              fontSize: 11,
+            style: theme.textTheme.labelSmall?.copyWith(
               fontWeight: FontWeight.w700,
               letterSpacing: 1.2,
               color: color,
@@ -287,25 +267,19 @@ class _ServersSectionState extends State<ServersSection> {
             ),
           ),
           minLeadingWidth: 18,
-          title: Text(server.host,
-              style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.white)),
+          title: Text(server.host),
           subtitle: switch (server.status) {
             ServerStatus.healthy => null,
-            ServerStatus.connecting => const Text('Connecting…',
-                style: TextStyle(fontSize: 11, color: Color(0xFFA7A7A7))),
+            ServerStatus.connecting => const Text('Connecting…'),
             ServerStatus.failed => Text(
                 '${server.lastError ?? 'Unreachable'}'
                 '${server.failedAt != null ? ' · ${_ago(server.failedAt!)}' : ''}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style:
-                    const TextStyle(fontSize: 11, color: Color(0xFFE8453C))),
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.error)),
           },
-          trailing: const Icon(Icons.chevron_right,
-              size: 16, color: Color(0xFFA7A7A7)),
+          trailing: const Icon(Icons.chevron_right, size: 16),
         ),
     ];
   }
@@ -313,108 +287,87 @@ class _ServersSectionState extends State<ServersSection> {
   void _showDetail(ServerConnection server, ServerRegistry registry) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF181818),
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (sheetContext) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
+      builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: _statusColor(server.status),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child:
+                        Text(server.host, style: theme.textTheme.titleLarge),
+                  ),
+                ],
               ),
-            ),
-            Row(
-              children: [
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: _statusColor(server.status),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(server.host,
-                      style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(_statusLabel(server.status),
-                style:
-                    const TextStyle(fontSize: 13, color: Color(0xFFA7A7A7))),
-            if (server.status == ServerStatus.failed &&
-                server.lastError != null) ...[
               const SizedBox(height: 4),
-              Text(server.lastError!,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 11, color: Color(0xFFE8453C))),
-            ],
-            const SizedBox(height: 16),
-            _copyRow('URL', server.url, server.url),
-            const SizedBox(height: 12),
-            _copyRow('Publishable key', _maskedKey(server.key), server.key),
-            const SizedBox(height: 12),
-            const Text('Login',
-                style: TextStyle(fontSize: 11, color: Color(0xFFA7A7A7))),
-            Text(server.email ?? 'Default (${registry.defaultEmail})',
-                style: const TextStyle(fontSize: 13, color: Colors.white)),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                if (server.status == ServerStatus.failed)
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      registry.reconnect(server);
-                      Navigator.pop(sheetContext);
-                    },
-                    icon: const Icon(Icons.refresh,
-                        size: 16, color: Colors.white),
-                    label: const Text('Retry',
-                        style: TextStyle(color: Colors.white)),
-                    style: OutlinedButton.styleFrom(
-                        shape: const StadiumBorder(),
-                        side: const BorderSide(color: Color(0x4DFFFFFF))),
-                  ),
-                const SizedBox(width: 8),
-                TextButton.icon(
-                  onPressed: () => _editServerLogin(sheetContext, server, registry),
-                  icon: const Icon(Icons.person_outline,
-                      size: 16, color: Color(0xFFA7A7A7)),
-                  label: const Text('Login',
-                      style: TextStyle(color: Color(0xFFA7A7A7))),
-                ),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: () =>
-                      _confirmRemove(sheetContext, server, registry),
-                  icon: const Icon(Icons.delete_outline,
-                      size: 16, color: Color(0xFFE8453C)),
-                  label: const Text('Remove',
-                      style: TextStyle(color: Color(0xFFE8453C))),
-                ),
+              Text(_statusLabel(server.status),
+                  style: theme.textTheme.bodyMedium),
+              if (server.status == ServerStatus.failed &&
+                  server.lastError != null) ...[
+                const SizedBox(height: 4),
+                Text(server.lastError!,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.error)),
               ],
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
+              const SizedBox(height: 16),
+              _copyRow('URL', server.url, server.url),
+              const SizedBox(height: 12),
+              _copyRow('Publishable key', _maskedKey(server.key), server.key),
+              const SizedBox(height: 12),
+              Text('Login', style: theme.textTheme.bodySmall),
+              Text(server.email ?? 'Default (${registry.defaultEmail})',
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: theme.colorScheme.onSurface)),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  if (server.status == ServerStatus.failed)
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        registry.reconnect(server);
+                        Navigator.pop(sheetContext);
+                      },
+                      icon: const Icon(Icons.refresh, size: 16),
+                      label: const Text('Retry'),
+                    ),
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    onPressed: () =>
+                        _editServerLogin(sheetContext, server, registry),
+                    icon: const Icon(Icons.person_outline, size: 16),
+                    label: const Text('Login'),
+                  ),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: () =>
+                        _confirmRemove(sheetContext, server, registry),
+                    style: TextButton.styleFrom(
+                        foregroundColor: theme.colorScheme.error),
+                    icon: const Icon(Icons.delete_outline, size: 16),
+                    label: const Text('Remove'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -423,24 +376,20 @@ class _ServersSectionState extends State<ServersSection> {
     final confirmed = await showDialog<bool>(
       context: sheetContext,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF282828),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Remove ${server.host}?',
-            style: const TextStyle(color: Colors.white, fontSize: 18)),
+        title: Text('Remove ${server.host}?'),
         content: const Text(
           'Its playlists disappear from search until you add it again.',
-          style: TextStyle(color: Color(0xFFA7A7A7), fontSize: 13),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel',
-                style: TextStyle(color: Color(0xFFA7A7A7))),
+            child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Remove',
-                style: TextStyle(color: Color(0xFFE8453C))),
+            style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error),
+            child: const Text('Remove'),
           ),
         ],
       ),
@@ -456,13 +405,12 @@ class _ServersSectionState extends State<ServersSection> {
 
   // label + monospace value, tapping copies the (unmasked) value
   Widget _copyRow(String label, String shown, String copyValue) {
+    final theme = Theme.of(context);
     return InkWell(
       onTap: () {
         Clipboard.setData(ClipboardData(text: copyValue));
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          backgroundColor: const Color(0xFF282828),
-          content: Text('$label copied',
-              style: const TextStyle(color: Colors.white)),
+          content: Text('$label copied'),
         ));
       },
       child: Row(
@@ -471,18 +419,15 @@ class _ServersSectionState extends State<ServersSection> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label,
-                    style: const TextStyle(
-                        fontSize: 11, color: Color(0xFFA7A7A7))),
+                Text(label, style: theme.textTheme.bodySmall),
                 Text(shown,
-                    style: const TextStyle(
-                        fontSize: 13,
+                    style: theme.textTheme.bodyMedium?.copyWith(
                         fontFamily: 'monospace',
-                        color: Colors.white)),
+                        color: theme.colorScheme.onSurface)),
               ],
             ),
           ),
-          const Icon(Icons.copy, size: 14, color: Color(0xFFA7A7A7)),
+          const Icon(Icons.copy, size: 14),
         ],
       ),
     );
@@ -597,13 +542,14 @@ class _ShareQrDialogState extends State<_ShareQrDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<LbTokens>()!;
     return AlertDialog(
-      backgroundColor: const Color(0xFF181818),
-      title: const Text('Scan to add these servers',
-          style: TextStyle(color: Colors.white, fontSize: 16)),
+      title: const Text('Scan to add these servers'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // white backing stays, scanners need the contrast
           Container(
             color: Colors.white,
             padding: const EdgeInsets.all(8),
@@ -618,19 +564,17 @@ class _ShareQrDialogState extends State<_ShareQrDialog> {
             contentPadding: EdgeInsets.zero,
             value: _includeLogins,
             onChanged: (v) => setState(() => _includeLogins = v ?? false),
-            activeColor: const Color(0xFF1ED760),
-            title: const Text('Include logins',
-                style: TextStyle(fontSize: 13, color: Colors.white)),
-            subtitle: const Text('Passwords end up in the QR in plain text',
-                style: TextStyle(fontSize: 11, color: Color(0xFFE8C32E))),
+            title: const Text('Include logins'),
+            subtitle: Text('Passwords end up in the QR in plain text',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: tokens.warning)),
           ),
         ],
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child:
-              const Text('Close', style: TextStyle(color: Color(0xFFA7A7A7))),
+          child: const Text('Close'),
         ),
       ],
     );
@@ -679,22 +623,18 @@ class _CredentialsDialogState extends State<_CredentialsDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: const Color(0xFF181818),
-      title: Text(widget.title,
-          style: const TextStyle(color: Colors.white, fontSize: 18)),
+      title: Text(widget.title),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           TextField(
             controller: _emailController,
-            style: const TextStyle(color: Colors.white, fontSize: 14),
             decoration: const InputDecoration(labelText: 'Email'),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _passwordController,
             obscureText: true,
-            style: const TextStyle(color: Colors.white, fontSize: 14),
             decoration: const InputDecoration(labelText: 'Password'),
           ),
         ],
@@ -702,18 +642,16 @@ class _CredentialsDialogState extends State<_CredentialsDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child:
-              const Text('Cancel', style: TextStyle(color: Color(0xFFA7A7A7))),
+          child: const Text('Cancel'),
         ),
         if (widget.allowUseDefault)
           TextButton(
             onPressed: () => Navigator.pop(context, ('', '')),
-            child: const Text('Use default',
-                style: TextStyle(color: Color(0xFFA7A7A7))),
+            child: const Text('Use default'),
           ),
         TextButton(
           onPressed: _save,
-          child: const Text('Save', style: TextStyle(color: Color(0xFF1ED760))),
+          child: const Text('Save'),
         ),
       ],
     );

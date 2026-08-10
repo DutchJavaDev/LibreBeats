@@ -129,3 +129,5 @@ x86/
 cookies.txt
 # local dev login for --dart-define-from-file
 env.json
+
+**/CLAUDE.md

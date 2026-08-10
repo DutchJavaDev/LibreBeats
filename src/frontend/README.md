@@ -1,6 +1,6 @@
 # Liberated Beats — Flutter Frontend
 
-The cross platform Flutter client for **LibreBeats**, a dark Spotify style music player that streams from one or more self hosted [Supabase](../backend-self-hosted/) backends.
+The cross platform Flutter client for **LibreBeats**, a dark-first music player with its own sound-bar design language, streaming from one or more self hosted [Supabase](../backend-self-hosted/) backends.
 
 > Status: search, streaming playback (background included), media notifications and beatmix browsing all work against real servers. Liking works for songs and whole playlists, both get downloaded and play from disk. Home shows your play history, Library lists your liked playlists. See [Feature status](#feature-status).
 
@@ -161,13 +161,13 @@ On startup [`LikedProvider`](lib/providers/liked_provider.dart) reloads everythi
 
 | Screen | Data source | Notes |
 |---|---|---|
-| **Home** | `recentBeats` | Greeting + a History row that scrolls sideways: the last 10 played beats, newest first. Replaying something moves it back to the front. Kept on device, so it's still there after a restart. |
+| **Home** | `recentBeats` + `lib/sample/` | Greeting with the brand rule + a History row that scrolls sideways: the last 10 played beats, newest first, persisted on device. Below it three **mocked** sections marked with a Preview chip (On repeat, Heavy rotation, From your servers) fed by const sample data in [`lib/sample/home_sample_data.dart`](lib/sample/home_sample_data.dart) — no providers, no network, unplayable by construction. |
 | **Search** | All servers via `LibreProvider` | Sticky pinned header. Search fires on submit, not per keystroke. Results come sectioned (songs, playlists) as uniform rows with the match tinted green, liked/downloaded glyphs, and a freshness line at the bottom. Songs from a cached playlist play inside it, skip walks the list. Clearing the field restores the browse grid: sharp square covers with the title below, a heart badge on mixes already in the library, still shuffled per refresh with the drip-in. Tapping a beatmix opens the full-screen mix view: cover, counts, shuffle/heart/play row (synced with the player, download progress when liked) and the track list with the playing beat highlighted. |
 | **Library** | `LikedProvider` | The Liked Songs entry (real count, jumps to the Liked tab) and the liked playlists: cover from disk, download progress while a mix is still fetching. Tap opens the mix view, long press removes behind a confirm. |
 | **Liked** | `LikedProvider` | The real liked list, newest first, the header counts songs and total playtime. Play and Shuffle queue the whole list, rows carry the unlike heart (undo in a snackbar) and the on-disk glyph. |
-| **Settings** | `ServerRegistry` + `LikedProvider` | Servers, storage, about. The Servers card is expandable: collapsed a problem-first summary ("1 unreachable · 11 connected"), expanded the fleet grouped by status with the error and its age on unreachable rows, Add/Share pills, an amber Retry all and the default login, filter field past 8 servers. The detail sheet has retry, copyable url/key, a login override and remove-behind-confirm. Storage shows what the downloads take on disk with a usage bar and a clear-everything action that states its numbers before deleting. About is the app identity row (tap copies the version) and licenses. |
+| **Settings** | `ServerRegistry` + `LikedProvider` + `ThemeController` | Appearance (Dark / Light / System, dark default, persisted), servers, storage, about. The Servers card is expandable: collapsed a problem-first summary ("1 unreachable · 11 connected"), expanded the fleet grouped by status with the error and its age on unreachable rows, Add/Share pills, an amber Retry all and the default login, filter field past 8 servers. The detail sheet has retry, copyable url/key, a login override and remove-behind-confirm. Storage shows what the downloads take on disk with a usage bar and a clear-everything action that states its numbers before deleting. About is the app identity row (tap copies the version) and licenses. |
 
-The `MiniPlayer` docks above the nav bar once something plays and opens the `FullPlayer` sheet: artwork with a paused-scale animation, seek slider (seeks on release), shuffle/repeat, volume, and skip previous/next against the current queue.
+The `MiniPlayer` docks above the nav bar once something plays and opens the `FullPlayer` sheet: artwork with a paused-scale animation, seek slider (seeks on release), shuffle/repeat, volume, skip previous/next against the current queue, and a **sleep timer** (15/30/45 min, 1 h, or end of track — playback pauses when it runs out, the label counts down while armed; session-only).
 
 ## Dependencies
 
@@ -244,7 +244,9 @@ That takes care of Android (including adaptive icons), iOS (alpha stripped, the 
 | Search for beats | Working, cached catalog first, live server query when that finds nothing |
 | Supabase auth | Partial, sign-in only (default login + per-server overrides), no registration |
 | Play history (last 10, on Home) | Working, persisted on device |
-| Home screen | Partial, greeting + history, nothing else yet |
+| Home screen | Partial, greeting + real history; On repeat / Heavy rotation / server updates are mocked previews |
+| Theme (dark default, light + system optional) | Working, icon-derived tokens, persisted in Settings → Appearance |
+| Sleep timer (full player) | Working, duration or end-of-track, session-only |
 | Liked beats (heart in the full player) | Working, persisted + downloaded for offline playback (Android, see quirks) |
 | Liked beatmixes (heart in the mix dialog) | Working, whole mix downloaded, listed in Library, long press removes |
 | Library screen | Real liked playlists + Liked entry, filter chips still inert |
@@ -270,4 +272,6 @@ Not covered yet: MiniPlayer, FullPlayer and BackgroundAudioProvider (need an abs
 
 ## Design language
 
-Dark-only Material 3 theme defined in [`app.dart`](lib/app.dart): background `#121212`, raised surfaces `#282828`/`#181818`, brand green `#1ED760` for active states, secondary text `#A7A7A7`, Plus Jakarta Sans everywhere. Artwork falls back to a two-color gradient palette when images are unavailable. Navigation is a five-tab `NavigationBar` (Home, Search, Library, Liked, Settings) over an `IndexedStack`, so each tab keeps its scroll position.
+The theme is derived entirely from the launcher icon and lives in [`lib/theme/`](lib/theme): `app_theme.dart` holds the dark (default) and light `ColorScheme`s plus every component theme, `lb_tokens.dart` a `ThemeExtension` with the brand tokens (now-playing green, brand gradient, title rule, emblem bars, warning/success, artwork placeholder) and the radius scale (8 artwork / 12 cards / 16 heroes / pill buttons). Dark mode: page `#0E0E0E`, cards `#171717` with a mint hairline outline, text in icon-mint `#EDFFF4`, greens `#1EC85C`/`#24E068`. Light mode mirrors it on mint-tinted whites; the choice (Dark / Light / System, dark default) sits in Settings → Appearance and persists.
+
+The identity is the icon's five sound bars, expressed through the shared widgets in [`lb_brand.dart`](lib/widgets/lb_brand.dart): a gradient `BrandRule` under every screen title, `SectionHeader` (bar glyph + sentence case) for every section, a `PlayingBarsIndicator` equalizer plus a green edge bar marking the playing row (titles stay mint), the five-bar `LbEmblem` wherever the old design used Spotify's purple, and `GradientPillButton` for primary actions. Screens pull everything from `Theme.of(context)` — no hardcoded hex outside `theme/`. Subtitles app-wide show the owning beatmix (`Beat.mixTitle`, artist fallback). Artwork falls back to a two-color gradient palette when images are unavailable. Navigation is a five-tab `NavigationBar` (Home, Search, Library, Liked, Settings) with a gradient underline on the active tab, over an `IndexedStack`, so each tab keeps its scroll position.

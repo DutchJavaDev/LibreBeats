@@ -5,7 +5,9 @@ import 'package:liberated_beats/data/liked_store.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/providers/background_audio_provider.dart';
 import 'package:liberated_beats/providers/liked_provider.dart';
+import 'package:liberated_beats/theme/lb_tokens.dart';
 import 'package:liberated_beats/widgets/beat_tile.dart';
+import 'package:liberated_beats/widgets/lb_brand.dart';
 import 'package:liberated_beats/widgets/widget_builder.dart';
 import 'package:provider/provider.dart';
 
@@ -21,6 +23,9 @@ class BeatMixView extends StatelessWidget {
   Widget build(BuildContext context) {
     final backgroundPlayer = context.watch<BackgroundAudioProvider>();
     final likedProvider = context.watch<LikedProvider>();
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final tokens = theme.extension<LbTokens>()!;
 
     final beats = beatMix.beats ?? const <Beat>[];
     final playable = [
@@ -46,11 +51,11 @@ class BeatMixView extends StatelessWidget {
         Container(
           padding: EdgeInsets.fromLTRB(
               16, MediaQuery.of(context).padding.top + 8, 16, 16),
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Color(0xFF282828), Color(0xFF121212)],
+              colors: [colorScheme.surfaceContainerHighest, colorScheme.surface],
             ),
           ),
           child: Column(
@@ -59,8 +64,7 @@ class BeatMixView extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: IconButton(
                   padding: EdgeInsets.zero,
-                  icon: const Icon(Icons.keyboard_arrow_down,
-                      color: Colors.white),
+                  icon: const Icon(Icons.keyboard_arrow_down),
                   onPressed: () => Navigator.pop(context),
                 ),
               ),
@@ -68,7 +72,7 @@ class BeatMixView extends StatelessWidget {
                 width: 160,
                 height: 160,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(LbRadius.hero),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.5),
@@ -78,14 +82,16 @@ class BeatMixView extends StatelessWidget {
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(LbRadius.hero),
                   child: ColoredBox(
-                    color: const Color(0xFF282828),
+                    color: tokens.artworkPlaceholder,
                     child: createCachedNetworkImage(
                       imageUrl: beatMix.thumbnailUrl,
                       width: 160,
                       height: 160,
                       fit: BoxFit.cover,
+                      showSpinner: true,
+                      memCacheWidth: 160,
                     ),
                   ),
                 ),
@@ -96,14 +102,12 @@ class BeatMixView extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white),
+                style: theme.textTheme.titleLarge,
               ),
               const SizedBox(height: 4),
               Text.rich(
                 TextSpan(
-                  style:
-                      const TextStyle(fontSize: 12, color: Color(0xFFA7A7A7)),
+                  style: theme.textTheme.bodySmall,
                   children: [
                     TextSpan(
                         text:
@@ -112,7 +116,8 @@ class BeatMixView extends StatelessWidget {
                       TextSpan(
                           text:
                               ' · ${record.downloadedCount} of ${record.beats.length} downloaded',
-                          style: const TextStyle(color: Color(0xFFE8C32E))),
+                          style: theme.textTheme.bodySmall!
+                              .copyWith(color: tokens.warning)),
                   ],
                 ),
               ),
@@ -133,22 +138,14 @@ class BeatMixView extends StatelessWidget {
                             backgroundPlayer.playBeatMix(beatMix,
                                 playable[Random().nextInt(playable.length)]);
                           },
-                    icon: Icon(Icons.shuffle,
-                        color: shuffleOn ? const Color(0xFF1ED760) : Colors.white),
-                    label: Text(shuffleOn ? 'Shuffle on' : 'Shuffle',
-                        style: TextStyle(
-                            color: shuffleOn
-                                ? const Color(0xFF1ED760)
-                                : Colors.white)),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      side: BorderSide(
-                          color: shuffleOn
-                              ? const Color(0xFF1ED760)
-                              : const Color(0x4DFFFFFF)),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20)),
-                    ),
+                    icon: const Icon(Icons.shuffle),
+                    label: Text(shuffleOn ? 'Shuffle on' : 'Shuffle'),
+                    // active tint on top of the themed stadium outline
+                    style: shuffleOn
+                        ? OutlinedButton.styleFrom(
+                            foregroundColor: tokens.nowPlaying,
+                            side: BorderSide(color: tokens.nowPlaying))
+                        : null,
                   ),
                   const SizedBox(width: 4),
                   // likes the whole mix, downloads it and puts it in the library
@@ -157,14 +154,17 @@ class BeatMixView extends StatelessWidget {
                     icon: Icon(
                         isLiked ? Icons.favorite : Icons.favorite_border,
                         color: isLiked
-                            ? const Color(0xFF1ED760)
-                            : const Color(0xFFA7A7A7)),
+                            ? tokens.nowPlaying
+                            : colorScheme.onSurfaceVariant),
                   ),
                   const Spacer(),
-                  FloatingActionButton(
-                    backgroundColor: const Color(0xFF1ED760),
-                    foregroundColor: Colors.black,
-                    elevation: 4,
+                  GradientPillButton(
+                    label: playingThis && backgroundPlayer.isPlaying
+                        ? 'Pause'
+                        : 'Play',
+                    icon: playingThis && backgroundPlayer.isPlaying
+                        ? Icons.pause
+                        : Icons.play_arrow,
                     onPressed: playable.isEmpty
                         ? null
                         : () {
@@ -175,11 +175,6 @@ class BeatMixView extends StatelessWidget {
                             backgroundPlayer.playBeatMix(
                                 beatMix, playable.first);
                           },
-                    child: Icon(
-                        playingThis && backgroundPlayer.isPlaying
-                            ? Icons.pause
-                            : Icons.play_arrow,
-                        size: 32),
                   ),
                 ],
               ),

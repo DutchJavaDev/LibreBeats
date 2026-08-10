@@ -8,6 +8,7 @@ import 'package:liberated_beats/data/server_registry.dart';
 import 'package:liberated_beats/providers/catalog_provider.dart';
 import 'package:liberated_beats/providers/liked_provider.dart';
 import 'package:liberated_beats/screens/search_screen.dart';
+import 'package:liberated_beats/theme/app_theme.dart';
 import 'package:liberated_beats/widgets/browse_mix_card.dart';
 import 'package:provider/provider.dart';
 import 'package:sembast/sembast_memory.dart';
@@ -26,7 +27,8 @@ void main() {
 
     await tester.pumpWidget(ChangeNotifierProvider.value(
       value: provider,
-      child: const MaterialApp(home: Scaffold(body: SearchScreen())),
+      child: MaterialApp(
+          theme: AppTheme.dark, home: const Scaffold(body: SearchScreen())),
     ));
 
     expect(find.text('Cache: disk'), findsOneWidget);
@@ -66,7 +68,8 @@ void main() {
     // beatmix tiles here would need the whole audio stack.
     await tester.pumpWidget(ChangeNotifierProvider.value(
       value: provider,
-      child: const MaterialApp(home: Scaffold(body: SearchScreen())),
+      child: MaterialApp(
+          theme: AppTheme.dark, home: const Scaffold(body: SearchScreen())),
     ));
 
     await tester.enterText(find.byType(TextField), 'zzz');
@@ -120,14 +123,17 @@ void main() {
         ChangeNotifierProvider<LibreProvider>.value(value: provider),
         ChangeNotifierProvider<LikedProvider>.value(value: liked),
       ],
-      child: const MaterialApp(home: Scaffold(body: SearchScreen())),
+      child: MaterialApp(
+          theme: AppTheme.dark, home: const Scaffold(body: SearchScreen())),
     ));
 
     // drip timers are real, run the load outside the fake async zone
     await tester.runAsync(() => provider.ensureCatalog());
     await tester.pumpAndSettle();
 
-    expect(find.text('Browse playlists · 2'), findsOneWidget);
+    // header title and its count are separate texts now
+    expect(find.text('Browse playlists'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
     expect(find.byType(BrowseMixCard), findsNWidgets(2));
     expect(find.text('Chill'), findsOneWidget);
     expect(find.text('Focus'), findsOneWidget);

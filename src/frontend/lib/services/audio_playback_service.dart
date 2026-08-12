@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:liberated_beats/config/helpers.dart';
 import 'package:liberated_beats/data/history_store.dart';
 import 'package:liberated_beats/models/beat_models.dart';
+import 'package:liberated_beats/services/play_threshold_counter.dart';
 
 /// http(s) stays a network url, anything else is a file on disk. Uri.parse
 /// on a plain path would mangle it (a windows drive letter becomes a scheme).
@@ -25,6 +27,11 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
 
   VoidCallbackUpdateProgress? _updateProgress;
   void Function()? _recentsChanged;
+
+  // A play counts after 30s or half the track (see PlayThresholdCounter).
+  // The callback carries the mix the beat was playing in, for attribution.
+  final _playCounter = PlayThresholdCounter();
+  void Function(Beat beat, BeatMix? mix)? _onPlayCounted;
 
   AudioPlaybackService({HistoryStore? historyStore})
       : _historyStore = historyStore ?? HistoryStore() {
@@ -62,6 +69,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     // rewind and stay paused.
     audioPlayer.processingStateStream.listen((state) async {
       if (state == ProcessingState.completed) {
+        _playCounter.reset();
         if (_sleepEndOfTrack) _clearSleep();
         await audioPlayer.pause();
         await audioPlayer.seek(Duration.zero);
@@ -71,10 +79,13 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     // End-of-track sleep: the queue advancing on its own is the track
     // ending, so pause there instead of playing the next one.
     audioPlayer.positionDiscontinuityStream.listen((discontinuity) async {
-      if (_sleepEndOfTrack &&
-          discontinuity.reason == PositionDiscontinuityReason.autoAdvance) {
-        _clearSleep();
-        await pause();
+      if (discontinuity.reason == PositionDiscontinuityReason.autoAdvance) {
+        // also fires when repeat-one loops, each loop is a new play
+        _playCounter.reset();
+        if (_sleepEndOfTrack) {
+          _clearSleep();
+          await pause();
+        }
       }
     });
   }
@@ -226,6 +237,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     _beatKey = beat.key;
     _currentBeat = beat;
     _progress = 0;
+    _playCounter.reset();
     _recordRecent(beat);
     return true;
   }
@@ -280,6 +292,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     _beatKey = startBeat.key;
     _currentBeat = startBeat;
     _progress = 0;
+    _playCounter.reset();
     _recordRecent(startBeat);
     return true;
   }
@@ -317,6 +330,10 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     _recentsChanged = recentsChanged;
   }
 
+  void setPlayCountedCallback(void Function(Beat beat, BeatMix? mix) cb) {
+    _onPlayCounted = cb;
+  }
+
   void updateProgress(Duration position) {
     final beat = _currentBeat;
     if (beat == null) return;
@@ -324,6 +341,13 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     // the player's decoded duration when known, catalog metadata while loading
     final totalMs =
         audioPlayer.duration?.inMilliseconds ?? beat.duration.inMilliseconds;
+
+    // play counting runs before the zero-duration guard, an unknown length
+    // falls back to the counter's flat 30s rule instead of never counting
+    if (_playCounter.onTick(position.inMilliseconds, totalMs)) {
+      _onPlayCounted?.call(beat, _currentBeatMix);
+    }
+
     if (totalMs == 0) {
       return;
     }
@@ -349,6 +373,8 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> stop() async {
+    // no counter reset here: stop keeps the source and position, so tapping
+    // the same track resumes the same listen-through and must not count twice
     await audioPlayer.stop();
     // let audio_service tear down the notification / foreground service
     await super.stop();
@@ -400,6 +426,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
       _currentBeat = currentBeat;
       _beatKey = currentBeat.key;
       _progress = 0;
+      _playCounter.reset();
       _recordRecent(currentBeat);
       _updateProgress?.call(_progress, currentBeat);
     }
@@ -416,6 +443,17 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     if (mediaItem.valueOrNull?.id != id) {
       mediaItem.add(beatMediaItems[index]);
     }
+  }
+
+  /// Sets the current beat without touching the audio platform, so tests
+  /// can drive [updateProgress] headlessly (setBeatSource fails before
+  /// assigning the beat when there is no platform player).
+  @visibleForTesting
+  void debugSetNowPlaying(Beat beat, {BeatMix? mix}) {
+    _currentBeat = beat;
+    _beatKey = beat.key;
+    _currentBeatMix = mix;
+    _playCounter.reset();
   }
 
   String _getCurrentAudioSourceTagId() {

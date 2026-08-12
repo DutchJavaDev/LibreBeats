@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../data/server_registry.dart';
 import '../providers/catalog_provider.dart';
 import '../widgets/lb_brand.dart';
 import '../widgets/mini_player.dart';
@@ -47,6 +48,8 @@ class _MainScaffoldState extends State<MainScaffold>
     if (state == AppLifecycleState.resumed) {
       catalog.setSearchVisible(_selectedIndex == 1);
       if (_selectedIndex == 1) catalog.ensureCatalog();
+      // coming back to the app on home counts as visiting it
+      if (_selectedIndex == 0) context.read<ServerRegistry>().checkHealth();
     } else {
       catalog.setSearchVisible(false);
     }
@@ -58,6 +61,8 @@ class _MainScaffoldState extends State<MainScaffold>
     // the watcher auto refreshes while the user stays on the page.
     catalog.setSearchVisible(i == 1);
     if (i == 1) catalog.ensureCatalog();
+    // home tab, refresh the server health digest (throttled in the registry)
+    if (i == 0) context.read<ServerRegistry>().checkHealth();
     setState(() {
       _visited.add(i);
       _selectedIndex = i;

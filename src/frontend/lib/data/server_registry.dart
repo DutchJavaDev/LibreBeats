@@ -34,13 +34,26 @@ class ServerConnection {
 // injectable for tests
 typedef ServerConnector = Future<void> Function(ServerConnection server);
 
+// injectable for tests, the cheap liveness check behind checkHealth
+typedef ServerProbe = Future<void> Function(ServerConnection server);
+
 /// Keeps track of all supabase servers, persisted with shared_preferences
 class ServerRegistry extends ChangeNotifier {
-  ServerRegistry({ServerConnector? connector}) {
+  ServerRegistry(
+      {ServerConnector? connector,
+      ServerProbe? probe,
+      Duration checkTimeout = const Duration(seconds: 10)})
+      : _checkTimeout = checkTimeout {
     _connector = connector ?? _defaultConnect;
+    _probe = probe ?? _defaultProbe;
   }
 
   late final ServerConnector _connector;
+  late final ServerProbe _probe;
+
+  /// Hard cap on one server's health check. The sign-in has no timeout of
+  /// its own, and a single hung request must not wedge checkHealth forever.
+  final Duration _checkTimeout;
 
   // No login ships in the app. Release builds start empty and the default
   // login is set up in settings on first run (or arrives via a QR that
@@ -143,8 +156,82 @@ class ServerRegistry extends ChangeNotifier {
 
   // Sign in to every server, repeat calls share the same future
   Future<void> connectAll() {
-    return _connectAllFuture ??=
-        Future.wait(_servers.map(_connector)).then((_) => notifyListeners());
+    // the startup sign-in doubles as the first health check
+    return _connectAllFuture ??= Future.wait(_servers.map(_connector)).then((_) {
+      _lastCheckedAt = DateTime.now();
+      notifyListeners();
+    });
+  }
+
+  /// When the fleet's health was last verified, shown on the home screen
+  /// digest. Null until the first check finishes.
+  DateTime? get lastCheckedAt => _lastCheckedAt;
+  DateTime? _lastCheckedAt;
+
+  bool _checkingHealth = false;
+  static const _minCheckInterval = Duration(seconds: 60);
+
+  /// Re-verifies every server with a cheap probe: failed servers get a
+  /// chance to recover, healthy ones that went away get flagged. Throttled
+  /// to once a minute so revisiting the home tab does not hammer the fleet.
+  /// Never touches connectAll's memoised future.
+  Future<void> checkHealth({bool force = false}) async {
+    if (_servers.isEmpty || _checkingHealth) return;
+    if (!force &&
+        _lastCheckedAt != null &&
+        DateTime.now().difference(_lastCheckedAt!) < _minCheckInterval) {
+      return;
+    }
+
+    // connecting means the startup sign-in is still busy, leave it alone
+    final targets =
+        _servers.where((s) => s.status != ServerStatus.connecting).toList();
+    if (targets.isEmpty) return;
+
+    _checkingHealth = true;
+    try {
+      // healthy servers get the cheap probe. Failed ones (and servers that
+      // never signed in, which have no client to probe with) get a fresh
+      // sign-in: that also repairs a session the server has revoked, which
+      // a probe with the dead client never could. The timeout keeps one
+      // hung request from wedging every future check.
+      await Future.wait(targets.map((s) =>
+          (s.client == null || s.status == ServerStatus.failed
+                  ? _connector(s)
+                  : _probe(s))
+              .timeout(_checkTimeout, onTimeout: () {})));
+      _lastCheckedAt = DateTime.now();
+    } finally {
+      _checkingHealth = false;
+      notifyListeners();
+    }
+  }
+
+  // One tiny authenticated select, exercising the whole path the app
+  // depends on (gateway, PostgREST, the database) without the weight of a
+  // full sign-in or a menu fetch.
+  Future<void> _defaultProbe(ServerConnection server) async {
+    // a probe can take seconds; if something else (reconnect, markFailed)
+    // moved the server meanwhile, that result is fresher than this one
+    final statusBefore = server.status;
+    try {
+      await server.client!
+          .schema('librebeats')
+          .from('beatmix')
+          .select('id')
+          .limit(1)
+          .timeout(const Duration(seconds: 5));
+      if (server.status != statusBefore) return;
+      server.status = ServerStatus.healthy;
+      server.lastError = null;
+      server.failedAt = null;
+    } catch (e) {
+      if (server.status != statusBefore) return;
+      server.status = ServerStatus.failed;
+      server.failedAt ??= DateTime.now();
+      server.lastError = '$e';
+      PrintLog('Health probe failed for ${server.host}: $e');
+    }
   }
 
   // Only kept + persisted when the sign in works. A QR code can carry its

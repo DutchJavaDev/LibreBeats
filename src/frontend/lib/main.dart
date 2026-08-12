@@ -9,9 +9,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:liberated_beats/data/beat_repository.dart';
 import 'package:liberated_beats/data/liked_store.dart';
 import 'package:liberated_beats/data/offline_media_store.dart';
+import 'package:liberated_beats/data/play_stats_store.dart';
 import 'package:liberated_beats/data/server_registry.dart';
 import 'package:liberated_beats/providers/background_audio_provider.dart';
 import 'package:liberated_beats/providers/liked_provider.dart';
+import 'package:liberated_beats/providers/play_stats_provider.dart';
 import 'package:liberated_beats/providers/theme_provider.dart';
 import 'package:liberated_beats/services/audio_playback_service.dart';
 import 'package:liberated_beats/services/beat_download_service.dart';
@@ -69,6 +71,12 @@ Future<void> main() async {
   audioPlaybackService.localSourceResolver =
       (beat) => likedProvider.localAudioFor(beat.key);
 
+  // play counts for the home screen's On repeat / Heavy rotation, counted
+  // by the service (30s or half the track) and persisted on device
+  final playStatsProvider = PlayStatsProvider(PlayStatsStore());
+  unawaited(playStatsProvider.init());
+  audioPlaybackService.setPlayCountedCallback(playStatsProvider.recordPlay);
+
   runApp(
     MultiProvider(
       providers: [
@@ -83,6 +91,8 @@ Future<void> main() async {
             create: (_) => LibreProvider(
                 serverRegistry, beatMixRepository, beatRepository)),
         ChangeNotifierProvider<LikedProvider>.value(value: likedProvider),
+        ChangeNotifierProvider<PlayStatsProvider>.value(
+            value: playStatsProvider),
       ],
       child: const LiberatedBeatsApp(),
     ),

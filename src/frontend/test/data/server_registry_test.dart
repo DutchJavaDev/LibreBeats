@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liberated_beats/data/server_registry.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 // connector that just flips the status, no network
 ServerConnector fakeConnector(
@@ -11,6 +14,29 @@ ServerConnector fakeConnector(
         ? ServerStatus.failed
         : ServerStatus.healthy;
   };
+}
+
+// probe that flips status like the real one would, no network
+ServerProbe fakeProbe({Set<String> failing = const {}, List<String>? log}) {
+  return (server) async {
+    log?.add(server.url);
+    if (failing.contains(server.url)) {
+      server.status = ServerStatus.failed;
+      server.failedAt ??= DateTime.now();
+      server.lastError = 'probe failed';
+    } else {
+      server.status = ServerStatus.healthy;
+      server.lastError = null;
+      server.failedAt = null;
+    }
+  };
+}
+
+// constructing a client does no I/O, checkHealth only cares that one exists
+void giveClients(ServerRegistry registry) {
+  for (final s in registry.servers) {
+    s.client = SupabaseClient(s.url, 'key');
+  }
 }
 
 void main() {
@@ -200,5 +226,116 @@ void main() {
     await registry.reconnectFailed();
     expect(log, ['https://a']); // b was healthy, untouched
     expect(registry.healthy, hasLength(2));
+  });
+
+  test('checkHealth probes signed-in servers and flags a dead one', () async {
+    final registry = ServerRegistry(
+        connector: fakeConnector(), probe: fakeProbe(failing: {'https://b'}));
+    await registry.load(seed: const [('https://a', 'k1'), ('https://b', 'k2')]);
+    await registry.connectAll();
+    giveClients(registry);
+
+    var notified = false;
+    registry.addListener(() => notified = true);
+
+    await registry.checkHealth(force: true);
+
+    expect(registry.servers[0].status, ServerStatus.healthy);
+    expect(registry.servers[1].status, ServerStatus.failed);
+    expect(registry.servers[1].failedAt, isNotNull);
+    expect(registry.servers[1].lastError, isNotNull);
+    expect(notified, isTrue);
+  });
+
+  test('checkHealth recovers a failed server with a fresh sign-in', () async {
+    final connectorLog = <String>[];
+    final probeLog = <String>[];
+    final registry = ServerRegistry(
+        connector: fakeConnector(log: connectorLog),
+        probe: fakeProbe(log: probeLog));
+    await registry.load(seed: const [('https://a', 'k1')]);
+    await registry.connectAll();
+    giveClients(registry);
+    connectorLog.clear();
+
+    registry.markFailed(registry.servers.first);
+    await registry.checkHealth(force: true);
+
+    // failed means the old session may be dead too, a probe with it could
+    // never recover — recovery is a sign-in even when a client exists
+    expect(connectorLog, ['https://a']);
+    expect(probeLog, isEmpty);
+    expect(registry.servers.single.status, ServerStatus.healthy);
+  });
+
+  test('checkHealth signs a client-less server in instead of probing',
+      () async {
+    final connectorLog = <String>[];
+    final probeLog = <String>[];
+    final registry = ServerRegistry(
+        connector: fakeConnector(log: connectorLog),
+        probe: fakeProbe(log: probeLog));
+    await registry.load(seed: const [('https://a', 'k1')]);
+    await registry.connectAll();
+    connectorLog.clear();
+
+    // fakeConnector never sets a client, recovery means another sign-in
+    await registry.checkHealth(force: true);
+
+    expect(connectorLog, ['https://a']);
+    expect(probeLog, isEmpty);
+  });
+
+  test('checkHealth leaves servers alone while they are still connecting',
+      () async {
+    final probeLog = <String>[];
+    final registry = ServerRegistry(
+        connector: fakeConnector(), probe: fakeProbe(log: probeLog));
+    await registry.load(seed: const [('https://a', 'k1')]);
+
+    // connectAll has not run: the server sits in connecting
+    await registry.checkHealth(force: true);
+
+    expect(probeLog, isEmpty);
+    expect(registry.servers.single.status, ServerStatus.connecting);
+  });
+
+  test('checkHealth is throttled, force bypasses it', () async {
+    final probeLog = <String>[];
+    final registry = ServerRegistry(
+        connector: fakeConnector(), probe: fakeProbe(log: probeLog));
+    await registry.load(seed: const [('https://a', 'k1')]);
+
+    expect(registry.lastCheckedAt, isNull);
+    await registry.connectAll();
+    expect(registry.lastCheckedAt, isNotNull);
+    giveClients(registry);
+
+    // just checked by connectAll, a plain call inside the minute is a no-op
+    await registry.checkHealth();
+    expect(probeLog, isEmpty);
+
+    await registry.checkHealth(force: true);
+    expect(probeLog, ['https://a']);
+  });
+
+  test('a hung check times out instead of wedging future checks', () async {
+    var calls = 0;
+    final registry = ServerRegistry(
+        connector: (server) async {
+          calls++;
+          // a sign-in that never completes (black-holed network)
+          await Completer<void>().future;
+        },
+        checkTimeout: const Duration(milliseconds: 50));
+    await registry.load(seed: const [('https://a', 'k1')]);
+    registry.servers.single.status = ServerStatus.failed;
+
+    await registry.checkHealth(force: true);
+    expect(calls, 1);
+
+    // the latch was released, the next check still runs
+    await registry.checkHealth(force: true);
+    expect(calls, 2);
   });
 }

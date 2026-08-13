@@ -203,6 +203,12 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   Beat? get currentBeat => _currentBeat;
   Beat? _currentBeat;
 
+  /// Set while setBeatSource/setBeatMix waits on the player. Mid-load the
+  /// platform still reports its pre-seek index (0), not the requested
+  /// initialIndex, so index-driven events must be ignored until the load
+  /// lands.
+  bool _loadingSource = false;
+
   BeatMix? get currentBeatMix => _currentBeatMix;
   BeatMix? _currentBeatMix;
 
@@ -225,11 +231,14 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
       ..clear()
       ..add(audioSource);
 
+    _loadingSource = true;
     try {
       await audioPlayer.setAudioSource(audioSource);
     } catch (e) {
       PrintLog('Failed to load "${beat.title}": $e');
       return false;
+    } finally {
+      _loadingSource = false;
     }
 
     mediaItem.add(audioSourceMediaItem);
@@ -275,6 +284,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
       }
     }
 
+    _loadingSource = true;
     try {
       await audioPlayer.setAudioSources(beatAudioSources,
           preload: true,
@@ -284,6 +294,8 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
       PrintLog('Failed to load mix "${mix.title}": $e');
       _currentBeatMix = null;
       return false;
+    } finally {
+      _loadingSource = false;
     }
 
     mediaItem.add(beatMediaItems[initialIndex]);
@@ -411,6 +423,10 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   }
 
   void _setCurrentBeat() {
+    // acting on a mid-load event would flash the wrong row as playing and
+    // record a history entry for a track that never played
+    if (_loadingSource) return;
+
     var id = _getCurrentAudioSourceTagId();
     if (id == "") return;
 

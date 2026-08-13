@@ -55,7 +55,10 @@ class BeatMixView extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [colorScheme.surfaceContainerHighest, colorScheme.surface],
+              colors: [
+                colorScheme.surfaceContainerHighest,
+                colorScheme.surface
+              ],
             ),
           ),
           child: Column(
@@ -132,11 +135,13 @@ class BeatMixView extends StatelessWidget {
                               backgroundPlayer.toggleShuffle();
                               return;
                             }
-                            if (!backgroundPlayer.shuffle) {
+
+                            if (!shuffleOn) {
                               backgroundPlayer.toggleShuffle();
                             }
-                            backgroundPlayer.playBeatMix(beatMix,
-                                playable[Random().nextInt(playable.length)]);
+                            else{
+                              backgroundPlayer.toggleShuffle();
+                            }
                           },
                     icon: const Icon(Icons.shuffle),
                     label: Text(shuffleOn ? 'Shuffle on' : 'Shuffle'),
@@ -151,8 +156,7 @@ class BeatMixView extends StatelessWidget {
                   // likes the whole mix, downloads it and puts it in the library
                   IconButton(
                     onPressed: () => likedProvider.toggleLikeMix(beatMix),
-                    icon: Icon(
-                        isLiked ? Icons.favorite : Icons.favorite_border,
+                    icon: Icon(isLiked ? Icons.favorite : Icons.favorite_border,
                         color: isLiked
                             ? tokens.nowPlaying
                             : colorScheme.onSurfaceVariant),
@@ -172,8 +176,14 @@ class BeatMixView extends StatelessWidget {
                               backgroundPlayer.togglePlay();
                               return;
                             }
-                            backgroundPlayer.playBeatMix(
-                                beatMix, playable.first);
+
+                            if (shuffleOn) {
+                              backgroundPlayer.playBeatMix(beatMix,
+                                  playable[Random().nextInt(playable.length)]);
+                            } else {
+                              backgroundPlayer.playBeatMix(
+                                  beatMix, playable.first);
+                            }
                           },
                   ),
                 ],

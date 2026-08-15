@@ -24,32 +24,41 @@ The project is split in three:
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Flutter app (src/frontend)                                 │
-│  Home · Search · Library · Liked · Settings · player        │
-│  Provider state · streaming playback · multi-server catalog │
-└───────────────────────────┬─────────────────────────────────┘
-                            │  Working: Supabase auth (no register, existing accounts only) +
-                            │  real audio (search, playback, background) against one or more servers
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│  Supabase backend, 1..n of these: the self-hosted stack     │
-│  (src/backend-self-hosted) or any instance deployed from    │
-│  the CLI project (src/backend)                              │
-│  Auth · PostgREST · Storage · Realtime · Studio · Kong      │
-└───────────────────────────┬─────────────────────────────────┘
-                            │
-         ┌──────────────────┼──────────────────┐
-         ▼                  ▼                  ▼
-   PostgreSQL          Supabase Storage    PGMQ queue
-   Librebeats schema   (audio + thumbs)    audiopipe-input
-         ▲                  ▲                  │
-         │                  │                  ▼
-         │                  │         Go audio service (yt-dlp)
-         │                  └──────────────────┘
-         │
-         Go migration service (SQL scripts on startup)
+```mermaid
+flowchart TD
+    listener(["Listener / self-hoster<br/>streams from their own servers<br/>instead of paying a subscription"])
+
+    subgraph system["LibreBeats"]
+        app["Flutter app<br/>src/frontend<br/>Home · Search · Library · Liked · Settings · player<br/>background playback, multi-server catalog (20 min cache),<br/>offline likes (Android)"]
+
+        subgraph backend["Supabase backend, 1..n of these: the self-hosted stack (src/backend-self-hosted) or any instance deployed from the CLI project (src/backend)"]
+            kong["Kong<br/>api gateway, all client traffic"]
+            svcs["Auth · PostgREST · Realtime · Studio<br/>sign-in, REST access to the catalog, admin UI"]
+            menu["menu<br/>edge function (Deno), the catalog api:<br/>BeatMix records with their beats embedded"]
+            db[("PostgreSQL<br/>Librebeats schema: catalog,<br/>staging, logs, migrations")]
+            storage[("Storage<br/>Opus audio + thumbnails,<br/>clients stream from here")]
+            pgmq[["PGMQ<br/>audiopipe-input (work) / audiopipe-dlq (failed)<br/>message shape { url: https://… }"]]
+            migration["Migration service<br/>Go, self-hosted only,<br/>SQL scripts on startup"]
+            audio["Audio ingest worker<br/>Go, self-hosted only:<br/>queue → yt-dlp → Storage → catalog"]
+        end
+    end
+
+    yt["YouTube<br/>videos and playlists,<br/>ingested by URL"]
+    ext["Navidrome / Jellyfin<br/>not started"]
+
+    listener -- "searches, plays, likes,<br/>adds servers via QR scan" --> app
+    app -- "login (existing accounts only),<br/>merged catalog, audio from Storage" --> kong
+    kong --> svcs
+    kong --> menu
+    svcs --> db
+    svcs --> storage
+    menu --> db
+    migration -- "records runs in<br/>Librebeats.Migrations" --> db
+    audio -- "pgmq.read,<br/>delete on success" --> pgmq
+    audio -- "Opus + thumbnails" --> storage
+    audio -- "RawBeat → Beat,<br/>BeatMix + junction" --> db
+    audio -- "yt-dlp" --> yt
+    app -. "planned" .-> ext
 ```
 
 ### Intended flow
@@ -125,6 +134,26 @@ Flutter app with a dark, Spotify-like shell.
 | **Liked** | The liked songs with total playtime, plays as one queue, everything on disk |
 | **Settings** | Server management (add via QR scan, health grouping, remove), offline storage usage + about |
 
+Screens talk to providers, providers to the playback service and the data layer, only the data layer talks to the servers:
+
+```mermaid
+flowchart TD
+    screens["screens/<br/>main_scaffold, home (history row),<br/>search (results + browse grid), library, liked, settings"]
+    widgets["widgets/<br/>mini + full player, beat tiles, QR server scanner"]
+    providers["providers/<br/>BackgroundAudioProvider, LibreProvider (merge + 20 min cache),<br/>LikedProvider (downloads)"]
+    service["services/<br/>AudioPlaybackService: just_audio + audio_service,<br/>background playback, notifications, interruptions"]
+    data["data/<br/>ServerRegistry, repositories,<br/>disk stores: cache, history, liked, offline files"]
+    models["models/ + main.dart + app.dart<br/>Beat / BeatMix / SearchResult, server seed,<br/>Material 3 dark theme"]
+    backend[("Supabase backend, 1..n")]
+
+    screens --> widgets
+    screens --> providers
+    providers --> service
+    providers --> data
+    data --> backend
+    models -. "wired in main.dart" .-> providers
+```
+
 Every declared package is in real use by now: `provider`, `supabase_flutter`, `just_audio` + `audio_service` + `audio_session`, `cached_network_image`, `mobile_scanner`, `shared_preferences`, `google_fonts`, and since the liked feature also `sembast`, `background_downloader` and `path_provider`, see [`pubspec.yaml`](src/frontend/pubspec.yaml).
 
 Where it stands: real streaming (single beats and beatmix queues) with media notifications and background playback, playback pauses when headphones unplug or a call comes in. Servers are added via QR code in settings and persisted on device, the search grid merges every server's beatmixes and caches them for 20 minutes, Home keeps a persistent history of the last 10 plays. Songs and whole playlists can be liked, they get downloaded and keep playing offline, even after their server is removed (Android, the opus files don't play on iOS). Full details, config and the feature table live in [`src/frontend/README.md`](src/frontend/README.md).
@@ -151,9 +180,18 @@ More backend detail in [`src/backend-self-hosted/README.md`](src/backend-self-ho
 
 Defined in [`0 initial.sql`](src/backend-self-hosted/supabase/service/migration/scripts/0%20initial.sql):
 
+```mermaid
+erDiagram
+    RawBeat ||--o| Beat : "promoted to"
+    BeatMix ||--o{ BeatMixBeat : contains
+    Beat ||--o{ BeatMixBeat : "appears in"
+```
+
+`Beat` points at its `RawBeat` (the raw download: source, storage locations, duration) through `RawBeatId` and adds title, artist, tags and the streaming/thumbnail urls, `AudioOutputLog` and `Migrations` don't reference anything.
+
 | Table | Purpose | Client access |
 |-------|---------|----------------|
-| `RawBeat` | Staging: source URL, storage keys, duration | Service role only |
+| `RawBeat` | Staging: source URL, storage keys, duration | Authenticated **SELECT** (`menu` reads durations from here) |
 | `Beat` | Published track metadata + streaming URLs | Authenticated **SELECT** |
 | `BeatMix` | Playlist / mix metadata | Authenticated **SELECT** |
 | `BeatMixBeat` | Beat ↔ mix junction | Authenticated **SELECT** |
@@ -169,6 +207,18 @@ Defined in [`0 initial.sql`](src/backend-self-hosted/supabase/service/migration/
 3. Download with **yt-dlp** (Opus + thumbnails).
 4. Upload to Supabase Storage buckets.
 5. Insert `RawBeat` → `Beat`; for playlists, `BeatMix` + `BeatMixBeat`.
+
+Same flow, one box per file:
+
+```mermaid
+flowchart LR
+    main["main.go<br/>consumer loop,<br/>polls the queue"] --> queue["queue.go<br/>pgmq.read with visibility timeout,<br/>delete only on success"]
+    queue --> helpers["pipeline.go<br/>parses { url } messages,<br/>video vs playlist"]
+    helpers --> downloader["sourceHelper.go<br/>yt-dlp, Opus + thumbnails"]
+    downloader --> uploader["storage.go<br/>Storage uploads"]
+    uploader --> writer["database.go<br/>RawBeat → Beat,<br/>BeatMix + junction for playlists"]
+    queue -. "read count ≥ QUEUE_MAX_READ_COUNT<br/>or poison" .-> dlq[["audiopipe-dlq"]]
+```
 
 ## Backend (`src/backend`)
 

@@ -32,7 +32,10 @@ class PlayStatsProvider extends ChangeNotifier {
   /// play happened inside a mix queue.
   Future<void> recordPlay(Beat beat, BeatMix? mix) async {
     await _store.recordBeatPlay(beat);
-    if (mix != null) await _store.recordMixPlay(mix, beat);
+    // the shuffle-all queue is synthetic, keep it out of heavy rotation
+    if (mix != null && mix.sourceId != shuffleAllSourceId) {
+      await _store.recordMixPlay(mix, beat);
+    }
     await _refresh();
   }
 

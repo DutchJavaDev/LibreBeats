@@ -46,6 +46,11 @@ class LikedProvider extends ChangeNotifier {
   int get totalDownloadedCount =>
       downloadedCount + _likedMixes.fold(0, (n, m) => n + m.downloadedCount);
 
+  /// Whether any liked mix has at least one track on disk, the library
+  /// screen's shuffle-all pill keys off this.
+  bool get hasDownloadedMixBeats =>
+      _likedMixes.any((m) => m.downloadedCount > 0);
+
   int get pendingTrackCount => _stateCount('pending');
 
   int get failedTrackCount => _stateCount('failed');
@@ -270,6 +275,28 @@ class LikedProvider extends ChangeNotifier {
         trackCount: record.beats.length,
         beats: [for (final b in record.beats) beatFor(b)],
       );
+
+  /// One queue over every downloaded track in the liked mixes, deduped by
+  /// key (a beat can sit in several mixes, one file on disk). Lives in
+  /// memory only, shuffling is the player's job. Liked Songs stays out,
+  /// it is its own queue. Null while nothing is on disk.
+  BeatMix? shuffleAllMix() {
+    final seen = <String>{};
+    final beats = [
+      for (final mix in _likedMixes)
+        for (final b in mix.beats)
+          if (b.downloaded && seen.add(b.key)) beatFor(b)
+    ];
+    if (beats.isEmpty) return null;
+    return BeatMix(
+      id: 0,
+      sourceId: shuffleAllSourceId,
+      title: 'All playlists',
+      thumbnailUrl: '',
+      trackCount: beats.length,
+      beats: beats,
+    );
+  }
 
   /// The mix cover on disk, null when it is not there (yet).
   String? mixArtFor(LikedMix record) {

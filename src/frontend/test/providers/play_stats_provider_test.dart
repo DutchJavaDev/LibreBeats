@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liberated_beats/data/play_stats_store.dart';
+import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/providers/play_stats_provider.dart';
 import 'package:sembast/sembast_memory.dart';
 
@@ -31,6 +32,26 @@ void main() {
 
     expect(provider.topBeats, hasLength(1));
     expect(provider.topMixes, isEmpty);
+  });
+
+  test('the shuffle-all queue counts its beats but never the mix', () async {
+    final provider = PlayStatsProvider(await memStore());
+
+    final b = beat('srv', 1);
+    await provider.recordPlay(
+        b, mix(shuffleAllSourceId, 0, 'All playlists', [b]));
+
+    expect(provider.topBeats.single.plays, 1);
+    expect(provider.topMixes, isEmpty);
+  });
+
+  test('the liked songs queue still counts as a mix', () async {
+    final provider = PlayStatsProvider(await memStore());
+
+    final b = beat('srv', 1);
+    await provider.recordPlay(b, mix('liked', 0, 'Liked Songs', [b]));
+
+    expect(provider.topMixes.single.title, 'Liked Songs');
   });
 
   test('init hydrates what an earlier run counted', () async {

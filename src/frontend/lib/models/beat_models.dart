@@ -91,6 +91,10 @@ class BeatMix {
   String get key => '$sourceId:$id';
 }
 
+// sourceId of the synthetic shuffle-all queue, play stats skip mixes with
+// this source so it never shows up in heavy rotation
+const String shuffleAllSourceId = 'shuffle-all';
+
 class SearchResult {
   final Beat? beat;
   final BeatMix? beatMix;

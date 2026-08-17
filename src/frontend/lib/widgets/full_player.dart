@@ -5,13 +5,15 @@ import 'package:just_audio/just_audio.dart';
 import 'package:liberated_beats/providers/background_audio_provider.dart';
 import 'package:liberated_beats/providers/liked_provider.dart';
 import 'package:liberated_beats/theme/lb_tokens.dart';
+import 'package:liberated_beats/widgets/queue_sheet.dart';
 import 'package:liberated_beats/widgets/sleep_timer_sheet.dart';
 import 'package:liberated_beats/widgets/widget_builder.dart';
 import 'package:provider/provider.dart';
 
 /// Full-screen "now playing" sheet, opened from the [MiniPlayer]. Drag down
 /// to dismiss. The heart likes the current beat, which also downloads it
-/// for offline playback. The moon arms the sleep timer.
+/// for offline playback. The moon arms the sleep timer, Queue opens the
+/// play queue.
 class FullPlayer extends StatefulWidget {
   const FullPlayer({super.key});
 
@@ -270,13 +272,14 @@ class _FullPlayerState extends State<FullPlayer> {
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
                           _SleepTimerButton(player: backgroundPlayer),
-                          // queue view not built yet, dimmed until it is
                           TextButton.icon(
-                            onPressed: () {},
+                            onPressed: () =>
+                                showQueueSheet(context, backgroundPlayer),
                             icon: Icon(Icons.queue_music_outlined,
-                                size: 20, color: dimmed),
+                                size: 20, color: scheme.onSurfaceVariant),
                             label: Text('Queue',
-                                style: TextStyle(color: dimmed)),
+                                style: TextStyle(
+                                    color: scheme.onSurfaceVariant)),
                           ),
                         ],
                       ),

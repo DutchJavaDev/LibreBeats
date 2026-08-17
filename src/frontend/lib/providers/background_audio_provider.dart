@@ -165,4 +165,16 @@ final class BackgroundAudioProvider extends ChangeNotifier {
     await _playbackService.skipToPrevious();
     notifyListeners();
   }
+
+  List<Beat> get queueBeats => _playbackService.queueBeats;
+
+  List<int> get shuffleIndices => _playbackService.shuffleIndices;
+
+  // the player's own flag, [_shuffle] is just what the toggle button paints
+  bool get shuffleEnabled => _playbackService.shuffleEnabled;
+
+  Future<void> skipToQueueItem(int index) async {
+    await _playbackService.skipToQueueItem(index);
+    notifyListeners();
+  }
 }

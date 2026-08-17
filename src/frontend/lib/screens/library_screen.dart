@@ -1,5 +1,8 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:liberated_beats/data/liked_store.dart';
+import 'package:liberated_beats/providers/background_audio_provider.dart';
 import 'package:liberated_beats/providers/liked_provider.dart';
 import 'package:liberated_beats/theme/lb_tokens.dart';
 import 'package:liberated_beats/widgets/lb_brand.dart';
@@ -60,6 +63,39 @@ class LibraryScreen extends StatelessWidget {
                 Text('Your Library', style: theme.textTheme.headlineMedium),
                 const SizedBox(height: 6),
                 const BrandRule(),
+              ],
+            ),
+          ),
+        ),
+        // Shuffle all, one queue over every downloaded mix track.
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Row(
+              children: [
+                GradientPillButton(
+                  label: 'Shuffle all playlists',
+                  icon: Icons.shuffle,
+                  onPressed: !likedProvider.hasDownloadedMixBeats
+                      ? null
+                      : () {
+                          final player =
+                              context.read<BackgroundAudioProvider>();
+                          final mix = likedProvider.shuffleAllMix();
+                          final beats = mix?.beats;
+                          if (beats == null || beats.isEmpty) return;
+                          if (!player.shuffle) player.toggleShuffle();
+                          // starting on the playing beat would pause it
+                          // instead, pick around it
+                          final current = player.currentBeat?.key;
+                          final pool = beats
+                              .where((b) => b.key != current)
+                              .toList();
+                          final candidates = pool.isEmpty ? beats : pool;
+                          player.playBeatMix(mix!,
+                              candidates[Random().nextInt(candidates.length)]);
+                        },
+                ),
               ],
             ),
           ),

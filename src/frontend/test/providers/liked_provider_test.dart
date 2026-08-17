@@ -303,4 +303,58 @@ void main() {
     expect(provider.offlineBytes, 0);
     expect(await store.allMixes(), isEmpty);
   });
+
+  test('shuffleAllMix merges the mixes deduped, liked songs stay out',
+      () async {
+    await provider.toggleLike(beat(9));
+    await provider.toggleLikeMix(mixOf(1, [beat(1), beat(2)]));
+    // beat 2 sits in both mixes, it should show up once
+    await provider.toggleLikeMix(mixOf(2, [beat(2), beat(3)]));
+
+    final merged = provider.shuffleAllMix()!;
+    expect(merged.sourceId, shuffleAllSourceId);
+    expect(merged.id, 0);
+    expect(merged.trackCount, 3);
+    expect({for (final b in merged.beats!) b.key}, {
+      'https://a.example.com:1',
+      'https://a.example.com:2',
+      'https://a.example.com:3',
+    });
+  });
+
+  test('shuffleAllMix only takes tracks that are on disk', () async {
+    await provider.toggleLikeMix(mixOf(1, [beat(1)]));
+    downloader.failing = true;
+    await provider.toggleLikeMix(mixOf(2, [beat(2)]));
+
+    final merged = provider.shuffleAllMix()!;
+    expect({for (final b in merged.beats!) b.key},
+        {'https://a.example.com:1'});
+    expect(provider.hasDownloadedMixBeats, isTrue);
+  });
+
+  test('shuffleAllMix is null when nothing is downloaded', () async {
+    expect(provider.shuffleAllMix(), isNull);
+    expect(provider.hasDownloadedMixBeats, isFalse);
+
+    downloader.failing = true;
+    await provider.toggleLikeMix(mixOf(1, [beat(1)]));
+    expect(provider.shuffleAllMix(), isNull);
+    expect(provider.hasDownloadedMixBeats, isFalse);
+
+    // individually liked songs are not part of the merged queue
+    downloader.failing = false;
+    await provider.toggleLike(beat(2));
+    expect(provider.shuffleAllMix(), isNull);
+    expect(provider.hasDownloadedMixBeats, isFalse);
+  });
+
+  test('shuffleAllMix keeps playlist order, newest liked first', () async {
+    await provider.toggleLikeMix(mixOf(1, [beat(1), beat(2)]));
+    await provider.toggleLikeMix(mixOf(2, [beat(2), beat(3)]));
+
+    // mix 2 was liked last so its beats lead, beat 2 keeps its first spot
+    final merged = provider.shuffleAllMix()!;
+    expect([for (final b in merged.beats!) b.id], [2, 3, 1]);
+  });
 }

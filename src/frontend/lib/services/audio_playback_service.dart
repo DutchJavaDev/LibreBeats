@@ -212,11 +212,20 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   BeatMix? get currentBeatMix => _currentBeatMix;
   BeatMix? _currentBeatMix;
 
+  // read through sequenceState, the standalone getters ride a stream and
+  // lag a tick behind setShuffleModeEnabled
+  List<int> get shuffleIndices => audioPlayer.sequenceState.shuffleIndices;
+  bool get shuffleEnabled => audioPlayer.sequenceState.shuffleModeEnabled;
+
   List<Beat> get recentBeats => _recentBeats;
   final List<Beat> _recentBeats = [];
 
   final List<MediaItem> beatMediaItems = [];
   final List<UriAudioSource> beatAudioSources = [];
+
+  // the queue in player order, playable beats only. _currentBeatMix.beats
+  // keeps the unplayable ones so its indices do not line up with the player
+  final List<Beat> queueBeats = [];
 
   Future<bool> setBeatSource(Beat beat) async {
     _currentBeatMix = null;
@@ -230,6 +239,9 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     beatAudioSources
       ..clear()
       ..add(audioSource);
+    queueBeats
+      ..clear()
+      ..add(beat);
 
     _loadingSource = true;
     try {
@@ -270,6 +282,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
 
     beatMediaItems.clear();
     beatAudioSources.clear();
+    queueBeats.clear();
 
     var initialIndex = 0;
 
@@ -277,6 +290,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
       final beat = beats[i];
       beatMediaItems.add(_createMediaItem(beat));
       beatAudioSources.add(_createSourceUri(beat));
+      queueBeats.add(beat);
 
       // match by key, plain ids collide across servers
       if (initalBeat != null && initalBeat.key == beat.key) {
@@ -422,6 +436,17 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     }
   }
 
+  // seeking by index leaves the shuffle order alone
+  @override
+  Future<void> skipToQueueItem(int index) async {
+    // a manual jump means someone is awake, drop an end-of-track sleep
+    if (_sleepEndOfTrack) _clearSleep();
+    if (index < 0 || index >= queueBeats.length) return;
+    await audioPlayer.seek(Duration.zero, index: index);
+    _setCurrentBeat();
+    _setMediaItemForBeat();
+  }
+
   void _setCurrentBeat() {
     // acting on a mid-load event would flash the wrong row as playing and
     // record a history entry for a track that never played
@@ -465,10 +490,15 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   /// can drive [updateProgress] headlessly (setBeatSource fails before
   /// assigning the beat when there is no platform player).
   @visibleForTesting
-  void debugSetNowPlaying(Beat beat, {BeatMix? mix}) {
+  void debugSetNowPlaying(Beat beat, {BeatMix? mix, List<Beat>? queue}) {
     _currentBeat = beat;
     _beatKey = beat.key;
     _currentBeatMix = mix;
+    if (queue != null) {
+      queueBeats
+        ..clear()
+        ..addAll(queue);
+    }
     _playCounter.reset();
   }
 

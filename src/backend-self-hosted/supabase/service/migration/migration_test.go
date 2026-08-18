@@ -2,6 +2,8 @@ package main
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -38,6 +40,34 @@ func TestParseMigrationFileID(t *testing.T) {
 				t.Fatalf("parseMigrationFileID(%q) = %d, want %d", tt.file, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestSortMigrationFiles(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	for _, name := range []string{"1 initial.sql", "2 add beats.sql", "10 add mixes.sql"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("SELECT 1;"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// ReadDir returns them as 1, 10, 2
+	sortMigrationFiles(entries)
+
+	want := []string{"1 initial.sql", "2 add beats.sql", "10 add mixes.sql"}
+
+	for i, entry := range entries {
+		if entry.Name() != want[i] {
+			t.Fatalf("entries[%d] = %q, want %q", i, entry.Name(), want[i])
+		}
 	}
 }
 

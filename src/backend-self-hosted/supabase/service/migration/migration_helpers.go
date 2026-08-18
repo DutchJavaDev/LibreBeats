@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -17,6 +19,16 @@ func parseMigrationFileID(fileName string) (int, error) {
 		return 0, fmt.Errorf("invalid migration file id in %q: %w", fileName, err)
 	}
 	return id, nil
+}
+
+// sortMigrationFiles sorts the scripts by their id, os.ReadDir gives them back in name order
+// so "10 something.sql" would run before "2 something.sql"
+func sortMigrationFiles(dirs []os.DirEntry) {
+	sort.Slice(dirs, func(i, j int) bool {
+		idA, _ := parseMigrationFileID(dirs[i].Name())
+		idB, _ := parseMigrationFileID(dirs[j].Name())
+		return idA < idB
+	})
 }
 
 // isMigrationsTableMissingErr reports whether Postgres has no Librebeats.Migrations table yet.

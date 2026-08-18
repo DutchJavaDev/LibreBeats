@@ -61,6 +61,8 @@ func (m *Migration) Run() error {
 		return err
 	}
 
+	sortMigrationFiles(dirs)
+
 	for _, dirEntry := range dirs {
 
 		fmt.Println("Processing migration file:", dirEntry.Name())

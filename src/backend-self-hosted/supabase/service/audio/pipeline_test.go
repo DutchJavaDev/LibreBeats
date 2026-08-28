@@ -25,10 +25,18 @@ func TestParseAudioPipeURL(t *testing.T) {
 			message: `{"url":"https://www.youtube.com/playlist?list=PLtest"}`,
 			want:    "https://www.youtube.com/playlist?list=PLtest",
 		},
+		{
+			name:    "plain http url",
+			message: `{"url":"http://example.com/watch?v=x"}`,
+			want:    "http://example.com/watch?v=x",
+		},
 		{name: "invalid json", message: `{`, wantErr: true},
 		{name: "missing url", message: `{"title":"x"}`, wantErr: true},
 		{name: "empty url", message: `{"url":""}`, wantErr: true},
 		{name: "non-string url", message: `{"url":123}`, wantErr: true},
+		{name: "ftp url", message: `{"url":"ftp://evil/x"}`, wantErr: true},
+		{name: "flag as url", message: `{"url":"--exec=id"}`, wantErr: true},
+		{name: "file url", message: `{"url":"file:///etc/passwd"}`, wantErr: true},
 	}
 
 	for _, tt := range tests {

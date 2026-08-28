@@ -136,7 +136,7 @@ class SearchOutcome {
 const LinearGradient _g0 = LinearGradient(
   begin: Alignment.topLeft,
   end: Alignment.bottomRight,
-  colors: [Color(0xFF1DB954), Color(0xFF158A3E)], // Green
+  colors: [Color(0xFF1EC85C), Color(0xFF0F9C46)], // Brand green
 );
 const LinearGradient _g1 = LinearGradient(
   begin: Alignment.topLeft,
@@ -173,6 +173,24 @@ const LinearGradient _g7 = LinearGradient(
   end: Alignment.bottomRight,
   colors: [Color(0xFFBC5900), Color(0xFF8A4000)], // Amber/brown
 );
+
+/// The eight shared gradients, picked deterministically per key.
+const List<LinearGradient> beatGradients = [_g0, _g1, _g2, _g3, _g4, _g5, _g6, _g7];
+
+// stable across runs and platforms, String.hashCode is neither (same trick
+// as the offline store's filename hash)
+int _fnv1a(String input) {
+  var hash = 0x811c9dc5;
+  for (final unit in input.codeUnits) {
+    hash ^= unit;
+    hash = (hash * 0x01000193) & 0xFFFFFFFF;
+  }
+  return hash;
+}
+
+/// The gradient for a beat or mix key ('sourceId:id'), same one every run.
+LinearGradient gradientForKey(String key) =>
+    beatGradients[_fnv1a(key) % beatGradients.length];
 
 // ---------------------------------------------------------------------------
 // Sample data

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 )
 
 func main() {
@@ -15,7 +16,7 @@ func main() {
 
 	if err != nil {
 		fmt.Println("Error applying migrations: " + err.Error())
-		return
+		os.Exit(1)
 	}
 
 	fmt.Println("Migrations applied successfully")

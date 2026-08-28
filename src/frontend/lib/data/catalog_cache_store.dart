@@ -98,7 +98,7 @@ class CatalogCacheStore {
               artist: b['artist'] as String? ?? '',
               thumbnailUrl: b['thumbnailurl'] as String? ?? '',
               duration: Duration(seconds: b['duration'] as int? ?? 0),
-              color: sampleTracks.first.color,
+              color: gradientForKey('$sourceId:${b['id']}'),
               audioUrl: b['streamingurl'] as String?,
             )
         ],

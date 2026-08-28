@@ -127,7 +127,9 @@ class _QueueSheetState extends State<_QueueSheet> {
                           isActive: isActive,
                           isPlaying: isActive && player.isPlaying,
                           liked: likedProvider.isLiked(beat.key),
-                          onLike: () => toggleBeatLike(context, likedProvider, beat),
+                          downloaded: likedProvider.isDownloaded(beat.key),
+                          onLike: () =>
+                              toggleBeatLike(context, likedProvider, beat),
                           onTap: () async {
                             if (isActive) {
                               await player.togglePlay();

@@ -9,7 +9,6 @@ import 'package:liberated_beats/widgets/widget_builder.dart';
 import 'package:provider/provider.dart';
 import '../models/beat_models.dart';
 
-
 // Custom delegate for the sticky header
 class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
   final Widget child;
@@ -60,8 +59,8 @@ class _SearchScreenState extends State<SearchScreen> {
     return '${d.inHours}h ago';
   }
 
-  Widget _countTrailing(int count) => Text('$count',
-      style: Theme.of(context).textTheme.bodySmall);
+  Widget _countTrailing(int count) =>
+      Text('$count', style: Theme.of(context).textTheme.bodySmall);
 
   Widget _browseGrid(LibreProvider catalog, LikedProvider liked) {
     // playlists sharing a title get a server label to tell them apart
@@ -165,189 +164,200 @@ class _SearchScreenState extends State<SearchScreen> {
     final topInset = MediaQuery.of(context).padding.top;
 
     // Fixed height for the sticky header:
-    // topInset + top padding (20) + title line (~30) + rule gap (6+3) +
-    // gap (12) + text field height (50) + bottom padding (16) + slack (10)
-    final headerHeight = topInset + 20 + 30 + 9 + 12 + 50 + 16 + 10;
+    // topInset + top padding (20) + title row (48, the cache toggle's tap
+    // target sets it now) + gap (12) + text field height (50) + bottom
+    // padding (16) + slack (10)
+    final headerHeight = topInset + 20 + 48 + 12 + 50 + 16 + 10;
 
-    return CustomScrollView(
-      slivers: [
-        // Sticky header
-        SliverPersistentHeader(
-          pinned: true,
-          delegate: _SearchHeaderDelegate(
-            height: headerHeight,
-            child: Container(
-              // solid background to cover scrolled content
-              color: theme.colorScheme.surface,
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(16, topInset + 20, 16, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Search',
-                                style: theme.textTheme.headlineMedium),
-                            const SizedBox(height: 6),
-                            const BrandRule(),
-                          ],
-                        ),
-                        // switch between disk and in-memory server results
-                        SizedBox(
-                          height: 30,
-                          child: TextButton.icon(
-                            onPressed: () => catalog
-                                .setPersistentCache(!catalog.persistentCache),
-                            style: TextButton.styleFrom(
-                              foregroundColor:
-                                  theme.colorScheme.onSurfaceVariant,
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 8),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            icon: Icon(
-                              catalog.persistentCache
-                                  ? Icons.save_outlined
-                                  : Icons.memory,
-                              size: 16,
-                            ),
-                            label: Text(
-                              catalog.persistentCache
-                                  ? 'Cache: disk'
-                                  : 'Cache: memory',
-                              style: theme.textTheme.bodySmall,
+    return RefreshIndicator(
+      // keep the spinner clear of the pinned opaque header
+      edgeOffset: headerHeight,
+      onRefresh: () => catalog.ensureCatalog(force: true),
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          // Sticky header
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _SearchHeaderDelegate(
+              height: headerHeight,
+              child: Container(
+                // solid background to cover scrolled content
+                color: theme.colorScheme.surface,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(16, topInset + 20, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Search',
+                                  style: theme.textTheme.headlineMedium),
+                              const SizedBox(height: 6),
+                              const BrandRule(),
+                            ],
+                          ),
+                          // switch between disk and in-memory server results
+                          SizedBox(
+                            height: 48,
+                            child: TextButton.icon(
+                              onPressed: () => catalog
+                                  .setPersistentCache(!catalog.persistentCache),
+                              style: TextButton.styleFrom(
+                                foregroundColor:
+                                    theme.colorScheme.onSurfaceVariant,
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 8),
+                              ),
+                              icon: Icon(
+                                catalog.persistentCache
+                                    ? Icons.save_outlined
+                                    : Icons.memory,
+                                size: 16,
+                              ),
+                              label: Text(
+                                catalog.persistentCache
+                                    ? 'Cache: disk'
+                                    : 'Cache: memory',
+                                style: theme.textTheme.bodySmall,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      height: 50, // fixed height for the text field
-                      child: TextField(
-                        controller: _controller,
-                        onChanged: (v) =>
-                            v.isEmpty ? setState(() => _query = v) : null,
-                        onEditingComplete: () =>
-                            setState(() => _query = _controller.text),
-                        style: theme.textTheme.bodyLarge,
-                        decoration: const InputDecoration(
-                          hintText: 'Artists, songs, or beatmixes',
-                          prefixIcon: Icon(Icons.search),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 50, // fixed height for the text field
+                        child: TextField(
+                          controller: _controller,
+                          onChanged: (v) =>
+                              v.isEmpty ? setState(() => _query = v) : null,
+                          onEditingComplete: () =>
+                              setState(() => _query = _controller.text),
+                          style: theme.textTheme.bodyLarge,
+                          decoration: const InputDecoration(
+                            hintText: 'Artists, songs, or beatmixes',
+                            prefixIcon: Icon(Icons.search),
+                          ),
                         ),
                       ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // banner after an automatic refresh happened while on this page
+          if (catalog.updateNotice)
+            SliverToBoxAdapter(
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: theme.colorScheme.primary.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.autorenew,
+                        size: 16, color: theme.colorScheme.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Playlists were updated',
+                        style: theme.textTheme.bodySmall!.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: theme.colorScheme.primary),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Dismiss',
+                      onPressed: catalog.clearUpdateNotice,
+                      padding: EdgeInsets.zero,
+                      constraints:
+                          const BoxConstraints(minWidth: 40, minHeight: 40),
+                      icon: Icon(Icons.close,
+                          size: 16, color: theme.colorScheme.primary),
                     ),
                   ],
                 ),
               ),
             ),
-          ),
-        ),
-        // banner after an automatic refresh happened while on this page
-        if (catalog.updateNotice)
-          SliverToBoxAdapter(
-            child: Container(
-              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.4)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.autorenew,
-                      size: 16, color: theme.colorScheme.primary),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Playlists were updated',
-                      style: theme.textTheme.bodySmall!.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: theme.colorScheme.primary),
-                    ),
-                  ),
-                  InkWell(
-                    onTap: catalog.clearUpdateNotice,
-                    child: Icon(Icons.close,
-                        size: 16, color: theme.colorScheme.primary),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        // Results, sectioned into songs and playlists with a freshness line
-        if (_query.isNotEmpty)
-          SliverToBoxAdapter(
-            child: StreamBuilder<SearchOutcome>(
-              stream: catalog.findAllByTitle(_query),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  PrintLog("StreamError: ${snapshot.error.toString()}");
-                }
-                final outcome = snapshot.data;
-                if (outcome == null || outcome.searching) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 32),
-                    child: Column(
-                      children: [
-                        const Center(child: CircularProgressIndicator()),
-                        if (outcome?.searching ?? false) ...[
-                          const SizedBox(height: 12),
-                          Text('Searching your servers…',
-                              style: theme.textTheme.bodySmall),
+          // Results, sectioned into songs and playlists with a freshness line
+          if (_query.isNotEmpty)
+            SliverToBoxAdapter(
+              child: StreamBuilder<SearchOutcome>(
+                stream: catalog.findAllByTitle(_query),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    PrintLog("StreamError: ${snapshot.error.toString()}");
+                  }
+                  final outcome = snapshot.data;
+                  if (outcome == null || outcome.searching) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 32),
+                      child: Column(
+                        children: [
+                          const Center(child: CircularProgressIndicator()),
+                          if (outcome?.searching ?? false) ...[
+                            const SizedBox(height: 12),
+                            Text('Searching your servers…',
+                                style: theme.textTheme.bodySmall),
+                          ],
                         ],
-                      ],
-                    ),
-                  );
-                }
-                if (outcome.results.isEmpty) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 32),
-                    child: Center(
-                      child: Text(
-                          "Nothing matched '$_query', checked your servers too",
-                          style: theme.textTheme.bodyMedium),
-                    ),
-                  );
-                }
-                return _results(outcome, context.watch<LikedProvider>());
-              },
+                      ),
+                    );
+                  }
+                  if (outcome.results.isEmpty) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 32),
+                      child: Center(
+                        child: Text(
+                            "Nothing matched '$_query', checked your servers too",
+                            style: theme.textTheme.bodyMedium),
+                      ),
+                    );
+                  }
+                  return _results(outcome, context.watch<LikedProvider>());
+                },
+              ),
+            )
+          else ...[
+            SliverToBoxAdapter(
+              child: SectionHeader(
+                'Browse playlists',
+                trailing: catalog.beatMixes.isEmpty
+                    ? null
+                    : _countTrailing(catalog.beatMixes.length),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              ),
             ),
-          )
-        else ...[
-          SliverToBoxAdapter(
-            child: SectionHeader(
-              'Browse playlists',
-              trailing: catalog.beatMixes.isEmpty
-                  ? null
-                  : _countTrailing(catalog.beatMixes.length),
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: catalog.beatMixes.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 48),
-                    child: Center(
-                      child: catalog.isFetching
-                          ? const CircularProgressIndicator()
-                          : Text(
-                              'No playlists yet — check your servers in Settings',
-                              style: theme.textTheme.bodyMedium),
-                    ),
-                  )
-                : _browseGrid(catalog, context.watch<LikedProvider>()),
-          )
+            SliverToBoxAdapter(
+              child: catalog.beatMixes.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 48),
+                      child: Center(
+                        child: catalog.isFetching
+                            ? const CircularProgressIndicator()
+                            : Text(
+                                'No playlists yet — check your servers in Settings',
+                                style: theme.textTheme.bodyMedium),
+                      ),
+                    )
+                  : _browseGrid(catalog, context.watch<LikedProvider>()),
+            )
+          ],
+          const SliverToBoxAdapter(child: SizedBox(height: 16)),
         ],
-        const SliverToBoxAdapter(child: SizedBox(height: 16)),
-      ],
+      ),
     );
   }
 }

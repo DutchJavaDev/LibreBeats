@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:liberated_beats/config/helpers.dart';
 import 'package:liberated_beats/data/base_repository.dart';
 import 'package:liberated_beats/data/server_registry.dart';
@@ -23,7 +24,9 @@ class BeatMixRepository extends BaseRepository {
                 'id, title, thumbnailurl, beatmixbeat (beat:beat (id, title, artist, thumbnailurl, streamingurl, rawbeat:rawbeat!beat_rawbeatid_fkey (duration)))')
             .ilike('title', '%$query%')
             .timeout(const Duration(seconds: 10));
-        mixes.addAll(rows.map((row) => _beatMixFromRow(row, server.url)));
+        mixes.addAll(rows
+            .map((row) => beatMixFromRow(row, server.url))
+            .whereType<BeatMix>());
       } catch (e) {
         PrintLog('beatmix search failed for ${server.host}: $e');
         registry.markFailed(server);
@@ -44,65 +47,115 @@ class BeatMixRepository extends BaseRepository {
       throw Exception('menu returned ${response.status} from ${server.host}');
     }
 
-    final List<dynamic> data = response.data['data'];
-    return data.map((mix) => _beatMixFromJson(mix, server.url)).toList();
+    return beatMixesFromMenu(response.data, server.url);
   }
 
   // ---------------------------------------------------------------------------
-  BeatMix _beatMixFromRow(Map<String, dynamic> row, String sourceId) {
-    final mixTitle = row['title'] as String;
-    final beats = ((row['beatmixbeat'] as List<dynamic>?) ?? [])
-        .map((junction) => junction['beat'])
-        .whereType<Map<String, dynamic>>()
-        .map((b) => Beat(
-              id: int.parse(b['id'].toString()),
-              sourceId: sourceId,
-              title: b['title'] as String,
-              artist: b['artist'] as String,
-              thumbnailUrl: b['thumbnailurl'] as String? ?? '',
-              duration: Duration(seconds: b['rawbeat']?['duration'] ?? 0),
-              color: sampleTracks.first.color,
-              audioUrl: b['streamingurl'] as String?,
-              mixTitle: mixTitle,
-            ))
+  // 200 with a body the app cannot use is the server talking nonsense, not
+  // the server being down: decode what is there instead of failing the server
+  @visibleForTesting
+  static List<BeatMix> beatMixesFromMenu(dynamic body, String sourceId) {
+    final data = body is Map ? body['data'] : null;
+    if (data is! List) {
+      PrintLog('menu payload had no data list');
+      return const [];
+    }
+    return data
+        .map((mix) => beatMixFromJson(mix, sourceId))
+        .whereType<BeatMix>()
         .toList();
-
-    return BeatMix(
-      id: int.parse(row['id'].toString()),
-      sourceId: sourceId,
-      title: row['title'] as String,
-      thumbnailUrl: row['thumbnailurl'] as String? ?? '',
-      trackCount: beats.length,
-      beats: beats,
-    );
   }
 
-  BeatMix _beatMixFromJson(dynamic json, String sourceId) {
-    final mixTitle = json['title'] as String;
-    final beats = ((json['beats'] as List<dynamic>?) ?? [])
-        .map((beat) => _beatFromJson(beat, sourceId, mixTitle))
-        .toList();
+  // one bad row must not sink the whole result, decode what parses and skip
+  // the rest
+  @visibleForTesting
+  static BeatMix? beatMixFromRow(dynamic row, String sourceId) {
+    try {
+      final mixTitle = row['title']?.toString() ?? '';
+      final beats = ((row['beatmixbeat'] as List<dynamic>?) ?? [])
+          .map((junction) => junction['beat'])
+          .whereType<Map<String, dynamic>>()
+          .map<Beat?>((b) {
+            try {
+              // the rawbeat embed comes as a map or a one-element list
+              // depending on how the relationship is spelled, accept both
+              final rawbeat = b['rawbeat'];
+              final embed = rawbeat is List ? rawbeat.firstOrNull : rawbeat;
+              return Beat(
+                id: int.parse(b['id'].toString()),
+                sourceId: sourceId,
+                title: b['title']?.toString() ?? '',
+                artist: b['artist']?.toString() ?? '',
+                thumbnailUrl: b['thumbnailurl']?.toString() ?? '',
+                duration: Duration(
+                    seconds: int.tryParse('${embed?['duration']}') ?? 0),
+                color: gradientForKey('$sourceId:${b['id']}'),
+                audioUrl: b['streamingurl']?.toString(),
+                mixTitle: mixTitle,
+              );
+            } catch (e) {
+              PrintLog('skipping malformed beat row: $e');
+              return null;
+            }
+          })
+          .whereType<Beat>()
+          .toList();
 
-    return BeatMix(
-      id: int.parse(json['id'].toString()),
-      sourceId: sourceId,
-      title: mixTitle,
-      thumbnailUrl: json['thumbnailurl'] as String,
-      trackCount: int.tryParse('${json['count']}') ?? beats.length,
-      beats: beats,
-    );
+      return BeatMix(
+        id: int.parse(row['id'].toString()),
+        sourceId: sourceId,
+        title: mixTitle,
+        thumbnailUrl: row['thumbnailurl']?.toString() ?? '',
+        trackCount: beats.length,
+        beats: beats,
+      );
+    } catch (e) {
+      PrintLog('skipping malformed beatmix row: $e');
+      return null;
+    }
   }
 
-  Beat _beatFromJson(dynamic json, String sourceId, String mixTitle) => Beat(
+  @visibleForTesting
+  static BeatMix? beatMixFromJson(dynamic json, String sourceId) {
+    try {
+      final mixTitle = json['title']?.toString() ?? '';
+      final beats = ((json['beats'] as List<dynamic>?) ?? [])
+          .map((beat) => beatFromJson(beat, sourceId, mixTitle))
+          .whereType<Beat>()
+          .toList();
+
+      return BeatMix(
         id: int.parse(json['id'].toString()),
         sourceId: sourceId,
-        title: json['title'] as String,
-        artist: json['artist'] as String,
-        thumbnailUrl: json['thumbnailurl'] as String? ?? '',
-        duration: Duration(seconds: json['duration'] ?? 0),
-        color: sampleTracks.first.color,
-        audioUrl: json['streamingurl'] as String?,
+        title: mixTitle,
+        thumbnailUrl: json['thumbnailurl']?.toString() ?? '',
+        trackCount: int.tryParse('${json['count']}') ?? beats.length,
+        beats: beats,
+      );
+    } catch (e) {
+      PrintLog('skipping malformed beatmix row: $e');
+      return null;
+    }
+  }
+
+  @visibleForTesting
+  static Beat? beatFromJson(dynamic json, String sourceId, String mixTitle) {
+    try {
+      return Beat(
+        id: int.parse(json['id'].toString()),
+        sourceId: sourceId,
+        title: json['title']?.toString() ?? '',
+        artist: json['artist']?.toString() ?? '',
+        thumbnailUrl: json['thumbnailurl']?.toString() ?? '',
+        duration: Duration(seconds: int.tryParse('${json['duration']}') ?? 0),
+        color: gradientForKey('$sourceId:${json['id']}'),
+        audioUrl: json['streamingurl']?.toString(),
         mixTitle: mixTitle,
       );
+    } catch (e) {
+      PrintLog('skipping malformed beat row: $e');
+      return null;
+    }
+  }
   // ---------------------------------------------------------------------------
 }

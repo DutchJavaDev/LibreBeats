@@ -28,6 +28,9 @@ func parseAudioPipeURL(message json.RawMessage) (string, error) {
 	if !ok || url == "" {
 		return "", fmt.Errorf("%w: queue message url must be a non-empty string", ErrPermanentMessage)
 	}
+	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+		return "", fmt.Errorf("%w: queue message url must be an http(s) url", ErrPermanentMessage)
+	}
 	return url, nil
 }
 

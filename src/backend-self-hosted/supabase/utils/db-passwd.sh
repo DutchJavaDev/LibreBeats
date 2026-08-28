@@ -102,6 +102,7 @@ alter user anon with password '${new_passwd}';
 alter user authenticated with password '${new_passwd}';
 alter user authenticator with password '${new_passwd}';
 alter user dashboard_user with password '${new_passwd}';
+alter user librebeats_worker with password '${new_passwd}';
 alter user pgbouncer with password '${new_passwd}';
 alter user postgres with password '${new_passwd}';
 alter user service_role with password '${new_passwd}';

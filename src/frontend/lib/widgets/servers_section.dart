@@ -9,6 +9,60 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../data/server_registry.dart';
 import 'add_server_scan.dart';
 
+/// The whole add-servers flow: push the QR scanner, feed whatever it returns
+/// into the registry and sum it up in a snackbar. Shared between the settings
+/// card and the first-run screen.
+Future<void> addServersFlow(
+    BuildContext context, ServerRegistry registry) async {
+  final results = await Navigator.push<List<(String, String, String?, String?)>>(
+    context,
+    MaterialPageRoute(builder: (_) => const AddServerScanScreen()),
+  );
+  if (results == null || !context.mounted) return;
+
+  var added = 0;
+  var duplicates = 0;
+  var failed = 0;
+  for (final (url, key, email, password) in results) {
+    switch (
+        await registry.addServer(url, key, email: email, password: password)) {
+      case AddServerResult.added:
+        added++;
+      case AddServerResult.duplicate:
+        duplicates++;
+      case AddServerResult.signInFailed:
+        failed++;
+    }
+  }
+
+  if (!context.mounted) return;
+  final parts = [
+    if (added > 0) 'added $added',
+    if (duplicates > 0) '$duplicates already added',
+    if (failed > 0) '$failed could not sign in, check the login',
+  ];
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    content: Text(parts.join(', ')),
+  ));
+}
+
+/// The default-login dialog, saves on confirm. Shared between the settings
+/// card and the first-run screen.
+Future<void> showDefaultLoginDialog(
+    BuildContext context, ServerRegistry registry) async {
+  final result = await showDialog<(String, String)>(
+    context: context,
+    builder: (_) => _CredentialsDialog(
+      title: 'Default login',
+      initialEmail: registry.defaultEmail,
+      initialPassword: registry.defaultPassword,
+    ),
+  );
+  if (result == null) return;
+  final (email, password) = result;
+  await registry.setDefaultCredentials(email, password);
+}
+
 /// Server management, lives inside the settings page. Collapsed its a one
 /// line summary, expanded it shows the fleet grouped by status (problems on
 /// top) with add / share / retry actions and a filter for long lists.
@@ -23,6 +77,13 @@ class _ServersSectionState extends State<ServersSection> {
   bool _expanded = false;
   final _filterController = TextEditingController();
   String _filter = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // first run should not hide the add button behind a tap
+    _expanded = context.read<ServerRegistry>().servers.isEmpty;
+  }
 
   @override
   void dispose() {
@@ -258,12 +319,15 @@ class _ServersSectionState extends State<ServersSection> {
         ListTile(
           dense: true,
           onTap: () => _showDetail(server, registry),
-          leading: Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(
-              color: _statusColor(server.status),
-              shape: BoxShape.circle,
+          leading: Semantics(
+            label: _statusLabel(server.status),
+            child: Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: _statusColor(server.status),
+                shape: BoxShape.circle,
+              ),
             ),
           ),
           minLeadingWidth: 18,
@@ -413,39 +477,31 @@ class _ServersSectionState extends State<ServersSection> {
           content: Text('$label copied'),
         ));
       },
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: theme.textTheme.bodySmall),
-                Text(shown,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                        fontFamily: 'monospace',
-                        color: theme.colorScheme.onSurface)),
-              ],
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 44),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: theme.textTheme.bodySmall),
+                  Text(shown,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                          fontFamily: 'monospace',
+                          color: theme.colorScheme.onSurface)),
+                ],
+              ),
             ),
-          ),
-          const Icon(Icons.copy, size: 14),
-        ],
+            const Icon(Icons.copy, size: 14),
+          ],
+        ),
       ),
     );
   }
 
-  Future<void> _editDefaultLogin(ServerRegistry registry) async {
-    final result = await showDialog<(String, String)>(
-      context: context,
-      builder: (_) => _CredentialsDialog(
-        title: 'Default login',
-        initialEmail: registry.defaultEmail,
-        initialPassword: registry.defaultPassword,
-      ),
-    );
-    if (result == null) return;
-    final (email, password) = result;
-    await registry.setDefaultCredentials(email, password);
-  }
+  Future<void> _editDefaultLogin(ServerRegistry registry) =>
+      showDefaultLoginDialog(context, registry);
 
   Future<void> _editServerLogin(BuildContext sheetContext,
       ServerConnection server, ServerRegistry registry) async {
@@ -466,40 +522,8 @@ class _ServersSectionState extends State<ServersSection> {
     if (sheetContext.mounted) Navigator.pop(sheetContext);
   }
 
-  Future<void> _addServers() async {
-    final registry = context.read<ServerRegistry>();
-
-    final results = await Navigator.push<List<(String, String, String?, String?)>>(
-      context,
-      MaterialPageRoute(builder: (_) => const AddServerScanScreen()),
-    );
-    if (results == null || !mounted) return;
-
-    var added = 0;
-    var duplicates = 0;
-    var failed = 0;
-    for (final (url, key, email, password) in results) {
-      switch (
-          await registry.addServer(url, key, email: email, password: password)) {
-        case AddServerResult.added:
-          added++;
-        case AddServerResult.duplicate:
-          duplicates++;
-        case AddServerResult.signInFailed:
-          failed++;
-      }
-    }
-
-    if (!mounted) return;
-    final parts = [
-      if (added > 0) 'added $added',
-      if (duplicates > 0) '$duplicates already added',
-      if (failed > 0) '$failed could not sign in, check the login',
-    ];
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(parts.join(', ')),
-    ));
-  }
+  Future<void> _addServers() =>
+      addServersFlow(context, context.read<ServerRegistry>());
 
   void _showShareQr(ServerRegistry registry) {
     showDialog(

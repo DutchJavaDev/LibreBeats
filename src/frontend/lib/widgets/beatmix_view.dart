@@ -67,6 +67,9 @@ class BeatMixView extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: IconButton(
                   padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints(minWidth: 44, minHeight: 44),
+                  tooltip: 'Close',
                   icon: const Icon(Icons.keyboard_arrow_down),
                   onPressed: () => Navigator.pop(context),
                 ),
@@ -130,7 +133,7 @@ class BeatMixView extends StatelessWidget {
                   OutlinedButton.icon(
                     onPressed: playable.isEmpty
                         ? null
-                        : () {
+                        : () async {
                             if (playingThis) {
                               backgroundPlayer.toggleShuffle();
                               return;
@@ -139,8 +142,15 @@ class BeatMixView extends StatelessWidget {
                             if (!shuffleOn) {
                               backgroundPlayer.toggleShuffle();
                             }
-                            else{
-                              backgroundPlayer.toggleShuffle();
+                            final beat =
+                                playable[Random().nextInt(playable.length)];
+                            final played = await backgroundPlayer.playBeatMix(
+                                beatMix, beat);
+                            if (!played && context.mounted) {
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(SnackBar(
+                                content: Text('${beat.title} is unavailable'),
+                              ));
                             }
                           },
                     icon: const Icon(Icons.shuffle),
@@ -155,6 +165,7 @@ class BeatMixView extends StatelessWidget {
                   const SizedBox(width: 4),
                   // likes the whole mix, downloads it and puts it in the library
                   IconButton(
+                    tooltip: isLiked ? 'Unlike playlist' : 'Like playlist',
                     onPressed: () => likedProvider.toggleLikeMix(beatMix),
                     icon: Icon(isLiked ? Icons.favorite : Icons.favorite_border,
                         color: isLiked
@@ -171,18 +182,22 @@ class BeatMixView extends StatelessWidget {
                         : Icons.play_arrow,
                     onPressed: playable.isEmpty
                         ? null
-                        : () {
+                        : () async {
                             if (playingThis) {
                               backgroundPlayer.togglePlay();
                               return;
                             }
 
-                            if (shuffleOn) {
-                              backgroundPlayer.playBeatMix(beatMix,
-                                  playable[Random().nextInt(playable.length)]);
-                            } else {
-                              backgroundPlayer.playBeatMix(
-                                  beatMix, playable.first);
+                            final beat = shuffleOn
+                                ? playable[Random().nextInt(playable.length)]
+                                : playable.first;
+                            final played = await backgroundPlayer.playBeatMix(
+                                beatMix, beat);
+                            if (!played && context.mounted) {
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(SnackBar(
+                                content: Text('${beat.title} is unavailable'),
+                              ));
                             }
                           },
                   ),
@@ -206,7 +221,15 @@ class BeatMixView extends StatelessWidget {
                 downloaded: likedProvider.isDownloaded(beat.key),
                 liked: likedProvider.isLiked(beat.key),
                 onLike: () => toggleBeatLike(context, likedProvider, beat),
-                onTap: () => backgroundPlayer.playBeatMix(beatMix, beat),
+                onTap: () async {
+                  final played =
+                      await backgroundPlayer.playBeatMix(beatMix, beat);
+                  if (!played && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('${beat.title} is unavailable'),
+                    ));
+                  }
+                },
               );
             },
           ),

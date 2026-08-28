@@ -121,7 +121,7 @@ func (m *Migration) Run() error {
 func (m *Migration) _LastAppliedMigrationId() (int, error) {
 	var lastAppliedMigrationId int = -1
 
-	err := m._connection.QueryRow(context.Background(), "SELECT Id FROM Librebeats.Migrations ORDER BY runon DESC LIMIT 1").Scan(&lastAppliedMigrationId)
+	err := m._connection.QueryRow(context.Background(), "SELECT COALESCE(MAX(MigrationFileId), -1) FROM Librebeats.Migrations").Scan(&lastAppliedMigrationId)
 
 	if err != nil {
 		if isMigrationsTableMissingErr(err) {

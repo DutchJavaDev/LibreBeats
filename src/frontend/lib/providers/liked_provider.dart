@@ -13,11 +13,18 @@ import 'package:liberated_beats/services/beat_download_service.dart';
 /// liked mix exists once on disk, deletion only happens when no owner is
 /// left. Everything liked keeps playing after its server is removed.
 class LikedProvider extends ChangeNotifier {
-  LikedProvider(this._store, this._files, this._downloader);
+  LikedProvider(this._store, this._files, this._downloader,
+      {bool? supportsDownloads})
+      : _supportsDownloads = supportsDownloads ?? !Platform.isIOS;
 
   final LikedStore _store;
   final OfflineMediaStore _files;
   final MediaDownloader _downloader;
+
+  /// iOS can not decode the opus the servers ship, so hearts stay streaming
+  /// bookmarks there: records go in as 'pending' and downloads are skipped.
+  bool get supportsDownloads => _supportsDownloads;
+  final bool _supportsDownloads;
 
   List<LikedBeat> _liked = [];
   List<LikedMix> _likedMixes = [];
@@ -105,7 +112,7 @@ class LikedProvider extends ChangeNotifier {
     _liked.insert(0, record);
     notifyListeners();
 
-    await _download(record);
+    if (_supportsDownloads) await _download(record);
   }
 
   Future<void> toggleLikeMix(BeatMix mix) async {
@@ -133,7 +140,7 @@ class LikedProvider extends ChangeNotifier {
     _likedMixes.insert(0, record);
     notifyListeners();
 
-    await _downloadMix(record);
+    if (_supportsDownloads) await _downloadMix(record);
   }
 
   // downloads audio (skipped when another owner already put it on disk)
@@ -251,16 +258,17 @@ class LikedProvider extends ChangeNotifier {
   /// caches never persist a device path, the downloaded file comes in
   /// through [localAudioFor] at play time.
   Beat beatFor(LikedBeat record) {
-    final artFile = File('$_root/${record.artPath}');
     return Beat(
       id: record.id,
       sourceId: record.sourceId,
       title: record.title,
       artist: record.artist,
       thumbnailUrl: record.thumbnailUrl,
-      localArtPath: artFile.existsSync() ? artFile.path : null,
+      // no stat here, this runs per row per build. A dead path just falls
+      // back to the remote url in the image helper.
+      localArtPath: record.downloaded ? '$_root/${record.artPath}' : null,
       duration: record.duration,
-      color: sampleTracks.first.color,
+      color: gradientForKey(record.key),
       audioUrl: record.streamingUrl,
       mixTitle: record.mixTitle,
     );
@@ -304,8 +312,11 @@ class LikedProvider extends ChangeNotifier {
     return file.existsSync() ? file.path : null;
   }
 
-  /// Whether the audio for [key] is on disk, through any like.
-  bool isDownloaded(String key) => localAudioFor(key) != null;
+  /// Whether the audio for [key] is on disk, through any like. Memory only,
+  /// state 'done' is the truth here; play time re-verifies via localAudioFor.
+  bool isDownloaded(String key) =>
+      _liked.any((b) => b.key == key && b.downloaded) ||
+      _likedMixes.any((m) => m.beats.any((b) => b.key == key && b.downloaded));
 
   /// The file the player should use for [key], null when nothing liked
   /// has it downloaded or the file is gone.
@@ -342,6 +353,12 @@ class LikedProvider extends ChangeNotifier {
     // empty keep set, sweeps both offline folders clean
     await _files.sweep(const {});
     await _refreshBytes();
+  }
+
+  /// Pull-to-refresh: re-check the files and retry what is not done yet.
+  Future<void> refresh() async {
+    await _refreshBytes();
+    await _maintenance();
   }
 
   Future<void> _refreshBytes() async {
@@ -394,6 +411,9 @@ class LikedProvider extends ChangeNotifier {
     final removed = await _files.sweep(keep);
     if (removed > 0) PrintLog('offline sweep removed $removed orphan files');
     notifyListeners();
+
+    // bookmarks-only platforms never download, retrying would just spin
+    if (!_supportsDownloads) return;
 
     for (final record in retryBeats) {
       await _download(record);

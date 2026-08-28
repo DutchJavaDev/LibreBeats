@@ -7,16 +7,12 @@
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 
-$env:SUPABASE_DB_URL = ''
-$env:SUPABASE_ACCESS_TOKEN = ''
-$env:SUPABASE_PROJECT_REF = ''
-
 if (-not $env:SUPABASE_DB_URL) {
   Write-Error 'SUPABASE_DB_URL is required'
 }
 
 Write-Host '==> db push (migrations)'
-supabase db push --yes --debug --db-url $env:SUPABASE_DB_URL
+supabase db push --yes --db-url $env:SUPABASE_DB_URL
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 if ($env:SUPABASE_ACCESS_TOKEN -and $env:SUPABASE_PROJECT_REF) {

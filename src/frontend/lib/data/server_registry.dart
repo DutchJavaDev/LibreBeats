@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -42,8 +43,10 @@ class ServerRegistry extends ChangeNotifier {
   ServerRegistry(
       {ServerConnector? connector,
       ServerProbe? probe,
-      Duration checkTimeout = const Duration(seconds: 10)})
-      : _checkTimeout = checkTimeout {
+      Duration checkTimeout = const Duration(seconds: 10),
+      Duration signInTimeout = const Duration(seconds: 15)})
+      : _checkTimeout = checkTimeout,
+        _signInTimeout = signInTimeout {
     _connector = connector ?? _defaultConnect;
     _probe = probe ?? _defaultProbe;
   }
@@ -54,6 +57,10 @@ class ServerRegistry extends ChangeNotifier {
   /// Hard cap on one server's health check. The sign-in has no timeout of
   /// its own, and a single hung request must not wedge checkHealth forever.
   final Duration _checkTimeout;
+
+  /// Cap on one sign-in attempt, a black-holed server must not hang
+  /// connectAll forever.
+  final Duration _signInTimeout;
 
   // No login ships in the app. Release builds start empty and the default
   // login is set up in settings on first run (or arrives via a QR that
@@ -154,6 +161,22 @@ class ServerRegistry extends ChangeNotifier {
     ];
   }
 
+  // raw exceptions read like stack noise in the server sheet, translate the
+  // common ones; the PrintLog lines keep the full '$e'
+  @visibleForTesting
+  static String friendlyError(Object e) {
+    if (e is AuthApiException) return 'wrong email or password';
+    if (e is AuthRetryableFetchException) return 'server unreachable';
+    if (e is PostgrestException) return 'server error';
+    if (e is TimeoutException) return 'took too long to respond';
+    // http's ClientException / dart:io's SocketException without new imports
+    final s = '$e';
+    if (s.contains('ClientException') || s.contains('SocketException')) {
+      return 'server unreachable';
+    }
+    return 'connection failed';
+  }
+
   // Sign in to every server, repeat calls share the same future
   Future<void> connectAll() {
     // the startup sign-in doubles as the first health check
@@ -195,11 +218,23 @@ class ServerRegistry extends ChangeNotifier {
       // sign-in: that also repairs a session the server has revoked, which
       // a probe with the dead client never could. The timeout keeps one
       // hung request from wedging every future check.
-      await Future.wait(targets.map((s) =>
-          (s.client == null || s.status == ServerStatus.failed
-                  ? _connector(s)
-                  : _probe(s))
-              .timeout(_checkTimeout, onTimeout: () {})));
+      await Future.wait(targets.map((s) {
+        final statusBefore = s.status;
+        return (s.client == null || s.status == ServerStatus.failed
+                ? _connector(s)
+                : _probe(s))
+            .timeout(_checkTimeout, onTimeout: () {
+          // a hung check is a down server, not a healthy one. Same staleness
+          // guard as _defaultProbe, except connecting: that is our own hung
+          // sign-in flipping the flag, not a fresher result from elsewhere
+          if (s.status != statusBefore && s.status != ServerStatus.connecting) {
+            return;
+          }
+          s.status = ServerStatus.failed;
+          s.failedAt ??= DateTime.now();
+          s.lastError = 'health check timed out';
+        });
+      }));
       _lastCheckedAt = DateTime.now();
     } finally {
       _checkingHealth = false;
@@ -229,7 +264,7 @@ class ServerRegistry extends ChangeNotifier {
       if (server.status != statusBefore) return;
       server.status = ServerStatus.failed;
       server.failedAt ??= DateTime.now();
-      server.lastError = '$e';
+      server.lastError = friendlyError(e);
       PrintLog('Health probe failed for ${server.host}: $e');
     }
   }
@@ -271,6 +306,9 @@ class ServerRegistry extends ChangeNotifier {
   void markFailed(ServerConnection server) {
     server.status = ServerStatus.failed;
     server.failedAt ??= DateTime.now();
+    // a repository call just blew up on this server, a stale sign-in error
+    // here would point at the wrong thing
+    server.lastError = 'stopped responding';
     notifyListeners();
   }
 
@@ -306,7 +344,8 @@ class ServerRegistry extends ChangeNotifier {
     try {
       final client = server.client ?? SupabaseClient(server.url, server.key);
       final response = await client.auth
-          .signInWithPassword(email: email, password: password);
+          .signInWithPassword(email: email, password: password)
+          .timeout(_signInTimeout);
 
       if (response.user != null) {
         server.client = client;
@@ -320,10 +359,15 @@ class ServerRegistry extends ChangeNotifier {
         server.lastError = 'sign in returned no user';
         PrintLog('Sign-in to ${server.host} returned no user');
       }
+    } on TimeoutException {
+      server.status = ServerStatus.failed;
+      server.failedAt = DateTime.now();
+      server.lastError = 'sign in timed out';
+      PrintLog('Sign-in to ${server.host} timed out');
     } catch (e) {
       server.status = ServerStatus.failed;
       server.failedAt = DateTime.now();
-      server.lastError = '$e';
+      server.lastError = friendlyError(e);
       PrintLog('Failed to connect to ${server.host}: $e');
     }
   }

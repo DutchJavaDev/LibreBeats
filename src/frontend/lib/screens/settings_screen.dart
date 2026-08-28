@@ -83,8 +83,7 @@ class SettingsScreen extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Delete $size?'),
-        content: Text(
-            'Removes $what and their downloads from this device. '
+        content: Text('Removes $what and their downloads from this device. '
             'This cannot be undone.'),
         actions: [
           TextButton(
@@ -143,15 +142,14 @@ class SettingsScreen extends StatelessWidget {
     final selected = controller.mode == value;
     return ListTile(
       onTap: () => controller.setMode(value),
-      leading: _iconBox(context, icon,
-          color: selected ? scheme.primary : null),
+      leading: _iconBox(context, icon, color: selected ? scheme.primary : null),
       title: Text(label),
       trailing: selected
           ? Container(
               width: 20,
               height: 20,
-              decoration: BoxDecoration(
-                  color: scheme.primary, shape: BoxShape.circle),
+              decoration:
+                  BoxDecoration(color: scheme.primary, shape: BoxShape.circle),
               child: Icon(Icons.check, size: 13, color: scheme.onPrimary),
             )
           : Container(
@@ -239,36 +237,45 @@ class SettingsScreen extends StatelessWidget {
                               .copyWith(fontSize: 13)),
                     ],
                   ),
-                  subtitle: total == 0
+                  // bookmarks-only platforms get told why instead of a
+                  // progress bar that never moves
+                  subtitle: !likedProvider.supportsDownloads
                       ? const Padding(
                           padding: EdgeInsets.only(top: 2),
-                          child: Text('Nothing downloaded yet'),
+                          child:
+                              Text("downloads need AAC audio, the servers ship "
+                                  "opus which iOS can't decode, likes stay "
+                                  "streaming bookmarks here"),
                         )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 6),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(2),
-                              child: LinearProgressIndicator(
-                                value:
-                                    likedProvider.totalDownloadedCount / total,
-                                minHeight: 4,
-                              ),
+                      : total == 0
+                          ? const Padding(
+                              padding: EdgeInsets.only(top: 2),
+                              child: Text('Nothing downloaded yet'),
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 6),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(2),
+                                  child: LinearProgressIndicator(
+                                    value: likedProvider.totalDownloadedCount /
+                                        total,
+                                    minHeight: 4,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                _storageStatus(context, likedProvider),
+                              ],
                             ),
-                            const SizedBox(height: 4),
-                            _storageStatus(context, likedProvider),
-                          ],
-                        ),
                 ),
                 if (total > 0) ...[
                   const Divider(indent: 70),
                   ListTile(
                     onTap: () => _confirmClearDownloads(context),
                     leading: _iconBox(context, Icons.delete_outline,
-                        background: theme
-                            .extension<LbTokens>()!
-                            .dangerContainer,
+                        background:
+                            theme.extension<LbTokens>()!.dangerContainer,
                         color: theme.colorScheme.error),
                     title: Text('Clear liked downloads',
                         style: theme.textTheme.titleSmall!

@@ -5,7 +5,6 @@ import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/providers/background_audio_provider.dart';
 import 'package:liberated_beats/providers/catalog_provider.dart';
 import 'package:liberated_beats/providers/play_stats_provider.dart';
-import 'package:liberated_beats/sample/home_sample_data.dart';
 import 'package:liberated_beats/theme/lb_tokens.dart';
 import 'package:liberated_beats/widgets/browse_mix_card.dart';
 import 'package:liberated_beats/widgets/home_beat_card.dart';
@@ -35,7 +34,8 @@ class HomeScreen extends StatelessWidget {
   }
 
   static const _weekdays = [
-    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', //
+    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
+    'Sunday', //
   ];
   static const _months = [
     'January', 'February', 'March', 'April', 'May', 'June', 'July', //
@@ -83,129 +83,127 @@ class HomeScreen extends StatelessWidget {
     final topInset = MediaQuery.of(context).padding.top;
     final tracks = backgroundPlayer.recentBeats;
 
-    return CustomScrollView(
-      slivers: [
-        // 1. Flat greeting header with the brand rule, no gradient wash.
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(16, topInset + 20, 16, 4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(_greeting, style: theme.textTheme.headlineMedium),
-                const SizedBox(height: 6),
-                const BrandRule(),
-                const SizedBox(height: 6),
-                Text(_dateLine, style: theme.textTheme.bodySmall),
-              ],
-            ),
-          ),
-        ),
-        // 2. History: the last 10 played beats as a horizontal carousel,
-        // newest first (a replay moves back to the front).
-        if (tracks.isNotEmpty) ...[
-          const SliverToBoxAdapter(child: SectionHeader('History')),
+    // pull to refresh re-probes the fleet, force skips the once-a-minute
+    // throttle so the gesture always does something
+    return RefreshIndicator(
+      onRefresh: () => context.read<ServerRegistry>().checkHealth(force: true),
+      child: CustomScrollView(
+        // short pages must still pull
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          // 1. Flat greeting header with the brand rule, no gradient wash.
           SliverToBoxAdapter(
-            child: SizedBox(
-              height: 164,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: tracks.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (context, i) {
-                  final t = tracks[i];
-                  final isActive = backgroundPlayer.currentBeat?.key == t.key;
-                  return HomeBeatCard(
-                    beat: t,
-                    isActive: isActive,
-                    isPlaying: isActive && backgroundPlayer.isPlaying,
-                    onTap: () => _playBeat(context, t),
-                  );
-                },
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(16, topInset + 20, 16, 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_greeting, style: theme.textTheme.headlineMedium),
+                  const SizedBox(height: 6),
+                  const BrandRule(),
+                  const SizedBox(height: 6),
+                  Text(_dateLine, style: theme.textTheme.bodySmall),
+                ],
               ),
             ),
           ),
-        ],
-        // 3. On repeat: the most played songs, counted on device (a play is
-        // 30s or half the track). Empty shows an invitation, not a gap.
-        const SliverToBoxAdapter(child: SectionHeader('On repeat')),
-        if (stats.topBeats.isEmpty)
-          const SliverToBoxAdapter(
-            child: _EmptySectionHint('Listen to songs to see this update'),
-          )
-        else
-          SliverToBoxAdapter(
-            child: Column(
-              children: [
-                for (var i = 0; i < stats.topBeats.length; i++)
-                  _RankedBeatRow(
-                    rank: i + 1,
-                    beat: stats.topBeats[i].beat,
-                    plays: stats.topBeats[i].plays,
-                    isActive: backgroundPlayer.currentBeat?.key ==
-                        stats.topBeats[i].beat.key,
-                    onTap: () =>
-                        _playBeat(context, stats.topBeats[i].beat),
-                  ),
-              ],
+          // 2. History: the last 10 played beats as a horizontal carousel,
+          // newest first (a replay moves back to the front).
+          if (tracks.isNotEmpty) ...[
+            const SliverToBoxAdapter(child: SectionHeader('History')),
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 164,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: tracks.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (context, i) {
+                    final t = tracks[i];
+                    final isActive = backgroundPlayer.currentBeat?.key == t.key;
+                    return HomeBeatCard(
+                      beat: t,
+                      isActive: isActive,
+                      isPlaying: isActive && backgroundPlayer.isPlaying,
+                      onTap: () => _playBeat(context, t),
+                    );
+                  },
+                ),
+              ),
             ),
-          ),
-        // 4. Heavy rotation: the most played mixes, with how many of their
-        // songs actually got played. Empty shows an invitation, not a gap.
-        const SliverToBoxAdapter(child: SectionHeader('Heavy rotation')),
-        if (stats.topMixes.isEmpty)
-          const SliverToBoxAdapter(
-            child: _EmptySectionHint('Listen to playlists to see this update'),
-          )
-        else
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 200,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: stats.topMixes.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (context, i) {
-                  final stat = stats.topMixes[i];
-                  return SizedBox(
-                    width: 140,
-                    child: BrowseMixCard(
-                      mix: stat.toBeatMix(),
-                      subtitleOverride:
-                          '${_count(stat.plays, 'play')} · ${_count(stat.distinctSongs, 'song')}',
-                      onTap: () => _openMix(context, stat),
+          ],
+          // 3. On repeat: the most played songs, counted on device (a play is
+          // 30s or half the track). Empty shows an invitation, not a gap.
+          const SliverToBoxAdapter(child: SectionHeader('On repeat')),
+          if (stats.topBeats.isEmpty)
+            const SliverToBoxAdapter(
+              child: _EmptySectionHint('Listen to songs to see this update'),
+            )
+          else
+            SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  for (var i = 0; i < stats.topBeats.length; i++)
+                    _RankedBeatRow(
+                      rank: i + 1,
+                      beat: stats.topBeats[i].beat,
+                      plays: stats.topBeats[i].plays,
+                      isActive: backgroundPlayer.currentBeat?.key ==
+                          stats.topBeats[i].beat.key,
+                      onTap: () => _playBeat(context, stats.topBeats[i].beat),
                     ),
-                  );
-                },
+                ],
               ),
             ),
-          ),
-        // 5. From your servers: a real health digest first, then the update
-        // cards that are still mocked samples (each marked Preview).
-        const SliverToBoxAdapter(
-          child: SectionHeader('From your servers'),
-        ),
-        SliverToBoxAdapter(
-          child: Column(
-            children: [
-              if (registry.servers.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: _ServerHealthCard(registry: registry),
+          // 4. Heavy rotation: the most played mixes, with how many of their
+          // songs actually got played. Empty shows an invitation, not a gap.
+          const SliverToBoxAdapter(child: SectionHeader('Heavy rotation')),
+          if (stats.topMixes.isEmpty)
+            const SliverToBoxAdapter(
+              child:
+                  _EmptySectionHint('Listen to playlists to see this update'),
+            )
+          else
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 200,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: stats.topMixes.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (context, i) {
+                    final stat = stats.topMixes[i];
+                    return SizedBox(
+                      width: 140,
+                      child: BrowseMixCard(
+                        mix: stat.toBeatMix(),
+                        subtitleOverride:
+                            '${_count(stat.plays, 'play')} · ${_count(stat.distinctSongs, 'song')}',
+                        onTap: () => _openMix(context, stat),
+                      ),
+                    );
+                  },
                 ),
-              for (final update in sampleServerUpdates)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: _ServerUpdateCard(update: update),
-                ),
-            ],
+              ),
+            ),
+          // 5. From your servers: the real health digest, refreshed on
+          // visiting the tab (and by pulling down).
+          const SliverToBoxAdapter(
+            child: SectionHeader('From your servers'),
           ),
-        ),
-        // 6. Trailing spacer.
-        const SliverToBoxAdapter(child: SizedBox(height: 16)),
-      ],
+          if (registry.servers.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: _ServerHealthCard(registry: registry),
+              ),
+            ),
+          // 6. Trailing spacer.
+          const SliverToBoxAdapter(child: SizedBox(height: 16)),
+        ],
+      ),
     );
   }
 }
@@ -336,8 +334,7 @@ class _ServerHealthCard extends StatelessWidget {
 
     final servers = registry.servers;
     final total = servers.length;
-    final failed =
-        servers.where((s) => s.status == ServerStatus.failed).length;
+    final failed = servers.where((s) => s.status == ServerStatus.failed).length;
     final connecting =
         servers.where((s) => s.status == ServerStatus.connecting).length;
 
@@ -372,40 +369,6 @@ class _ServerHealthCard extends StatelessWidget {
         title: Text(message),
         subtitle: Text(
             checked == null ? 'Checking…' : 'Last checked ${_ago(checked)}'),
-      ),
-    );
-  }
-}
-
-/// One mocked server update card, marked Preview until real per-server
-/// update feeds exist.
-class _ServerUpdateCard extends StatelessWidget {
-  const _ServerUpdateCard({required this.update});
-
-  final SampleServerUpdate update;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tint = theme.colorScheme.primary;
-
-    return Card(
-      child: ListTile(
-        leading: Container(
-          width: 34,
-          height: 34,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: tint.withValues(alpha: 0.14),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(Icons.playlist_add, size: 17, color: tint),
-        ),
-        title: Text(update.message),
-        subtitle: Text(update.host.isEmpty
-            ? update.timeAgo
-            : '${update.host} · ${update.timeAgo}'),
-        trailing: const PreviewChip(),
       ),
     );
   }

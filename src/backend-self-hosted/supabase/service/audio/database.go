@@ -42,7 +42,7 @@ func (db *LibreDb) NewRawAudioEntry(source string, audioLocation string, thumbna
 
 	var lastinsertedId int
 	err = tx.QueryRow(ctx,
-		"INSERT INTO Librebeats.RawBeat (Source, AudioLocation, ThumbnailLocation, Duration) VALUES($1, $2, $3, $4) RETURNING Id",
+		"INSERT INTO Librebeats.RawBeat (Source, AudioLocation, ThumbnailLocation, Duration) VALUES($1, $2, $3, $4) ON CONFLICT (Source) DO UPDATE SET AudioLocation = EXCLUDED.AudioLocation, ThumbnailLocation = EXCLUDED.ThumbnailLocation, Duration = EXCLUDED.Duration RETURNING Id",
 		source, audioLocation, thumbnailLocation, duration).
 		Scan(&lastinsertedId)
 	if err != nil {
@@ -74,7 +74,7 @@ func (db *LibreDb) NewBeatEntry(rawBeat *RawBeat, title string, arties string, t
 
 	var insertedId int
 	err = tx.QueryRow(ctx,
-		"INSERT INTO Librebeats.Beat (RawBeatId, Title, Artist, Tags, StreamingUrl, ThumbnailUrl) VALUES($1, $2, $3, $4, $5, $6) RETURNING Id",
+		"INSERT INTO Librebeats.Beat (RawBeatId, Title, Artist, Tags, StreamingUrl, ThumbnailUrl) VALUES($1, $2, $3, $4, $5, $6) ON CONFLICT (StreamingUrl) DO UPDATE SET RawBeatId = EXCLUDED.RawBeatId, Title = EXCLUDED.Title, Artist = EXCLUDED.Artist, Tags = EXCLUDED.Tags, ThumbnailUrl = EXCLUDED.ThumbnailUrl RETURNING Id",
 		rawBeat.Id, title, arties, tags, streamingUrl, thumbnailUrl).
 		Scan(&insertedId)
 	if err != nil {
@@ -97,7 +97,7 @@ func (db *LibreDb) NewBeatMixEntry(beatMix *BeatMix) error {
 	defer tx.Rollback(ctx)
 
 	err = tx.QueryRow(ctx,
-		"INSERT INTO Librebeats.BeatMix (Title, ThumbnailUrl) VALUES($1, $2) RETURNING Id",
+		"INSERT INTO Librebeats.BeatMix (Title, ThumbnailUrl) VALUES($1, $2) ON CONFLICT (Title) DO UPDATE SET ThumbnailUrl = EXCLUDED.ThumbnailUrl RETURNING Id",
 		beatMix.Title, beatMix.ThumbnailURL).
 		Scan(&beatMix.Id)
 	if err != nil {
@@ -116,7 +116,7 @@ func (db *LibreDb) NewBeatMixBeatEntry(beatId int, beatMixId int) error {
 	defer tx.Rollback(ctx)
 
 	_, err = tx.Exec(ctx,
-		"INSERT INTO Librebeats.BeatMixBeat (BeatId, BeatMixId) VALUES($1, $2)",
+		"INSERT INTO Librebeats.BeatMixBeat (BeatId, BeatMixId) VALUES($1, $2) ON CONFLICT DO NOTHING",
 		beatId, beatMixId)
 	if err != nil {
 		return err

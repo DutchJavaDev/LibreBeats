@@ -85,6 +85,7 @@ class _AddServerScanScreenState extends State<AddServerScanScreen> {
         title: const Text('Scan server QR'),
         leading: IconButton(
           icon: const Icon(Icons.close),
+          tooltip: 'Close',
           onPressed: () => Navigator.pop(context),
         ),
       ),

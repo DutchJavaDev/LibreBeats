@@ -41,10 +41,12 @@ class LikedScreen extends StatelessWidget {
         currentKey != null && beats.any((b) => b.key == currentKey);
     final shuffleOn = backgroundPlayer.shuffle;
 
+    // only claim "on this device" where downloads actually happen
     final stats = likedProvider.count == 0
         ? '0 songs'
         : '${likedProvider.count} songs · '
-            '${formatTotalDuration(likedProvider.likedDuration)} · on this device';
+            '${formatTotalDuration(likedProvider.likedDuration)}'
+            '${likedProvider.supportsDownloads ? ' · on this device' : ''}';
 
     // header stays put, only the track list below scrolls
     return Column(
@@ -85,20 +87,27 @@ class LikedScreen extends StatelessWidget {
                         : Icons.play_arrow,
                     onPressed: beats.isEmpty
                         ? null
-                        : () {
+                        : () async {
                             if (playingLiked) {
                               backgroundPlayer.togglePlay();
                               return;
                             }
-                            backgroundPlayer.playBeatMix(
+                            final played = await backgroundPlayer.playBeatMix(
                                 _asMix(beats), beats.first);
+                            if (!played && context.mounted) {
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(SnackBar(
+                                content:
+                                    Text('${beats.first.title} is unavailable'),
+                              ));
+                            }
                           },
                   ),
                   const SizedBox(width: 10),
                   OutlinedButton.icon(
                     onPressed: beats.isEmpty
                         ? null
-                        : () {
+                        : () async {
                             // playing already: just flip the mode, otherwise
                             // start a shuffled run through the liked list
                             if (playingLiked) {
@@ -108,8 +117,15 @@ class LikedScreen extends StatelessWidget {
                             if (!backgroundPlayer.shuffle) {
                               backgroundPlayer.toggleShuffle();
                             }
-                            backgroundPlayer.playBeatMix(_asMix(beats),
-                                beats[Random().nextInt(beats.length)]);
+                            final beat = beats[Random().nextInt(beats.length)];
+                            final played = await backgroundPlayer.playBeatMix(
+                                _asMix(beats), beat);
+                            if (!played && context.mounted) {
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(SnackBar(
+                                content: Text('${beat.title} is unavailable'),
+                              ));
+                            }
                           },
                     style: shuffleOn
                         ? OutlinedButton.styleFrom(
@@ -127,33 +143,55 @@ class LikedScreen extends StatelessWidget {
         ),
         const Divider(indent: 16, endIndent: 16),
         Expanded(
-          child: beats.isEmpty
-              ? Center(
-                  child: Text(
-                      'Nothing liked yet, tap the heart on a playing song',
-                      style: theme.textTheme.bodyMedium),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.only(top: 4, bottom: 16),
-                  itemCount: beats.length,
-                  itemBuilder: (context, i) {
-                    final t = beats[i];
-                    final isActive = backgroundPlayer.currentBeat?.key == t.key;
-                    return BeatTile(
-                      beat: t,
-                      isActive: isActive,
-                      isPlaying: isActive && backgroundPlayer.isPlaying,
-                      downloaded: likedProvider.isDownloaded(t.key),
-                      // always filled here, tapping it un-likes with an undo
-                      liked: true,
-                      onLike: () => toggleBeatLike(context, likedProvider, t),
-                      // whole list as the queue, like a beatmix, so skip
-                      // next/previous walks through the liked songs
-                      onTap: () =>
-                          backgroundPlayer.playBeatMix(_asMix(beats), t),
-                    );
-                  },
-                ),
+          // pull down re-checks the files and retries stuck downloads
+          child: RefreshIndicator(
+            onRefresh: likedProvider.refresh,
+            child: beats.isEmpty
+                // the empty state needs to scroll too or there is nothing to pull
+                ? LayoutBuilder(
+                    builder: (context, c) => SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: SizedBox(
+                        height: c.maxHeight,
+                        child: Center(
+                          child: Text(
+                              'Nothing liked yet, tap the heart on a playing song',
+                              style: theme.textTheme.bodyMedium),
+                        ),
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.only(top: 4, bottom: 16),
+                    itemCount: beats.length,
+                    itemBuilder: (context, i) {
+                      final t = beats[i];
+                      final isActive =
+                          backgroundPlayer.currentBeat?.key == t.key;
+                      return BeatTile(
+                        beat: t,
+                        isActive: isActive,
+                        isPlaying: isActive && backgroundPlayer.isPlaying,
+                        downloaded: likedProvider.isDownloaded(t.key),
+                        // always filled here, tapping it un-likes with an undo
+                        liked: true,
+                        onLike: () => toggleBeatLike(context, likedProvider, t),
+                        // whole list as the queue, like a beatmix, so skip
+                        // next/previous walks through the liked songs
+                        onTap: () async {
+                          final played = await backgroundPlayer.playBeatMix(
+                              _asMix(beats), t);
+                          if (!played && context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text('${t.title} is unavailable'),
+                            ));
+                          }
+                        },
+                      );
+                    },
+                  ),
+          ),
         ),
       ],
     );

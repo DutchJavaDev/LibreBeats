@@ -5,14 +5,11 @@ source ./variables.sh
 _WORKING_DIR=$(pwd)
 
 if [ ! -d "$PROJECT_DIR" ]; then
-    echo "Creating project directory at $PROJECT_DIR"
     mkdir -p "$PROJECT_DIR"
     echo "Project directory created. at $PROJECT_DIR"
 else
     echo "Project directory already exists, skipping mkdir."
 fi
-
-sudo rm -rf "$BUILD_DIRECTORY"
 
 # Create local backend folder if missing
 
@@ -20,12 +17,13 @@ if [ ! -d "$BUILD_DIRECTORY" ]; then
     mkdir "$BUILD_DIRECTORY"
     cd "$SUPABASE_DIR"
     cp -rf $_WORKING_DIR/supabase/* "$BUILD_DIRECTORY"
+    echo "Build directory created at $BUILD_DIRECTORY"
 else
     echo "$BUILD_DIRECTORY already exists, skipping mkdir."
     cp -rf $_WORKING_DIR/supabase/* "$BUILD_DIRECTORY"
 fi
 
-# # # Copy the fake env vars if .env does not exist
+# # Copy the fake env vars if .env does not exist
 if [ -f "$BUILD_DIRECTORY/.env" ]; then
     echo ".env file already exists, skipping copy."
 else

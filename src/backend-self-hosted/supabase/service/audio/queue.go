@@ -50,7 +50,7 @@ func (ql *QueueListener) Ack(msgID int64) error {
 	ctx := context.Background()
 	var deleted bool
 	err := ql.pool.QueryRow(ctx,
-		"SELECT pgmq.delete($1, $2)",
+		"SELECT * from pgmq.delete($1::text, $2::bigint)",
 		ql.QueueName, msgID).
 		Scan(&deleted)
 	if err != nil {

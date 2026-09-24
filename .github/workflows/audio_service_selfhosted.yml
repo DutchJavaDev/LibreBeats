@@ -1,44 +1,49 @@
 name: Audio Service Test
-on: 
+
+on:
   pull_request:
     branches:
       - '*'
-    types: 
+    types:
       - opened
       - synchronize
+      - reopened
+
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
+
 env:
   WORKING_DIR: src/backend-self-hosted/docker/service/audio
+
 jobs:
   audio_tests:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@4
+      - name: Checkout
+        uses: actions/checkout@v5
 
       - name: Set up Golang
-        uses: actions/setup-go@4
+        uses: actions/setup-go@v6
         with:
           go-version: '1.25.5'
-          cache-dependency-path: "$WORKING_DIR/go.sum"
+          cache-dependency-path: ${{ env.WORKING_DIR }}/go.sum
 
       - name: Sync go.mod & go.sum
-        working-directory: "$WORKING_DIR"
+        working-directory: ${{ env.WORKING_DIR }}
         run: go mod tidy
 
-      - name: Run test + Coverage
-        working-directory: "$WORKING_DIR"
-        run: go test -v -covertprofile=coverage.out ./...
+      - name: Run tests + coverage
+        working-directory: ${{ env.WORKING_DIR }}
+        run: go test -v -coverprofile=coverage.out ./...
 
-      - name: Show Coverage result
-        working-directory: "$WORKING_DIR"
+      - name: Show coverage result
+        working-directory: ${{ env.WORKING_DIR }}
         run: go tool cover -func=coverage.out
 
-      - name: Upload Coverage
-        uses: actions/upload-artifect@4
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: "$WORKING_DIR"
-
-
+          path: ${{ env.WORKING_DIR }}/coverage.out

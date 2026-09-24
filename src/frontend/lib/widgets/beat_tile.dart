@@ -73,8 +73,7 @@ class BeatTile extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: isActive
-            ? theme.textTheme.titleSmall!
-                .copyWith(fontWeight: FontWeight.w700)
+            ? theme.textTheme.titleSmall!.copyWith(fontWeight: FontWeight.w700)
             : theme.textTheme.titleSmall,
       ),
       // empty when it would only repeat the title, the model guards that
@@ -96,8 +95,10 @@ class BeatTile extends StatelessWidget {
           if (liked != null)
             IconButton(
               padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              // 48 is the minimum comfortable touch target
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
               iconSize: 18,
+              tooltip: liked! ? 'Unlike' : 'Like',
               onPressed: onLike,
               icon: Icon(
                 liked! ? Icons.favorite : Icons.favorite_border,
@@ -132,8 +133,8 @@ class BeatTile extends StatelessWidget {
             width: 3,
             decoration: BoxDecoration(
               color: tokens.nowPlaying,
-              borderRadius: const BorderRadius.horizontal(
-                  right: Radius.circular(2)),
+              borderRadius:
+                  const BorderRadius.horizontal(right: Radius.circular(2)),
             ),
           ),
         ),

@@ -1,4 +1,0 @@
-#!/bin/bash
-PROJECT_DIR=~/librebeats
-BUILD_DIRECTORY=$PROJECT_DIR/Herman
-GENERATE_KEYS=true

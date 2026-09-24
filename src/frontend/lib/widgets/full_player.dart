@@ -22,8 +22,12 @@ class FullPlayer extends StatefulWidget {
 }
 
 class _FullPlayerState extends State<FullPlayer> {
+  // where the finger is mid-drag, null while nobody is touching the slider
+  double? _dragValue;
+
   String _format(Duration d) {
-    final m = d.inMinutes.remainder(60);
+    // total minutes on purpose, an hour-plus track reads 72:30 not 12:30
+    final m = d.inMinutes;
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$m:$s';
   }
@@ -69,224 +73,277 @@ class _FullPlayerState extends State<FullPlayer> {
                 ),
               ),
               SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    children: [
-                      // Grabber handle.
-                      Container(
-                        margin: const EdgeInsets.symmetric(vertical: 8),
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: scheme.onSurface.withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      // Header row.
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.keyboard_arrow_down),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                          const Spacer(),
-                          // no menu behind it yet, dimmed until there is
-                          IconButton(
-                            icon: Icon(Icons.more_horiz, color: dimmed),
-                            onPressed: () {},
-                          ),
-                        ],
-                      ),
-                      const Spacer(),
-                      // Artwork — subtly shrinks when paused.
-                      AnimatedScale(
-                        scale: backgroundPlayer.isPlaying ? 1.0 : 0.92,
-                        duration: const Duration(milliseconds: 800),
-                        curve: Curves.easeOutBack,
-                        child: Container(
-                          width: double.infinity,
-                          height: 280,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            gradient: track.color,
-                            borderRadius:
-                                BorderRadius.circular(LbRadius.hero),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.5),
-                                blurRadius: 32,
-                                offset: const Offset(0, 16),
+                // scaled-up text and short screens scroll, tall ones keep
+                // the Spacer layout as-is
+                child: LayoutBuilder(builder: (context, constraints) {
+                  final artHeight =
+                      (constraints.maxHeight * 0.38).clamp(120.0, 280.0);
+                  return SingleChildScrollView(
+                    controller: scrollController,
+                    child: ConstrainedBox(
+                      constraints:
+                          BoxConstraints(minHeight: constraints.maxHeight),
+                      child: IntrinsicHeight(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Column(
+                            children: [
+                              // Grabber handle.
+                              Container(
+                                margin: const EdgeInsets.symmetric(vertical: 8),
+                                width: 40,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color:
+                                      scheme.onSurface.withValues(alpha: 0.3),
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
                               ),
+                              // Header row.
+                              Row(
+                                children: [
+                                  IconButton(
+                                    tooltip: 'Close',
+                                    icon: const Icon(Icons.keyboard_arrow_down),
+                                    onPressed: () => Navigator.pop(context),
+                                  ),
+                                  const Spacer(),
+                                  // no menu behind it yet, dimmed until there is
+                                  IconButton(
+                                    tooltip: 'More',
+                                    icon: Icon(Icons.more_horiz, color: dimmed),
+                                    onPressed: null,
+                                  ),
+                                ],
+                              ),
+                              const Spacer(),
+                              // Artwork — subtly shrinks when paused.
+                              AnimatedScale(
+                                scale: backgroundPlayer.isPlaying ? 1.0 : 0.92,
+                                duration: const Duration(milliseconds: 800),
+                                curve: Curves.easeOutBack,
+                                child: Container(
+                                  width: double.infinity,
+                                  height: artHeight,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    gradient: track.color,
+                                    borderRadius:
+                                        BorderRadius.circular(LbRadius.hero),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color:
+                                            Colors.black.withValues(alpha: 0.5),
+                                        blurRadius: 32,
+                                        offset: const Offset(0, 16),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius:
+                                        BorderRadius.circular(LbRadius.hero),
+                                    child: createCachedNetworkImage(
+                                      imageUrl: track.localArtPath ??
+                                          track.thumbnailUrl,
+                                      fit: BoxFit.cover,
+                                      width: double.infinity,
+                                      height: double.infinity,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const Spacer(),
+                              // Title + like.
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          track.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: theme.textTheme.titleLarge,
+                                        ),
+                                        // the owning playlist when known, artist
+                                        // otherwise, hidden when it would just
+                                        // repeat the title
+                                        if (track.subtitle.isNotEmpty)
+                                          Text(
+                                            track.subtitle,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: theme.textTheme.bodyMedium,
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: liked ? 'Unlike' : 'Like',
+                                    icon: Icon(
+                                      liked
+                                          ? Icons.favorite
+                                          : Icons.favorite_border,
+                                      color: liked
+                                          ? tokens.nowPlaying
+                                          : scheme.onSurfaceVariant,
+                                    ),
+                                    onPressed: () =>
+                                        likedProvider.toggleLike(track),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              // Progress slider, styled by the app-wide sliderTheme,
+                              // only this subtree rebuilds on a position tick.
+                              ValueListenableBuilder<double>(
+                                valueListenable:
+                                    backgroundPlayer.progressListenable,
+                                builder: (context, progressValue, _) {
+                                  final shown = _dragValue ?? progressValue;
+                                  return Column(
+                                    children: [
+                                      Slider(
+                                        value: shown,
+                                        // track the finger, seek applies on release
+                                        onChanged: (v) =>
+                                            setState(() => _dragValue = v),
+                                        onChangeEnd: (v) async {
+                                          setState(() => _dragValue = null);
+                                          await backgroundPlayer.setSeek(v);
+                                        },
+                                        min: 0.0,
+                                        max: 1.0,
+                                      ),
+                                      // Time row.
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(_format(track.duration * shown),
+                                              style: theme.textTheme.bodySmall),
+                                          Text(_format(track.duration),
+                                              style: theme.textTheme.bodySmall),
+                                        ],
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 8),
+                              // Transport controls.
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  IconButton(
+                                    tooltip: 'Shuffle',
+                                    icon: Icon(Icons.shuffle,
+                                        color: backgroundPlayer.shuffle
+                                            ? tokens.nowPlaying
+                                            : scheme.onSurface),
+                                    onPressed: backgroundPlayer.toggleShuffle,
+                                  ),
+                                  IconButton(
+                                    iconSize: 40,
+                                    tooltip: 'Previous',
+                                    icon: const Icon(Icons.skip_previous),
+                                    onPressed: backgroundPlayer.skipToPrevious,
+                                  ),
+                                  // the brand-gradient play circle
+                                  Semantics(
+                                    button: true,
+                                    label: backgroundPlayer.isPlaying
+                                        ? 'Pause'
+                                        : 'Play',
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      child: Ink(
+                                        width: 64,
+                                        height: 64,
+                                        decoration: ShapeDecoration(
+                                          gradient: tokens.brandGradient,
+                                          shape: const CircleBorder(),
+                                        ),
+                                        child: InkWell(
+                                          customBorder: const CircleBorder(),
+                                          onTap: backgroundPlayer.togglePlay,
+                                          child: Icon(
+                                              backgroundPlayer.isPlaying
+                                                  ? Icons.pause
+                                                  : Icons.play_arrow,
+                                              color: scheme.onPrimary,
+                                              size: 34),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    iconSize: 40,
+                                    tooltip: 'Next',
+                                    icon: const Icon(Icons.skip_next),
+                                    onPressed: backgroundPlayer.skipToNext,
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Repeat',
+                                    icon: Icon(
+                                      backgroundPlayer.repeatMode ==
+                                              LoopMode.one
+                                          ? Icons.repeat_one
+                                          : Icons.repeat,
+                                      color: backgroundPlayer.repeatMode !=
+                                              LoopMode.off
+                                          ? tokens.nowPlaying
+                                          : scheme.onSurface,
+                                    ),
+                                    onPressed: backgroundPlayer.cycleRepeat,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              // Volume row, same app-wide slider styling.
+                              Row(
+                                children: [
+                                  Icon(Icons.volume_down,
+                                      color: scheme.onSurfaceVariant),
+                                  Expanded(
+                                    child: Slider(
+                                      value: backgroundPlayer.volume,
+                                      onChanged: backgroundPlayer.setVolume,
+                                    ),
+                                  ),
+                                  Icon(Icons.volume_up,
+                                      color: scheme.onSurfaceVariant),
+                                ],
+                              ),
+                              // Bottom row: sleep timer + queue.
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceEvenly,
+                                children: [
+                                  _SleepTimerButton(player: backgroundPlayer),
+                                  TextButton.icon(
+                                    onPressed: () => showQueueSheet(
+                                        context, backgroundPlayer),
+                                    icon: Icon(Icons.queue_music_outlined,
+                                        size: 20,
+                                        color: scheme.onSurfaceVariant),
+                                    label: Text('Queue',
+                                        style: TextStyle(
+                                            color: scheme.onSurfaceVariant)),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
                             ],
                           ),
-                          child: ClipRRect(
-                            borderRadius:
-                                BorderRadius.circular(LbRadius.hero),
-                            child: createCachedNetworkImage(
-                              imageUrl:
-                                  track.localArtPath ?? track.thumbnailUrl,
-                              fit: BoxFit.cover,
-                              width: double.infinity,
-                              height: double.infinity,
-                            ),
-                          ),
                         ),
                       ),
-                      const Spacer(),
-                      // Title + like.
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  track.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.titleLarge,
-                                ),
-                                // the owning playlist when known, artist
-                                // otherwise, hidden when it would just
-                                // repeat the title
-                                if (track.subtitle.isNotEmpty)
-                                  Text(
-                                    track.subtitle,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.bodyMedium,
-                                  ),
-                              ],
-                            ),
-                          ),
-                          IconButton(
-                            icon: Icon(
-                              liked ? Icons.favorite : Icons.favorite_border,
-                              color: liked
-                                  ? tokens.nowPlaying
-                                  : scheme.onSurfaceVariant,
-                            ),
-                            onPressed: () => likedProvider.toggleLike(track),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      // Progress slider, styled by the app-wide sliderTheme.
-                      Slider(
-                        value: backgroundPlayer.progress,
-                        // seek applies on release, not while dragging
-                        onChanged: (_) {},
-                        onChangeEnd: (double position) async {
-                          await backgroundPlayer.setSeek(position);
-                        },
-                        min: 0.0,
-                        max: 1.0,
-                      ),
-                      // Time row.
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(_format(backgroundPlayer.elapsed),
-                              style: theme.textTheme.bodySmall),
-                          Text(_format(track.duration),
-                              style: theme.textTheme.bodySmall),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      // Transport controls.
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          IconButton(
-                            icon: Icon(Icons.shuffle,
-                                color: backgroundPlayer.shuffle
-                                    ? tokens.nowPlaying
-                                    : scheme.onSurface),
-                            onPressed: backgroundPlayer.toggleShuffle,
-                          ),
-                          IconButton(
-                            iconSize: 40,
-                            icon: const Icon(Icons.skip_previous),
-                            onPressed: backgroundPlayer.skipToPrevious,
-                          ),
-                          // the brand-gradient play circle
-                          Material(
-                            color: Colors.transparent,
-                            child: Ink(
-                              width: 64,
-                              height: 64,
-                              decoration: ShapeDecoration(
-                                gradient: tokens.brandGradient,
-                                shape: const CircleBorder(),
-                              ),
-                              child: InkWell(
-                                customBorder: const CircleBorder(),
-                                onTap: backgroundPlayer.togglePlay,
-                                child: Icon(
-                                    backgroundPlayer.isPlaying
-                                        ? Icons.pause
-                                        : Icons.play_arrow,
-                                    color: scheme.onPrimary,
-                                    size: 34),
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            iconSize: 40,
-                            icon: const Icon(Icons.skip_next),
-                            onPressed: backgroundPlayer.skipToNext,
-                          ),
-                          IconButton(
-                            icon: Icon(
-                              backgroundPlayer.repeatMode == LoopMode.one
-                                  ? Icons.repeat_one
-                                  : Icons.repeat,
-                              color:
-                                  backgroundPlayer.repeatMode != LoopMode.off
-                                      ? tokens.nowPlaying
-                                      : scheme.onSurface,
-                            ),
-                            onPressed: backgroundPlayer.cycleRepeat,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      // Volume row, same app-wide slider styling.
-                      Row(
-                        children: [
-                          Icon(Icons.volume_down,
-                              color: scheme.onSurfaceVariant),
-                          Expanded(
-                            child: Slider(
-                              value: backgroundPlayer.volume,
-                              onChanged: backgroundPlayer.setVolume,
-                            ),
-                          ),
-                          Icon(Icons.volume_up,
-                              color: scheme.onSurfaceVariant),
-                        ],
-                      ),
-                      // Bottom row: sleep timer + queue.
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _SleepTimerButton(player: backgroundPlayer),
-                          TextButton.icon(
-                            onPressed: () =>
-                                showQueueSheet(context, backgroundPlayer),
-                            icon: Icon(Icons.queue_music_outlined,
-                                size: 20, color: scheme.onSurfaceVariant),
-                            label: Text('Queue',
-                                style: TextStyle(
-                                    color: scheme.onSurfaceVariant)),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                  ),
-                ),
+                    ),
+                  );
+                }),
               ),
             ],
           ),

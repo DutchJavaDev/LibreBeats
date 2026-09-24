@@ -83,7 +83,13 @@ class SearchTile extends StatelessWidget {
       onTap: () async {
         // a song from a cached playlist plays inside it, skip walks the list
         if (search.inMix != null) {
-          await backgroundPlayer.playBeatMix(search.inMix!, beat);
+          final played =
+              await backgroundPlayer.playBeatMix(search.inMix!, beat);
+          if (!played && context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text('${beat.title} is unavailable'),
+            ));
+          }
           return;
         }
         final played = await backgroundPlayer.playBeat(beat);

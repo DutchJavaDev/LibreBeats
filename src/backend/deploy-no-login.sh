@@ -8,10 +8,6 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-SUPABASE_DB_URL = ''
-SUPABASE_ACCESS_TOKEN = ''
-SUPABASE_PROJECT_REF = ''
-
 : "${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}"
 
 echo '==> db push (migrations)'

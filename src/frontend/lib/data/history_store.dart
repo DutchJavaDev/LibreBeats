@@ -52,7 +52,7 @@ class HistoryStore {
         artist: json['artist'] as String? ?? '',
         thumbnailUrl: json['thumbnailurl'] as String? ?? '',
         duration: Duration(seconds: json['duration'] as int? ?? 0),
-        color: sampleTracks.first.color,
+        color: gradientForKey('${json['sourceid'] ?? 'sample'}:${json['id']}'),
         audioUrl: json['streamingurl'] as String?,
         // entries saved before the subtitle rule have no mix title
         mixTitle: json['mixtitle'] as String?,

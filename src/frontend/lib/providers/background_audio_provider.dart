@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart' hide RepeatMode;
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/services/audio_playback_service.dart';
@@ -27,8 +27,12 @@ final class BackgroundAudioProvider extends ChangeNotifier {
 
   bool get isPlaying => _playbackService.isPlaying;
 
-  double get progress => _progress;
-  double _progress = 0.0;
+  double get progress => _progressNotifier.value;
+
+  /// Only the two progress consumers (the mini bar, the full player slider)
+  /// listen here, the 5-60Hz position ticks stay off notifyListeners entirely.
+  ValueListenable<double> get progressListenable => _progressNotifier;
+  final _progressNotifier = ValueNotifier<double>(0.0);
 
   bool get shuffle => _shuffle;
   LoopMode get repeatMode => _repeatMode;
@@ -41,7 +45,7 @@ final class BackgroundAudioProvider extends ChangeNotifier {
   }
 
   /// Time left on the sleep timer, null when no duration timer is armed.
-  /// The label rides the position tick, no extra timer needed for the UI.
+  /// The full player's sleep button runs its own one-second ticker.
   Duration? get sleepRemaining {
     final until = _playbackService.sleepUntil;
     if (until == null) return null;
@@ -67,22 +71,23 @@ final class BackgroundAudioProvider extends ChangeNotifier {
   }
 
   // Set a beatmix, then from there play the selected beat
-  Future<void> playBeatMix(BeatMix beatmix, Beat selectedBeat) async {
+  Future<bool> playBeatMix(BeatMix beatmix, Beat selectedBeat) async {
     // Tapping the already-current track toggles play/pause instead of
     // restarting, same as playBeat. Without this a tap on the playing row
     // pauses, reloads the queue and plays again.
     if (_playbackService.beatKey == selectedBeat.key) {
       await togglePlay();
-      return;
+      return true;
     }
 
     if (isPlaying) await togglePlay();
 
     // a failed load (dead server, bad url) should not flip to "playing"
     final loaded = await _playbackService.setBeatMix(beatmix, selectedBeat);
-    if (!loaded) return;
+    if (!loaded) return false;
 
     await togglePlay();
+    return true;
   }
 
   // This should only play a single beat, repeat it or stop after play.
@@ -116,15 +121,20 @@ final class BackgroundAudioProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool _lastNotifiedPlaying = false;
+
   void updateProgress(double nProgress, Beat currentBeat) {
-    _progress = nProgress;
+    _progressNotifier.value = nProgress;
 
-    // Display the current playing song
-    if (_currentBeat != currentBeat) {
+    // a full notify only for what actually repaints widgets: a track change
+    // or a play/pause flip (the service piggybacks its playingStream
+    // listener on this callback)
+    final playing = isPlaying;
+    if (_currentBeat != currentBeat || _lastNotifiedPlaying != playing) {
       _currentBeat = currentBeat;
+      _lastNotifiedPlaying = playing;
+      notifyListeners();
     }
-
-    notifyListeners();
   }
 
   void toggleShuffle() {
@@ -151,7 +161,7 @@ final class BackgroundAudioProvider extends ChangeNotifier {
 
   // BaseAudioHandler overides
   Future<void> setSeek(double value) async {
-    _progress = value.clamp(0.0, 1.0);
+    _progressNotifier.value = value.clamp(0.0, 1.0);
     await _playbackService.setSeek(elapsed);
     notifyListeners();
   }
@@ -176,5 +186,11 @@ final class BackgroundAudioProvider extends ChangeNotifier {
   Future<void> skipToQueueItem(int index) async {
     await _playbackService.skipToQueueItem(index);
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _progressNotifier.dispose();
+    super.dispose();
   }
 }

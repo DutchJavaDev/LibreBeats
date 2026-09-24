@@ -209,6 +209,11 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   /// lands.
   bool _loadingSource = false;
 
+  /// Bumped by every load; a load that finds a newer id when its await lands
+  /// was superseded and must not touch shared state (just_audio interrupts
+  /// the older request when a new source is set).
+  int _loadSeq = 0;
+
   BeatMix? get currentBeatMix => _currentBeatMix;
   BeatMix? _currentBeatMix;
 
@@ -243,6 +248,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
       ..clear()
       ..add(beat);
 
+    final loadId = ++_loadSeq;
     _loadingSource = true;
     try {
       await audioPlayer.setAudioSource(audioSource);
@@ -250,8 +256,9 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
       PrintLog('Failed to load "${beat.title}": $e');
       return false;
     } finally {
-      _loadingSource = false;
+      if (loadId == _loadSeq) _loadingSource = false;
     }
+    if (loadId != _loadSeq) return false;
 
     mediaItem.add(audioSourceMediaItem);
 
@@ -298,6 +305,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
       }
     }
 
+    final loadId = ++_loadSeq;
     _loadingSource = true;
     try {
       await audioPlayer.setAudioSources(beatAudioSources,
@@ -306,11 +314,12 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
           shuffleOrder: DefaultShuffleOrder());
     } catch (e) {
       PrintLog('Failed to load mix "${mix.title}": $e');
-      _currentBeatMix = null;
+      if (loadId == _loadSeq) _currentBeatMix = null;
       return false;
     } finally {
-      _loadingSource = false;
+      if (loadId == _loadSeq) _loadingSource = false;
     }
+    if (loadId != _loadSeq) return false;
 
     mediaItem.add(beatMediaItems[initialIndex]);
 
@@ -324,20 +333,26 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   }
 
   Future<bool> togglePlay() async {
-    _isPlaying = !_isPlaying;
+    // the player, not our flag, decides: the flag rides playingStream and is
+    // written only there
+    final playing = audioPlayer.playing;
 
-    if (_isPlaying) {
+    if (playing) {
+      await audioPlayer.pause();
+    } else {
       // play()'s future only completes when playback pauses or ends later,
       // awaiting it here would block the caller for the whole track
       unawaited(audioPlayer.play());
-    } else {
-      await audioPlayer.pause();
     }
-    return _isPlaying;
+    return !playing;
   }
 
   void setShuffleModeEnabled(bool shuffle) async {
     await audioPlayer.setShuffleModeEnabled(shuffle);
+    // just_audio only shuffles on load, so without this off->on->on replays
+    // the identical walk, anchored at the load-time index instead of the
+    // track playing now
+    if (shuffle) await audioPlayer.shuffle();
   }
 
   void setLoopMode(LoopMode mode) async {
@@ -389,12 +404,12 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   // pause commands, these have to be idempotent instead of blind toggles.
   @override
   Future<void> play() async {
-    if (!_isPlaying) await togglePlay();
+    if (!audioPlayer.playing) await togglePlay();
   }
 
   @override
   Future<void> pause() async {
-    if (_isPlaying) await togglePlay();
+    if (audioPlayer.playing) await togglePlay();
   }
 
   @override

@@ -55,7 +55,7 @@ class BarGlyph extends StatelessWidget {
 }
 
 /// Section header used on every screen: bar glyph + sentence-case title,
-/// optional trailing widget (count, Preview chip, button).
+/// optional trailing widget (count, button).
 class SectionHeader extends StatelessWidget {
   const SectionHeader(this.title, {super.key, this.trailing, this.padding});
 
@@ -81,28 +81,6 @@ class SectionHeader extends StatelessWidget {
           ),
           if (trailing != null) trailing!,
         ],
-      ),
-    );
-  }
-}
-
-/// Small outlined tag marking mocked content on the home screen.
-class PreviewChip extends StatelessWidget {
-  const PreviewChip({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        border: Border.all(color: theme.colorScheme.outline),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        'Preview',
-        style: theme.textTheme.labelSmall!
-            .copyWith(color: theme.colorScheme.onSurfaceVariant),
       ),
     );
   }
@@ -161,8 +139,10 @@ class _PlayingBarsIndicatorState extends State<PlayingBarsIndicator>
     final color =
         widget.color ?? Theme.of(context).extension<LbTokens>()!.nowPlaying;
     final barWidth = widget.size / 5;
-    return RepaintBoundary(
-      child: SizedBox(
+    return Semantics(
+      label: 'Now playing',
+      child: RepaintBoundary(
+        child: SizedBox(
         width: widget.size,
         height: widget.size,
         child: AnimatedBuilder(
@@ -188,6 +168,7 @@ class _PlayingBarsIndicatorState extends State<PlayingBarsIndicator>
               ],
             );
           },
+          ),
         ),
       ),
     );
@@ -284,31 +265,36 @@ class GradientPillButton extends StatelessWidget {
     final theme = Theme.of(context);
     final tokens = theme.extension<LbTokens>()!;
     final enabled = onPressed != null;
-    return Opacity(
-      opacity: enabled ? 1 : 0.5,
-      child: Material(
-        color: Colors.transparent,
-        child: Ink(
-          decoration: ShapeDecoration(
-            gradient: tokens.brandGradient,
-            shape: const StadiumBorder(),
-          ),
-          child: InkWell(
-            customBorder: const StadiumBorder(),
-            onTap: onPressed,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, size: 16, color: theme.colorScheme.onPrimary),
-                  const SizedBox(width: 7),
-                  Text(
-                    label,
-                    style: theme.textTheme.labelLarge!
-                        .copyWith(color: theme.colorScheme.onPrimary),
-                  ),
-                ],
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.5,
+        child: Material(
+          color: Colors.transparent,
+          child: Ink(
+            decoration: ShapeDecoration(
+              gradient: tokens.brandGradient,
+              shape: const StadiumBorder(),
+            ),
+            child: InkWell(
+              customBorder: const StadiumBorder(),
+              onTap: onPressed,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 16, color: theme.colorScheme.onPrimary),
+                    const SizedBox(width: 7),
+                    Text(
+                      label,
+                      style: theme.textTheme.labelLarge!
+                          .copyWith(color: theme.colorScheme.onPrimary),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

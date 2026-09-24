@@ -9,10 +9,6 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-SUPABASE_DB_URL = ''
-SUPABASE_ACCESS_TOKEN = ''
-SUPABASE_PROJECT_REF = ''
-
 : "${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}"
 
 # history rows, versions taken from the filenames so new migrations are covered

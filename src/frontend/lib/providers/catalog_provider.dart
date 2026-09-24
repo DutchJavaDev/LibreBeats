@@ -127,8 +127,9 @@ class LibreProvider extends ChangeNotifier {
   }
 
   // Called when the search tab is opened. Serves cached results per server
-  // and only fetches the ones whose timer ran out.
-  Future<void> ensureCatalog() async {
+  // and only fetches the ones whose timer ran out. Force (pull-to-refresh)
+  // refetches every healthy server regardless of the timers.
+  Future<void> ensureCatalog({bool force = false}) async {
     if (_isFetching) return;
     _isFetching = true;
     _updateNotice = false; // navigating here counts as seeing the update
@@ -136,10 +137,6 @@ class LibreProvider extends ChangeNotifier {
 
     try {
       await _hydrate();
-      await _registry.connectAll();
-      // retry failed servers here too, otherwise an all-servers-down start
-      // can never recover
-      await _registry.reconnectFailed();
 
       // forget servers that were removed in settings
       _cache
@@ -148,15 +145,22 @@ class LibreProvider extends ChangeNotifier {
       // cold start with nothing at all -> drip mode later
       final dripMode = _beatMixes.isEmpty && _cache.isEmpty;
 
-      // disk cache had content, show it right away (even if expired,
+      // disk cache had content, show it right away, before the sign-ins, so
+      // a slow server cannot hold up the first paint (even if expired,
       // stale beats an empty grid while the refresh runs)
       if (_beatMixes.isEmpty && _cache.isNotEmpty) {
         _beatMixes = _merged()..shuffle(_random);
         notifyListeners();
       }
 
-      final stale =
-          _registry.healthy.where((s) => _expired(_cache[s.url])).toList();
+      await _registry.connectAll();
+      // retry failed servers here too, otherwise an all-servers-down start
+      // can never recover
+      await _registry.reconnectFailed();
+
+      final stale = _registry.healthy
+          .where((s) => force || _expired(_cache[s.url]))
+          .toList();
       if (stale.isEmpty) return;
 
       if (dripMode) {

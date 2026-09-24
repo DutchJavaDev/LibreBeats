@@ -1,4 +1,4 @@
-name: Audio Service Test
+name: LibreBeats Audio Service Test
 
 on:
   pull_request:

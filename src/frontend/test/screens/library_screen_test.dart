@@ -148,7 +148,7 @@ void main() {
     await pumpLibrary(tester, liked);
 
     // there, but inert while nothing is downloaded
-   // expect(find.text('Shuffle all'), findsOneWidget);
+    // expect(find.text('Shuffle all'), findsOneWidget);
     var pill =
         tester.widget<GradientPillButton>(find.byType(GradientPillButton));
     expect(pill.onPressed, isNull);

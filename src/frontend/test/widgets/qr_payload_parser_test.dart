@@ -23,7 +23,8 @@ void main() {
         [('https://a', 'k1', null, null), ('https://b', 'k2', null, null)]);
     // one bad entry rejects the whole code
     expect(
-        parseServerQrPayload('[{"url": "https://a", "key": "k1"}, {"url": ""}]'),
+        parseServerQrPayload(
+            '[{"url": "https://a", "key": "k1"}, {"url": ""}]'),
         isNull);
     expect(parseServerQrPayload('[]'), isNull);
   });

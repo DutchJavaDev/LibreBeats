@@ -98,7 +98,8 @@ void main() {
     await pumpLibrary(tester, liked);
 
     expect(
-        find.text('No liked playlists yet, tap the heart on a playlist in search'),
+        find.text(
+            'No liked playlists yet, tap the heart on a playlist in search'),
         findsOneWidget);
   });
 
@@ -180,7 +181,9 @@ void main() {
     final queued = playback.mixSet!;
     expect(queued.sourceId, shuffleAllSourceId);
     expect(queued.beats, hasLength(3));
-    expect({for (final b in queued.beats!) b.key}, {
+    expect({
+      for (final b in queued.beats!) b.key
+    }, {
       'https://a.example.com:1',
       'https://a.example.com:2',
       'https://a.example.com:3',

@@ -209,8 +209,7 @@ class LikedProvider extends ChangeNotifier {
 
       final state = await _fetchFiles(beat);
       current = current.withBeats([
-        for (final b in current.beats)
-          b.key == beatKey ? b.withState(state) : b
+        for (final b in current.beats) b.key == beatKey ? b.withState(state) : b
       ]);
       await _store.putMix(current);
       final i = _likedMixes.indexWhere((m) => m.key == current.key);

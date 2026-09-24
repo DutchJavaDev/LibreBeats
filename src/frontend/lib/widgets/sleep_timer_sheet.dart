@@ -38,8 +38,8 @@ class _SleepTimerSheet extends StatelessWidget {
               color: theme.colorScheme.primary,
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.check,
-                size: 13, color: theme.colorScheme.onPrimary),
+            child:
+                Icon(Icons.check, size: 13, color: theme.colorScheme.onPrimary),
           )
         : Container(
             width: 20,

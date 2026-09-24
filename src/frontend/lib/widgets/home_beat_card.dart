@@ -71,8 +71,7 @@ class HomeBeatCard extends StatelessWidget {
                         color: Colors.black45,
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: PlayingBarsIndicator(
-                          playing: isPlaying, size: 11),
+                      child: PlayingBarsIndicator(playing: isPlaying, size: 11),
                     ),
                   ),
               ],

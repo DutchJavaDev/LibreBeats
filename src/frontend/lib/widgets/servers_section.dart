@@ -14,7 +14,8 @@ import 'add_server_scan.dart';
 /// card and the first-run screen.
 Future<void> addServersFlow(
     BuildContext context, ServerRegistry registry) async {
-  final results = await Navigator.push<List<(String, String, String?, String?)>>(
+  final results =
+      await Navigator.push<List<(String, String, String?, String?)>>(
     context,
     MaterialPageRoute(builder: (_) => const AddServerScanScreen()),
   );
@@ -119,8 +120,7 @@ class _ServersSectionState extends State<ServersSection> {
           style: theme.textTheme.bodySmall?.copyWith(color: tokens.warning));
     }
 
-    final failed =
-        servers.where((s) => s.status == ServerStatus.failed).length;
+    final failed = servers.where((s) => s.status == ServerStatus.failed).length;
     final connecting =
         servers.where((s) => s.status == ServerStatus.connecting).length;
     final connected = registry.healthy.length;
@@ -371,8 +371,7 @@ class _ServersSectionState extends State<ServersSection> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child:
-                        Text(server.host, style: theme.textTheme.titleLarge),
+                    child: Text(server.host, style: theme.textTheme.titleLarge),
                   ),
                 ],
               ),
@@ -518,7 +517,8 @@ class _ServersSectionState extends State<ServersSection> {
 
     // ('', '') comes from the "Use default" button and clears the override
     final (email, password) = result;
-    await registry.setServerCredentials(server, email: email, password: password);
+    await registry.setServerCredentials(server,
+        email: email, password: password);
     if (sheetContext.mounted) Navigator.pop(sheetContext);
   }
 
@@ -590,8 +590,8 @@ class _ShareQrDialogState extends State<_ShareQrDialog> {
             onChanged: (v) => setState(() => _includeLogins = v ?? false),
             title: const Text('Include logins'),
             subtitle: Text('Passwords end up in the QR in plain text',
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: tokens.warning)),
+                style:
+                    theme.textTheme.bodySmall?.copyWith(color: tokens.warning)),
           ),
         ],
       ),
@@ -626,7 +626,8 @@ class _CredentialsDialog extends StatefulWidget {
 }
 
 class _CredentialsDialogState extends State<_CredentialsDialog> {
-  late final _emailController = TextEditingController(text: widget.initialEmail);
+  late final _emailController =
+      TextEditingController(text: widget.initialEmail);
   late final _passwordController =
       TextEditingController(text: widget.initialPassword);
 

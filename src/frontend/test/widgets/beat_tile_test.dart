@@ -108,8 +108,8 @@ void main() {
   testWidgets('heart tap hits onLike, not onTap', (tester) async {
     var likes = 0;
     var tapped = false;
-    await tester.pumpWidget(host(
-        liked: false, onLike: () => likes++, onTap: () => tapped = true));
+    await tester.pumpWidget(
+        host(liked: false, onLike: () => likes++, onTap: () => tapped = true));
 
     await tester.tap(find.byIcon(Icons.favorite_border));
     expect(likes, 1);

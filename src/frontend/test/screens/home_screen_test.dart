@@ -44,7 +44,8 @@ void main() {
     // sembast needs real async, the widget test zone's fake clock would
     // leave its futures hanging
     final statsProvider = stats ??
-        (await tester.runAsync(() async => PlayStatsProvider(await memStore())))!;
+        (await tester
+            .runAsync(() async => PlayStatsProvider(await memStore())))!;
     final serverRegistry = registry ?? ServerRegistry(connector: _connector());
 
     // the real service stays idle in tests: no audio platform is touched
@@ -55,8 +56,7 @@ void main() {
         providers: [
           ChangeNotifierProvider<BackgroundAudioProvider>.value(
               value: provider),
-          ChangeNotifierProvider<PlayStatsProvider>.value(
-              value: statsProvider),
+          ChangeNotifierProvider<PlayStatsProvider>.value(value: statsProvider),
           ChangeNotifierProvider<ServerRegistry>.value(value: serverRegistry),
         ],
         child: MaterialApp(
@@ -75,8 +75,7 @@ void main() {
     expect(find.text('On repeat'), findsOneWidget);
     expect(find.text('Listen to songs to see this update'), findsOneWidget);
     expect(find.text('Heavy rotation'), findsOneWidget);
-    expect(
-        find.text('Listen to playlists to see this update'), findsOneWidget);
+    expect(find.text('Listen to playlists to see this update'), findsOneWidget);
 
     // greeting and rule are always there
     expect(find.byType(BrandRule), findsOneWidget);
@@ -151,11 +150,9 @@ void main() {
     await tester.pumpAndSettle(const Duration(seconds: 1));
   });
 
-  testWidgets('the health digest reports an all-healthy fleet',
-      (tester) async {
+  testWidgets('the health digest reports an all-healthy fleet', (tester) async {
     final registry = ServerRegistry(connector: _connector());
-    await registry.load(
-        seed: const [('https://a', 'k1'), ('https://b', 'k2')]);
+    await registry.load(seed: const [('https://a', 'k1'), ('https://b', 'k2')]);
     await registry.connectAll();
 
     await pumpHome(tester, registry: registry);
@@ -168,8 +165,7 @@ void main() {
       (tester) async {
     final registry =
         ServerRegistry(connector: _connector(failing: {'https://b'}));
-    await registry.load(
-        seed: const [('https://a', 'k1'), ('https://b', 'k2')]);
+    await registry.load(seed: const [('https://a', 'k1'), ('https://b', 'k2')]);
     await registry.connectAll();
 
     await pumpHome(tester, registry: registry);

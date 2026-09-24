@@ -11,7 +11,8 @@ enum ServerStatus { connecting, healthy, failed }
 enum AddServerResult { added, duplicate, signInFailed }
 
 class ServerConnection {
-  ServerConnection({required this.url, required this.key, this.email, this.password});
+  ServerConnection(
+      {required this.url, required this.key, this.email, this.password});
 
   final String url;
   final String key;
@@ -180,7 +181,8 @@ class ServerRegistry extends ChangeNotifier {
   // Sign in to every server, repeat calls share the same future
   Future<void> connectAll() {
     // the startup sign-in doubles as the first health check
-    return _connectAllFuture ??= Future.wait(_servers.map(_connector)).then((_) {
+    return _connectAllFuture ??=
+        Future.wait(_servers.map(_connector)).then((_) {
       _lastCheckedAt = DateTime.now();
       notifyListeners();
     });

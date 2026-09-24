@@ -19,7 +19,8 @@ void main() {
             remaining: const Duration(seconds: 9), endOfTrack: false),
         'Sleep · 0:09');
     expect(
-        sleepCountdownLabel(remaining: const Duration(hours: 1), endOfTrack: false),
+        sleepCountdownLabel(
+            remaining: const Duration(hours: 1), endOfTrack: false),
         'Sleep · 1:00:00');
     expect(
         sleepCountdownLabel(

@@ -39,13 +39,15 @@ class BeatPlayStat {
           artist: json['artist'] as String? ?? '',
           thumbnailUrl: json['thumbnailurl'] as String? ?? '',
           duration: Duration(seconds: json['duration'] as int? ?? 0),
-          color: gradientForKey('${json['sourceid'] ?? 'sample'}:${json['id']}'),
+          color:
+              gradientForKey('${json['sourceid'] ?? 'sample'}:${json['id']}'),
           audioUrl: json['streamingurl'] as String?,
           mixTitle: json['mixtitle'] as String?,
         ),
         plays: json['plays'] as int? ?? 0,
-        lastPlayedAt: DateTime.tryParse(json['lastplayedat'] as String? ?? '') ??
-            DateTime.fromMillisecondsSinceEpoch(0),
+        lastPlayedAt:
+            DateTime.tryParse(json['lastplayedat'] as String? ?? '') ??
+                DateTime.fromMillisecondsSinceEpoch(0),
       );
 }
 
@@ -108,8 +110,9 @@ class MixPlayStat {
         beatKeys: [
           for (final k in (json['beatkeys'] as List<dynamic>? ?? [])) '$k'
         ],
-        lastPlayedAt: DateTime.tryParse(json['lastplayedat'] as String? ?? '') ??
-            DateTime.fromMillisecondsSinceEpoch(0),
+        lastPlayedAt:
+            DateTime.tryParse(json['lastplayedat'] as String? ?? '') ??
+                DateTime.fromMillisecondsSinceEpoch(0),
       );
 }
 
@@ -126,8 +129,8 @@ class PlayStatsStore {
   Future<Database> _db() async {
     if (_database != null) return _database!;
     final dir = await getApplicationSupportDirectory();
-    _database = await databaseFactoryIo.openDatabase(
-        '${dir.path}/librebeats_play_stats.db');
+    _database = await databaseFactoryIo
+        .openDatabase('${dir.path}/librebeats_play_stats.db');
     return _database!;
   }
 
@@ -151,8 +154,9 @@ class PlayStatsStore {
   Future<void> recordMixPlay(BeatMix mix, Beat beat, {DateTime? at}) async {
     final db = await _db();
     final record = _mixes.record(mix.key);
-    final existing =
-        await record.get(db).then((r) => r == null ? null : MixPlayStat.fromJson(r));
+    final existing = await record
+        .get(db)
+        .then((r) => r == null ? null : MixPlayStat.fromJson(r));
     final beatKeys = [...?existing?.beatKeys];
     if (!beatKeys.contains(beat.key)) beatKeys.add(beat.key);
     await record.put(
@@ -172,18 +176,20 @@ class PlayStatsStore {
   /// Most played first, most recently played breaks ties.
   Future<List<BeatPlayStat>> topBeats({int limit = 10}) async {
     final rows = await _beats.find(await _db(),
-        finder: Finder(
-            sortOrders: [SortOrder('plays', false), SortOrder('lastplayedat', false)],
-            limit: limit));
+        finder: Finder(sortOrders: [
+          SortOrder('plays', false),
+          SortOrder('lastplayedat', false)
+        ], limit: limit));
     return [for (final r in rows) BeatPlayStat.fromJson(r.value)];
   }
 
   /// Most played first, most recently played breaks ties.
   Future<List<MixPlayStat>> topMixes({int limit = 10}) async {
     final rows = await _mixes.find(await _db(),
-        finder: Finder(
-            sortOrders: [SortOrder('plays', false), SortOrder('lastplayedat', false)],
-            limit: limit));
+        finder: Finder(sortOrders: [
+          SortOrder('plays', false),
+          SortOrder('lastplayedat', false)
+        ], limit: limit));
     return [for (final r in rows) MixPlayStat.fromJson(r.value)];
   }
 

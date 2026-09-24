@@ -2,7 +2,7 @@ name: Audio Service Test
 on: 
   pull_request:
     branches:
-      - workflows
+      - '*'
     types: 
       - opened
       - synchronize

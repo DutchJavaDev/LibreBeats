@@ -1,0 +1,49 @@
+name: LibreBeats Migration Service Test
+
+on:
+  pull_request:
+    branches:
+      - '*'
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  WORKING_DIR: src/backend-self-hosted/docker/service/migration
+
+jobs:
+  audio_tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Golang
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.5'
+          cache-dependency-path: ${{ env.WORKING_DIR }}/go.sum
+
+      - name: Sync go.mod & go.sum
+        working-directory: ${{ env.WORKING_DIR }}
+        run: go mod tidy
+
+      - name: Run tests + coverage
+        working-directory: ${{ env.WORKING_DIR }}
+        run: go test -v -coverprofile=coverage.out ./...
+
+      - name: Show coverage result
+        working-directory: ${{ env.WORKING_DIR }}
+        run: go tool cover -func=coverage.out
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: ${{ env.WORKING_DIR }}/coverage.out

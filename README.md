@@ -2,6 +2,12 @@
 
 > “Why did Spotify increase their price again …. How does Spotify work …. LibreBeats …” — how this project came to be.
 
+[![LibreBeats Client Test](https://github.com/DutchJavaDev/LibreBeats/actions/workflows/librebeats_client.yml/badge.svg)](https://github.com/DutchJavaDev/LibreBeats/actions/workflows/librebeats_client.yml)
+
+[![LibreBeats Audio Service Test](https://github.com/DutchJavaDev/LibreBeats/actions/workflows/audio_service_selfhosted.yml/badge.svg)](https://github.com/DutchJavaDev/LibreBeats/actions/workflows/audio_service_selfhosted.yml)
+
+[![LibreBeats Migration Service Test](https://github.com/DutchJavaDev/LibreBeats/actions/workflows/main.yml/badge.svg)](https://github.com/DutchJavaDev/LibreBeats/actions/workflows/main.yml)
+
 **LibreBeats** is a self-hosted music streaming platform: a Spotify-style client you run yourself, backed by your own catalog and infrastructure instead of a commercial subscription.
 
 ## Overview

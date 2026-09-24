@@ -19,7 +19,7 @@ The project is split in three:
 - [Flutter](https://docs.flutter.dev/get-started/install) SDK, Dart `>=3.0.0 <4.0.0`
 - [Docker](https://docs.docker.com/get-docker/) with Docker Compose for the Supabase stack
 - [Go](https://go.dev/dl/) `1.25+` for the migration and audio services
-- Bash for the `src/backend-self-hosted/*.sh` helper scripts (Linux/macOS/WSL)
+- Bash for the `src/backend-self-hosted/docker/*.sh` helper scripts (Linux/macOS/WSL)
 - [Supabase CLI](https://supabase.com/docs/guides/local-development) for `src/backend` (local stack + deploys)
 
 ## Architecture
@@ -75,7 +75,7 @@ LibreBeats/
 ├── README.md
 └── src/
     ├── frontend/
-    │   ├── README.md              # Frontend docs: architecture, config, testing
+    │   ├── README.md                  # Frontend docs: architecture, config, testing
     │   ├── lib/
     │   │   ├── main.dart              # Entry point: server seed, audio service, providers
     │   │   ├── app.dart               # MaterialApp + Material 3 dark theme
@@ -86,30 +86,31 @@ LibreBeats/
     │   │   ├── data/                  # ServerRegistry, repositories, disk stores (cache, history, liked, offline files)
     │   │   ├── screens/               # main_scaffold, home, search, library, liked, settings
     │   │   └── widgets/               # mini/full player, tiles, QR server scanner
-    │   └── test/                  # Flutter unit + widget tests
+    │   └── test/                      # Flutter unit + widget tests
     ├── backend-self-hosted/
-        ├── README.md                  # Backend docs: scripts, services, schema, quirks
-        ├── build.sh                   # Build Supabase + custom images
-        ├── run.sh                     # Start stack
-        ├── stop.sh                    # docker compose down
-        ├── variables.sh               # PROJECT_DIR, BUILD_DIRECTORY, …
-        └── supabase/
-            ├── docker-compose.yml
-            └── service/
-                ├── migration/
-                │   ├── migration.go
-                │   ├── migration_helpers.go
-                │   ├── migration_test.go
-                │   └── scripts/
-                │       └── 0 initial.sql
-                └── audio/
-                    ├── main.go          # Queue consumer loop
-                    ├── pipeline.go      # Queue message / URL helpers
-                    ├── database.go      # Beat catalog writes
-                    ├── queue.go         # PGMQ pop
-                    ├── storage.go       # Supabase Storage uploads
-                    ├── sourceHelper.go  # yt-dlp integration
-                    └── *_test.go        # Unit tests
+    │    ├── README.md                  # Backend docs: scripts, services, schema, quirks
+    │    └── docker/
+    │        ├── build.sh                   # Build Supabase + custom images
+    │        ├── run.sh                     # Start stack
+    │        ├── stop.sh                    # docker compose down
+    │        ├── variables.sh               # PROJECT_DIR, BUILD_DIRECTORY, …
+    │        └── supabase/
+    │            ├── docker-compose.yml
+    │            └── service/
+    │                ├── migration/
+    │                │   ├── migration.go
+    │                │   ├── migration_helpers.go
+    │                │   ├── migration_test.go
+    │                │   └── scripts/
+    │                │       └── 0 initial.sql
+    │                └── audio/
+    │                    ├── main.go          # Queue consumer loop
+    │                    ├── pipeline.go      # Queue message / URL helpers
+    │                    ├── database.go      # Beat catalog writes
+    │                    ├── queue.go         # PGMQ pop
+    │                    ├── storage.go       # Supabase Storage uploads
+    │                    ├── sourceHelper.go  # yt-dlp integration
+    │                    └── *_test.go        # Unit tests
     └── backend/
         ├── README.md                  # CLI project docs: local stack, deploys, reverts
         ├── deploy.sh / .ps1           # deploy to the linked project
@@ -166,8 +167,8 @@ More backend detail in [`src/backend-self-hosted/README.md`](src/backend-self-ho
 
 [`src/backend-self-hosted/supabase`](src/backend-self-hosted/supabase) is the official **self-hosted Supabase** Docker Compose setup. See [Self-Hosting with Docker](https://supabase.com/docs/guides/self-hosting/docker).
 
-- Configure via `.env` (copied from `.env.example` on first `build.sh`).
-- `variables.sh` sets `PROJECT_DIR`, `BUILD_DIRECTORY`, and `GENERATE_KEYS` (runs `utils/generate-keys.sh` when `true`).
+- Configure via `.env` (copied from `.env.example` on first run of `setup.sh`).
+- Run ``run.sh --secrets` to get the basic secrets (dashboard & postgress password, publish key)
 
 ### Go services
 
@@ -260,12 +261,13 @@ Integration tests against a live Supabase stack are not included yet.
 
 ### Backend, self hosted
 
-From [`src/backend-self-hosted`](src/backend-self-hosted). Edit [`variables.sh`](src/backend-self-hosted/variables.sh) if needed (default build output: `~/librebeats/Herman`).
+From [`src/backend-self-hosted/docker`](src/backend-self-hosted/docker).
 
 ```bash
-./build.sh   # Copy compose tree, build migration image (+ optional key generation)
-./run.sh     # Build audio image, docker compose up -d
-./stop.sh    # docker compose down
+./setup.sh --project-dir <location for new selfhosted project>         # Sets up and configures new self hosted supabase project
+./run.sh start / stop                                                  # Starts/Stops the new self hosted supabase project
+./reset.sh                                                             # Clears & Deletes self hosted instance (Data will be lost)
+./upgrade                                                              # Upgrade slef hosted to newer version
 ```
 
 After startup, use Studio and API URLs from your `.env` / `SUPABASE_PUBLIC_URL`.

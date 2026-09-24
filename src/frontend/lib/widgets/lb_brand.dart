@@ -143,31 +143,32 @@ class _PlayingBarsIndicatorState extends State<PlayingBarsIndicator>
       label: 'Now playing',
       child: RepaintBoundary(
         child: SizedBox(
-        width: widget.size,
-        height: widget.size,
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, _) {
-            final t = _controller.value;
-            double level(double phase) => widget.playing
-                ? 0.35 + 0.65 * (0.5 + 0.5 * math.sin(2 * math.pi * (t + phase)))
-                : 0.55;
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                for (final phase in const [0.0, 0.33, 0.66])
-                  Container(
-                    width: barWidth,
-                    height: widget.size * level(phase),
-                    decoration: BoxDecoration(
-                      color: color,
-                      borderRadius: BorderRadius.circular(1.5),
+          width: widget.size,
+          height: widget.size,
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, _) {
+              final t = _controller.value;
+              double level(double phase) => widget.playing
+                  ? 0.35 +
+                      0.65 * (0.5 + 0.5 * math.sin(2 * math.pi * (t + phase)))
+                  : 0.55;
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  for (final phase in const [0.0, 0.33, 0.66])
+                    Container(
+                      width: barWidth,
+                      height: widget.size * level(phase),
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(1.5),
+                      ),
                     ),
-                  ),
-              ],
-            );
-          },
+                ],
+              );
+            },
           ),
         ),
       ),

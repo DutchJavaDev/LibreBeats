@@ -56,7 +56,8 @@ void main() {
           LikedStore(
               database:
                   await newDatabaseFactoryMemory().openDatabase('liked.db')),
-          OfflineMediaStore(rootProvider: () async => Directory.systemTemp.path),
+          OfflineMediaStore(
+              rootProvider: () async => Directory.systemTemp.path),
           FakeDownloader(Directory.systemTemp.path),
         );
 
@@ -70,8 +71,7 @@ void main() {
         ],
         // the scaffold hosts the snackbar after clearing downloads
         child: MaterialApp(
-            theme: AppTheme.dark,
-            home: const Scaffold(body: SettingsScreen())),
+            theme: AppTheme.dark, home: const Scaffold(body: SettingsScreen())),
       ),
     );
     return registry;
@@ -99,8 +99,7 @@ void main() {
           ChangeNotifierProvider<ThemeController>.value(value: controller),
         ],
         child: MaterialApp(
-            theme: AppTheme.dark,
-            home: const Scaffold(body: SettingsScreen())),
+            theme: AppTheme.dark, home: const Scaffold(body: SettingsScreen())),
       ),
     );
 
@@ -118,7 +117,8 @@ void main() {
     expect(prefs.getString(ThemeController.prefKey), 'light');
   });
 
-  testWidgets('collapsed summary shows the fleet state, no rows', (tester) async {
+  testWidgets('collapsed summary shows the fleet state, no rows',
+      (tester) async {
     final registry = await pumpSettings(tester, seed: const [
       ('https://a.example.com', 'k1'),
       ('https://b.example.com', 'k2'),
@@ -134,8 +134,8 @@ void main() {
     // problems first and colored, no arithmetic needed
     expect(find.textContaining('1 unreachable', findRichText: true),
         findsOneWidget);
-    expect(find.textContaining('1 connected', findRichText: true),
-        findsOneWidget);
+    expect(
+        find.textContaining('1 connected', findRichText: true), findsOneWidget);
     // servers stay hidden until expanded
     expect(find.text('a.example.com'), findsNothing);
     expect(find.text('b.example.com'), findsNothing);
@@ -161,10 +161,12 @@ void main() {
 
   testWidgets('retry all reconnects failed servers', (tester) async {
     final failing = {'https://b.example.com'};
-    final registry = await pumpSettings(tester, seed: const [
-      ('https://a.example.com', 'k1'),
-      ('https://b.example.com', 'k2'),
-    ], failing: failing);
+    final registry = await pumpSettings(tester,
+        seed: const [
+          ('https://a.example.com', 'k1'),
+          ('https://b.example.com', 'k2'),
+        ],
+        failing: failing);
 
     await tester.tap(find.text('Servers').last);
     await tester.pumpAndSettle();
@@ -288,8 +290,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('0.0 MB'), findsOneWidget);
-    expect(
-        find.textContaining('1 of 1', findRichText: true), findsOneWidget);
+    expect(find.textContaining('1 of 1', findRichText: true), findsOneWidget);
     expect(find.text('Clear liked downloads'), findsOneWidget);
   });
 
@@ -313,8 +314,7 @@ void main() {
     addTearDown(() => temp.delete(recursive: true));
 
     await pumpSettings(tester, liked: liked);
-    expect(
-        find.textContaining('1 of 1', findRichText: true), findsOneWidget);
+    expect(find.textContaining('1 of 1', findRichText: true), findsOneWidget);
 
     // cancel changes nothing
     await tester.tap(find.text('Clear liked downloads'));
@@ -322,8 +322,7 @@ void main() {
     expect(find.text('Delete 0.0 MB?'), findsOneWidget);
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
-    expect(
-        find.textContaining('1 of 1', findRichText: true), findsOneWidget);
+    expect(find.textContaining('1 of 1', findRichText: true), findsOneWidget);
 
     // confirming empties the liked list (the file deletion itself is real io
     // and covered by the provider's clearAll test)

@@ -163,8 +163,8 @@ class LikedStore {
   Future<Database> _db() async {
     if (_database != null) return _database!;
     final dir = await getApplicationSupportDirectory();
-    _database = await databaseFactoryIo.openDatabase(
-        '${dir.path}/librebeats_liked.db');
+    _database =
+        await databaseFactoryIo.openDatabase('${dir.path}/librebeats_liked.db');
     return _database!;
   }
 

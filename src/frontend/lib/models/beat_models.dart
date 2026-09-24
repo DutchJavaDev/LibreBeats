@@ -175,7 +175,16 @@ const LinearGradient _g7 = LinearGradient(
 );
 
 /// The eight shared gradients, picked deterministically per key.
-const List<LinearGradient> beatGradients = [_g0, _g1, _g2, _g3, _g4, _g5, _g6, _g7];
+const List<LinearGradient> beatGradients = [
+  _g0,
+  _g1,
+  _g2,
+  _g3,
+  _g4,
+  _g5,
+  _g6,
+  _g7
+];
 
 // stable across runs and platforms, String.hashCode is neither (same trick
 // as the offline store's filename hash)
@@ -256,10 +265,40 @@ const List<Beat> sampleTracks = [
 ];
 
 const List<BeatMix> samplePlaylists = [
-  BeatMix(id: 1, title: 'Late Night Drives', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 24, beats: []),
-  BeatMix(id: 2, title: 'Indie Focus', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 18, beats: []),
-  BeatMix(id: 3, title: 'Chillwave Essentials', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 32, beats: []),
-  BeatMix(id: 4, title: 'Workout Mix', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 15, beats: []),
-  BeatMix(id: 5, title: 'Study Beats', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 41, beats: []),
-  BeatMix(id: 6, title: 'Weekend Vibes', thumbnailUrl: "https://picsum.photos/200/300", trackCount: 27, beats: []),
+  BeatMix(
+      id: 1,
+      title: 'Late Night Drives',
+      thumbnailUrl: "https://picsum.photos/200/300",
+      trackCount: 24,
+      beats: []),
+  BeatMix(
+      id: 2,
+      title: 'Indie Focus',
+      thumbnailUrl: "https://picsum.photos/200/300",
+      trackCount: 18,
+      beats: []),
+  BeatMix(
+      id: 3,
+      title: 'Chillwave Essentials',
+      thumbnailUrl: "https://picsum.photos/200/300",
+      trackCount: 32,
+      beats: []),
+  BeatMix(
+      id: 4,
+      title: 'Workout Mix',
+      thumbnailUrl: "https://picsum.photos/200/300",
+      trackCount: 15,
+      beats: []),
+  BeatMix(
+      id: 5,
+      title: 'Study Beats',
+      thumbnailUrl: "https://picsum.photos/200/300",
+      trackCount: 41,
+      beats: []),
+  BeatMix(
+      id: 6,
+      title: 'Weekend Vibes',
+      thumbnailUrl: "https://picsum.photos/200/300",
+      trackCount: 27,
+      beats: []),
 ];

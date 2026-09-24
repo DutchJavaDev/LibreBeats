@@ -110,8 +110,8 @@ void main() {
     expect(playable.localArtPath, '${temp.path}/${record.artPath}');
 
     // the player asks per play and gets the downloaded file
-    expect(provider.localAudioFor(record.key),
-        '${temp.path}/${record.audioPath}');
+    expect(
+        provider.localAudioFor(record.key), '${temp.path}/${record.audioPath}');
   });
 
   test('resolver goes null when not downloaded, unliked or file gone',
@@ -315,7 +315,9 @@ void main() {
     expect(merged.sourceId, shuffleAllSourceId);
     expect(merged.id, 0);
     expect(merged.trackCount, 3);
-    expect({for (final b in merged.beats!) b.key}, {
+    expect({
+      for (final b in merged.beats!) b.key
+    }, {
       'https://a.example.com:1',
       'https://a.example.com:2',
       'https://a.example.com:3',
@@ -328,8 +330,7 @@ void main() {
     await provider.toggleLikeMix(mixOf(2, [beat(2)]));
 
     final merged = provider.shuffleAllMix()!;
-    expect({for (final b in merged.beats!) b.key},
-        {'https://a.example.com:1'});
+    expect({for (final b in merged.beats!) b.key}, {'https://a.example.com:1'});
     expect(provider.hasDownloadedMixBeats, isTrue);
   });
 

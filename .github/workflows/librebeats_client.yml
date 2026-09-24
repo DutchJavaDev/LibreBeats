@@ -1,0 +1,51 @@
+name: LibreBeats Client
+on:
+  pull_request:
+    branches: ["*"]
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  contents: read
+env:
+  WORKING_DIR: src/frontend
+jobs:
+  flutter_tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+        
+      - name: Show Flutter version
+        run: flutter --version
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIR }}
+        run: flutter pub get
+
+      - name: Verify formatting
+        working-directory: ${{ env.WORKING_DIR }}
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze project source
+        working-directory: ${{ env.WORKING_DIR }}
+        run: flutter analyze
+
+      - name: Run tests + coverage
+        working-directory: ${{ env.WORKING_DIR }}
+        run: flutter test --coverage
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-coverage
+          path: ${{ env.WORKING_DIR }}/coverage/lcov.info

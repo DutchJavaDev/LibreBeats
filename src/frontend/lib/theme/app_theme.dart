@@ -102,19 +102,19 @@ abstract final class AppTheme {
     );
     return base.copyWith(
       // screen titles, always followed by a BrandRule
-      headlineMedium: base.headlineMedium!.copyWith(
-          fontSize: 24, fontWeight: FontWeight.w800, height: 1.2),
+      headlineMedium: base.headlineMedium!
+          .copyWith(fontSize: 24, fontWeight: FontWeight.w800, height: 1.2),
       // hero titles: beatmix view, full player track
-      titleLarge: base.titleLarge!
-          .copyWith(fontSize: 20, fontWeight: FontWeight.w800),
+      titleLarge:
+          base.titleLarge!.copyWith(fontSize: 20, fontWeight: FontWeight.w800),
       // section headers via SectionHeader
-      titleMedium: base.titleMedium!
-          .copyWith(fontSize: 16, fontWeight: FontWeight.w700),
+      titleMedium:
+          base.titleMedium!.copyWith(fontSize: 16, fontWeight: FontWeight.w700),
       // tile and row titles
-      titleSmall: base.titleSmall!
-          .copyWith(fontSize: 14, fontWeight: FontWeight.w600),
-      bodyLarge: base.bodyLarge!
-          .copyWith(fontSize: 15, fontWeight: FontWeight.w400),
+      titleSmall:
+          base.titleSmall!.copyWith(fontSize: 14, fontWeight: FontWeight.w600),
+      bodyLarge:
+          base.bodyLarge!.copyWith(fontSize: 15, fontWeight: FontWeight.w400),
       bodyMedium: base.bodyMedium!.copyWith(
           fontSize: 13,
           fontWeight: FontWeight.w400,
@@ -124,10 +124,10 @@ abstract final class AppTheme {
           fontWeight: FontWeight.w400,
           color: scheme.onSurfaceVariant),
       // buttons and pills
-      labelLarge: base.labelLarge!
-          .copyWith(fontSize: 13, fontWeight: FontWeight.w600),
-      labelMedium: base.labelMedium!
-          .copyWith(fontSize: 11, fontWeight: FontWeight.w600),
+      labelLarge:
+          base.labelLarge!.copyWith(fontSize: 13, fontWeight: FontWeight.w600),
+      labelMedium:
+          base.labelMedium!.copyWith(fontSize: 11, fontWeight: FontWeight.w600),
       // nav labels, grid captions, the Preview chip
       labelSmall: base.labelSmall!.copyWith(
           fontSize: 10, fontWeight: FontWeight.w500, letterSpacing: 0.2),
@@ -256,7 +256,8 @@ abstract final class AppTheme {
         modalBackgroundColor: scheme.surfaceContainerHigh,
         surfaceTintColor: Colors.transparent,
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(LbRadius.hero)),
+          borderRadius:
+              BorderRadius.vertical(top: Radius.circular(LbRadius.hero)),
         ),
         showDragHandle: true,
         dragHandleColor: scheme.onSurface.withValues(alpha: 0.3),
@@ -292,8 +293,7 @@ abstract final class AppTheme {
             states.contains(WidgetState.selected)
                 ? scheme.primary
                 : scheme.surfaceContainerHighest),
-        trackOutlineColor:
-            const WidgetStatePropertyAll(Colors.transparent),
+        trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
       ),
       dividerTheme: DividerThemeData(
         color: scheme.outlineVariant,

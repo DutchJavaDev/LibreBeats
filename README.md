@@ -237,11 +237,11 @@ Both the Go services and the Flutter app have unit tests, none of them need Dock
 
 ```bash
 # Migration helpers + script naming
-cd src/backend-self-hosted/supabase/service/migration
+cd src/backend-self-hosted/docker/service/migration
 go test ./...
 
 # Pipeline parsing, file utilities, env guards, models
-cd src/backend-self-hosted/supabase/service/audio
+cd src/backend-self-hosted/docker/service/audio
 go test ./...
 
 # Frontend unit + widget tests

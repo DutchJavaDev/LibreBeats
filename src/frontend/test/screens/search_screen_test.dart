@@ -40,7 +40,7 @@ void main() {
     expect(find.text('Cache: memory'), findsOneWidget);
 
     // the choice itself is persisted too
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = SharedPreferencesAsync();
     expect(prefs.getBool('librebeats_cache_persistent'), isFalse);
   });
 

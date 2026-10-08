@@ -99,12 +99,12 @@ class ServerRegistry extends ChangeNotifier {
 
   // Load persisted servers ([seed] on first run), connectAll() does the sign in
   Future<void> load({List<(String, String)> seed = const []}) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await SharedPreferencesAsync();
 
-    _defaultEmail = prefs.getString(_emailKey) ?? fallbackEmail;
-    _defaultPassword = prefs.getString(_passwordKey) ?? fallbackPassword;
+    _defaultEmail = await prefs.getString(_emailKey) ?? fallbackEmail;
+    _defaultPassword = await prefs.getString(_passwordKey) ?? fallbackPassword;
 
-    final raw = prefs.getString(_prefsKey);
+    final raw = await prefs.getString(_prefsKey);
     if (raw != null) {
       final list = jsonDecode(raw) as List<dynamic>;
       for (final e in list) {
@@ -130,7 +130,7 @@ class ServerRegistry extends ChangeNotifier {
     _defaultEmail = email;
     _defaultPassword = password;
 
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = SharedPreferencesAsync();
     await prefs.setString(_emailKey, email);
     await prefs.setString(_passwordKey, password);
 
@@ -327,6 +327,7 @@ class ServerRegistry extends ChangeNotifier {
     final failed =
         _servers.where((s) => s.status == ServerStatus.failed).toList();
     if (failed.isEmpty) return;
+
     await Future.wait(failed.map(_connector));
     notifyListeners();
   }
@@ -375,7 +376,7 @@ class ServerRegistry extends ChangeNotifier {
   }
 
   Future<void> _persist() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = SharedPreferencesAsync();
     await prefs.setString(
       _prefsKey,
       jsonEncode([

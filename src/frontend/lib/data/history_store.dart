@@ -10,8 +10,8 @@ class HistoryStore {
   static const _historyKey = 'librebeats_play_history';
 
   Future<List<Beat>> load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_historyKey);
+    final prefs = await SharedPreferencesAsync();
+    final raw = await prefs.getString(_historyKey);
     if (raw == null) return [];
 
     try {
@@ -23,13 +23,13 @@ class HistoryStore {
   }
 
   Future<void> save(List<Beat> beats) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = SharedPreferencesAsync();
     await prefs.setString(
         _historyKey, jsonEncode([for (final b in beats) _beatToJson(b)]));
   }
 
   Future<void> clear() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = SharedPreferencesAsync();
     await prefs.remove(_historyKey);
   }
 

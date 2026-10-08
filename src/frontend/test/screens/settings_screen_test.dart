@@ -80,7 +80,7 @@ void main() {
   testWidgets('appearance card offers all modes and switches them',
       (tester) async {
     final controller = ThemeController();
-    await controller.load(await SharedPreferences.getInstance());
+    await controller.load(await SharedPreferencesAsync());
     final registry = ServerRegistry(
         connector: (server) async => server.status = ServerStatus.healthy);
     await registry.load();
@@ -113,7 +113,7 @@ void main() {
     expect(controller.mode, ThemeMode.light);
 
     // the choice lands in shared_preferences
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = SharedPreferencesAsync();
     expect(prefs.getString(ThemeController.prefKey), 'light');
   });
 

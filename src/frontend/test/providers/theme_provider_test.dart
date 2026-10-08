@@ -9,7 +9,7 @@ void main() {
   test('defaults to dark when nothing is stored', () async {
     SharedPreferences.setMockInitialValues({});
     final controller = ThemeController();
-    await controller.load(await SharedPreferences.getInstance());
+    await controller.load(SharedPreferencesAsync());
 
     expect(controller.mode, ThemeMode.dark);
     expect(controller.resolvedBrightness, Brightness.dark);
@@ -20,7 +20,7 @@ void main() {
     SharedPreferences.setMockInitialValues(
         {ThemeController.prefKey: 'lavender'});
     final controller = ThemeController();
-    await controller.load(await SharedPreferences.getInstance());
+    await controller.load(SharedPreferencesAsync());
 
     expect(controller.mode, ThemeMode.dark);
     controller.dispose();
@@ -29,21 +29,21 @@ void main() {
   test('loads a stored light or system choice', () async {
     SharedPreferences.setMockInitialValues({ThemeController.prefKey: 'light'});
     final light = ThemeController();
-    await light.load(await SharedPreferences.getInstance());
+    await light.load(SharedPreferencesAsync());
     expect(light.mode, ThemeMode.light);
     expect(light.resolvedBrightness, Brightness.light);
     light.dispose();
 
     SharedPreferences.setMockInitialValues({ThemeController.prefKey: 'system'});
     final system = ThemeController();
-    await system.load(await SharedPreferences.getInstance());
+    await system.load(SharedPreferencesAsync());
     expect(system.mode, ThemeMode.system);
     system.dispose();
   });
 
   test('setMode notifies and persists every choice', () async {
     SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = SharedPreferencesAsync();
     final controller = ThemeController();
     await controller.load(prefs);
 

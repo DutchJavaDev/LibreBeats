@@ -7,8 +7,6 @@ import 'package:liberated_beats/data/offline_media_store.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/providers/liked_provider.dart';
 import 'package:sembast/sembast_memory.dart';
-import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
-import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import '../fakes.dart';
 

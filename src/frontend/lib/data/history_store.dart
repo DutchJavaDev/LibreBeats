@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import '../models/beat_models.dart';
 
@@ -10,7 +12,7 @@ class HistoryStore {
   static const _historyKey = 'librebeats_play_history';
 
   Future<List<Beat>> load() async {
-    final prefs = await SharedPreferencesAsync();
+    final prefs = SharedPreferencesAsync();
     final raw = await prefs.getString(_historyKey);
     if (raw == null) return [];
 

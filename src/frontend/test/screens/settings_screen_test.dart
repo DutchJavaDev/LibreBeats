@@ -13,13 +13,20 @@ import 'package:liberated_beats/theme/app_theme.dart';
 import 'package:provider/provider.dart';
 import 'package:sembast/sembast_memory.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import '../fakes.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(() async {
+  SharedPreferencesAsyncPlatform.instance =
+      InMemorySharedPreferencesAsync.empty();
+
+  //await store.clear();
+});
 
   Future<LikedProvider> makeLikedProvider(Directory temp) async {
     final provider = LikedProvider(
@@ -80,7 +87,7 @@ void main() {
   testWidgets('appearance card offers all modes and switches them',
       (tester) async {
     final controller = ThemeController();
-    await controller.load(await SharedPreferencesAsync());
+    await controller.load(SharedPreferencesAsync());
     final registry = ServerRegistry(
         connector: (server) async => server.status = ServerStatus.healthy);
     await registry.load();
@@ -114,7 +121,7 @@ void main() {
 
     // the choice lands in shared_preferences
     final prefs = SharedPreferencesAsync();
-    expect(prefs.getString(ThemeController.prefKey), 'light');
+    expect(await prefs.getString(ThemeController.prefKey), 'light');
   });
 
   testWidgets('collapsed summary shows the fleet state, no rows',

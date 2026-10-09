@@ -2,6 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/services/audio_playback_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import '../fakes.dart';
 
@@ -17,7 +19,7 @@ Beat _longBeat(int id, [String? title]) => Beat(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  SharedPreferencesAsyncPlatform.instance = InMemorySharedPreferencesAsync.empty();
 
   test('a play is counted once, with the owning mix, at the threshold', () {
     // headless: the constructor only subscribes to streams, and

@@ -14,6 +14,8 @@ import 'package:liberated_beats/widgets/queue_sheet.dart';
 import 'package:provider/provider.dart';
 import 'package:sembast/sembast_memory.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import '../fakes.dart';
 
@@ -57,7 +59,7 @@ Beat _playable(int id) => Beat(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  SharedPreferencesAsyncPlatform.instance = InMemorySharedPreferencesAsync.empty();
 
   Future<LikedProvider> makeLikedProvider(Directory temp) async {
     final provider = LikedProvider(

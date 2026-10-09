@@ -99,7 +99,7 @@ class ServerRegistry extends ChangeNotifier {
 
   // Load persisted servers ([seed] on first run), connectAll() does the sign in
   Future<void> load({List<(String, String)> seed = const []}) async {
-    final prefs = await SharedPreferencesAsync();
+    final prefs = SharedPreferencesAsync();
 
     _defaultEmail = await prefs.getString(_emailKey) ?? fallbackEmail;
     _defaultPassword = await prefs.getString(_passwordKey) ?? fallbackPassword;

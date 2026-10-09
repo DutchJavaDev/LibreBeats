@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liberated_beats/providers/theme_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test('defaults to dark when nothing is stored', () async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferencesAsyncPlatform.instance = InMemorySharedPreferencesAsync.empty();
     final controller = ThemeController();
     await controller.load(SharedPreferencesAsync());
 
@@ -17,8 +19,7 @@ void main() {
   });
 
   test('unknown stored values also mean dark', () async {
-    SharedPreferences.setMockInitialValues(
-        {ThemeController.prefKey: 'lavender'});
+    SharedPreferencesAsyncPlatform.instance = InMemorySharedPreferencesAsync.withData({ThemeController.prefKey: 'lavender'});
     final controller = ThemeController();
     await controller.load(SharedPreferencesAsync());
 
@@ -27,14 +28,14 @@ void main() {
   });
 
   test('loads a stored light or system choice', () async {
-    SharedPreferences.setMockInitialValues({ThemeController.prefKey: 'light'});
+    SharedPreferencesAsyncPlatform.instance = InMemorySharedPreferencesAsync.withData({ThemeController.prefKey: 'light'});
     final light = ThemeController();
     await light.load(SharedPreferencesAsync());
     expect(light.mode, ThemeMode.light);
     expect(light.resolvedBrightness, Brightness.light);
     light.dispose();
 
-    SharedPreferences.setMockInitialValues({ThemeController.prefKey: 'system'});
+    SharedPreferencesAsyncPlatform.instance = InMemorySharedPreferencesAsync.withData({ThemeController.prefKey: 'system'});
     final system = ThemeController();
     await system.load(SharedPreferencesAsync());
     expect(system.mode, ThemeMode.system);
@@ -42,7 +43,8 @@ void main() {
   });
 
   test('setMode notifies and persists every choice', () async {
-    SharedPreferences.setMockInitialValues({});
+        SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
     final prefs = SharedPreferencesAsync();
     final controller = ThemeController();
     await controller.load(prefs);
@@ -52,13 +54,13 @@ void main() {
 
     await controller.setMode(ThemeMode.light);
     expect(controller.mode, ThemeMode.light);
-    expect(prefs.getString(ThemeController.prefKey), 'light');
+    expect(await prefs.getString(ThemeController.prefKey), 'light');
 
     await controller.setMode(ThemeMode.system);
-    expect(prefs.getString(ThemeController.prefKey), 'system');
+    expect(await prefs.getString(ThemeController.prefKey), 'system');
 
     await controller.setMode(ThemeMode.dark);
-    expect(prefs.getString(ThemeController.prefKey), 'dark');
+    expect(await prefs.getString(ThemeController.prefKey), 'dark');
     expect(notified, 3);
 
     // setting the same mode again stays quiet

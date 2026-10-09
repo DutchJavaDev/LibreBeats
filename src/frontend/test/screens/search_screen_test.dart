@@ -13,12 +13,18 @@ import 'package:liberated_beats/widgets/browse_mix_card.dart';
 import 'package:provider/provider.dart';
 import 'package:sembast/sembast_memory.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import '../fakes.dart';
 
 void main() {
+  setUp(() async {
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
+  });
+
   testWidgets('cache mode toggle switches disk/memory', (tester) async {
-    SharedPreferences.setMockInitialValues({});
     final registry =
         ServerRegistry(connector: (s) async => s.status = ServerStatus.healthy);
     await registry.load();
@@ -40,8 +46,8 @@ void main() {
     expect(find.text('Cache: memory'), findsOneWidget);
 
     // the choice itself is persisted too
-    final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getBool('librebeats_cache_persistent'), isFalse);
+    final prefs = SharedPreferencesAsync();
+    expect(await prefs.getBool('librebeats_cache_persistent'), isFalse);
   });
 
   testWidgets('update banner shows after an auto refresh, X dismisses it',

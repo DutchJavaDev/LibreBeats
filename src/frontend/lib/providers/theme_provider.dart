@@ -14,7 +14,7 @@ class ThemeController extends ChangeNotifier with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
   }
 
-  SharedPreferences? _prefs;
+  SharedPreferencesAsync? _prefs;
 
   ThemeMode _mode = ThemeMode.dark;
   ThemeMode get mode => _mode;
@@ -28,9 +28,9 @@ class ThemeController extends ChangeNotifier with WidgetsBindingObserver {
       };
 
   /// Reads the stored choice. Anything unknown or missing means dark.
-  Future<void> load(SharedPreferences prefs) async {
+  Future<void> load(SharedPreferencesAsync prefs) async {
     _prefs = prefs;
-    _mode = switch (prefs.getString(prefKey)) {
+    _mode = switch (await prefs.getString(prefKey)) {
       'light' => ThemeMode.light,
       'system' => ThemeMode.system,
       _ => ThemeMode.dark,

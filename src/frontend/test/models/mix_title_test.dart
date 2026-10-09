@@ -3,9 +3,14 @@ import 'package:liberated_beats/data/history_store.dart';
 import 'package:liberated_beats/data/liked_store.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  SharedPreferencesAsyncPlatform.instance =
+      InMemorySharedPreferencesAsync.empty();
 
   Beat beat({String? mixTitle}) => Beat(
         id: 1,

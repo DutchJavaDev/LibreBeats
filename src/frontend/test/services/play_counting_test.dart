@@ -19,7 +19,8 @@ Beat _longBeat(int id, [String? title]) => Beat(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  SharedPreferencesAsyncPlatform.instance = InMemorySharedPreferencesAsync.empty();
+  SharedPreferencesAsyncPlatform.instance =
+      InMemorySharedPreferencesAsync.empty();
 
   test('a play is counted once, with the owning mix, at the threshold', () {
     // headless: the constructor only subscribes to streams, and

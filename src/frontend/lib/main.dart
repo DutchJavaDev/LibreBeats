@@ -37,16 +37,16 @@ Future<void> main() async {
 
   // SharedPreferences will be a legacy API in the close future from today 8-10-2026
   // Migrate to SharedPreferences without losting data
-  // This is supported to run every startup 
+  // This is supported to run every startup
   const sharedPreferencesOptions = SharedPreferencesOptions();
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    await migrateLegacySharedPreferencesToSharedPreferencesAsyncIfNecessary(
-      legacySharedPreferencesInstance: prefs,
-      sharedPreferencesAsyncOptions: sharedPreferencesOptions,
+  final SharedPreferences prefs = await SharedPreferences.getInstance();
+  await migrateLegacySharedPreferencesToSharedPreferencesAsyncIfNecessary(
+    legacySharedPreferencesInstance: prefs,
+    sharedPreferencesAsyncOptions: sharedPreferencesOptions,
 
-      // Don't ever change this key or else rip settings, kinda
-      migrationCompletedKey: 'migrationCompleted',
-    );
+    // Don't ever change this key or else rip settings, kinda
+    migrationCompletedKey: 'migrationCompleted',
+  );
 
   // fonts are bundled in assets/google_fonts, no runtime download
   GoogleFonts.config.allowRuntimeFetching = false;

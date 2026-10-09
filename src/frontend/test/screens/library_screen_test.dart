@@ -45,10 +45,9 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() async {
-  SharedPreferencesAsyncPlatform.instance =
-      InMemorySharedPreferencesAsync.empty();
-});
-
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
+  });
 
   Beat beat(int id) => Beat(
         id: id,

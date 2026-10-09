@@ -9,7 +9,8 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test('defaults to dark when nothing is stored', () async {
-    SharedPreferencesAsyncPlatform.instance = InMemorySharedPreferencesAsync.empty();
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
     final controller = ThemeController();
     await controller.load(SharedPreferencesAsync());
 
@@ -19,7 +20,9 @@ void main() {
   });
 
   test('unknown stored values also mean dark', () async {
-    SharedPreferencesAsyncPlatform.instance = InMemorySharedPreferencesAsync.withData({ThemeController.prefKey: 'lavender'});
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.withData(
+            {ThemeController.prefKey: 'lavender'});
     final controller = ThemeController();
     await controller.load(SharedPreferencesAsync());
 
@@ -28,14 +31,18 @@ void main() {
   });
 
   test('loads a stored light or system choice', () async {
-    SharedPreferencesAsyncPlatform.instance = InMemorySharedPreferencesAsync.withData({ThemeController.prefKey: 'light'});
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.withData(
+            {ThemeController.prefKey: 'light'});
     final light = ThemeController();
     await light.load(SharedPreferencesAsync());
     expect(light.mode, ThemeMode.light);
     expect(light.resolvedBrightness, Brightness.light);
     light.dispose();
 
-    SharedPreferencesAsyncPlatform.instance = InMemorySharedPreferencesAsync.withData({ThemeController.prefKey: 'system'});
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.withData(
+            {ThemeController.prefKey: 'system'});
     final system = ThemeController();
     await system.load(SharedPreferencesAsync());
     expect(system.mode, ThemeMode.system);
@@ -43,7 +50,7 @@ void main() {
   });
 
   test('setMode notifies and persists every choice', () async {
-        SharedPreferencesAsyncPlatform.instance =
+    SharedPreferencesAsyncPlatform.instance =
         InMemorySharedPreferencesAsync.empty();
     final prefs = SharedPreferencesAsync();
     final controller = ThemeController();

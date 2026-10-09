@@ -19,11 +19,10 @@ import 'package:shared_preferences_platform_interface/shared_preferences_async_p
 import '../fakes.dart';
 
 void main() {
-
   setUp(() async {
-  SharedPreferencesAsyncPlatform.instance =
-      InMemorySharedPreferencesAsync.empty();
-});
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
+  });
 
   testWidgets('cache mode toggle switches disk/memory', (tester) async {
     final registry =

@@ -18,7 +18,8 @@ class _TestPlayback extends AudioPlaybackService {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  SharedPreferencesAsyncPlatform.instance = InMemorySharedPreferencesAsync.empty();
+  SharedPreferencesAsyncPlatform.instance =
+      InMemorySharedPreferencesAsync.empty();
 
   test('duration timer pauses playback when it runs out', () async {
     final service = _TestPlayback();

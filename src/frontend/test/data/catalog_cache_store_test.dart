@@ -10,15 +10,15 @@ import 'package:shared_preferences_android/shared_preferences_android.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  
+
   final store = CatalogCacheStore();
 
   setUp(() async {
-  SharedPreferencesAsyncPlatform.instance =
-      InMemorySharedPreferencesAsync.empty();
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
 
-  await store.clear();
-});
+    await store.clear();
+  });
 
   Map<String, CachedServerCatalog> sampleCache() => {
         'https://a': CachedServerCatalog(
@@ -75,7 +75,7 @@ void main() {
 
     SharedPreferences.setMockInitialValues(
         {'librebeats_catalog_cache': 'not json {'});
-        
+
     expect(await store.load(), isEmpty);
   });
 

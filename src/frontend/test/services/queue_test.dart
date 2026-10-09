@@ -35,7 +35,7 @@ void main() {
 
   setUpAll(() async {
     SharedPreferencesAsyncPlatform.instance =
-      InMemorySharedPreferencesAsync.empty();
+        InMemorySharedPreferencesAsync.empty();
     // the first load in a process boots just_audio lazily, which drops an
     // orphan MissingPluginException into whichever test runs first. Trip
     // it here in a guarded zone instead.
@@ -44,8 +44,6 @@ void main() {
       await Future<void>.delayed(Duration.zero);
     }, (_, __) {});
   });
-
-  
 
   test('setBeatMix keeps the queue in player order, unplayable beats out',
       () async {

@@ -12,8 +12,6 @@ import '../fakes.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-
-
   const serverA = 'https://a.example.com';
   const serverB = 'https://b.example.com';
 
@@ -25,7 +23,7 @@ void main() {
   Future<void> setup(
       {Duration cacheTtl = const Duration(milliseconds: 60),
       Duration watchInterval = const Duration(seconds: 30)}) async {
-        SharedPreferencesAsyncPlatform.instance =
+    SharedPreferencesAsyncPlatform.instance =
         InMemorySharedPreferencesAsync.empty();
     registry =
         ServerRegistry(connector: (s) async => s.status = ServerStatus.healthy);

@@ -46,7 +46,7 @@ void main() {
 
   setUp(() async {
     SharedPreferencesAsyncPlatform.instance =
-      InMemorySharedPreferencesAsync.empty();
+        InMemorySharedPreferencesAsync.empty();
   });
 
   test('parseSeedList zips urls and keys', () {

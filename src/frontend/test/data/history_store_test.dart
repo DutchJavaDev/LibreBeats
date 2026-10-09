@@ -11,11 +11,11 @@ void main() {
   final store = HistoryStore();
 
   setUp(() async {
-  SharedPreferencesAsyncPlatform.instance =
-      InMemorySharedPreferencesAsync.empty();
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
 
-  await store.clear();
-});
+    await store.clear();
+  });
 
   List<Beat> sampleHistory() => [
         Beat(

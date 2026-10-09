@@ -8,8 +8,9 @@ import 'package:shared_preferences_platform_interface/shared_preferences_async_p
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  
-  SharedPreferencesAsyncPlatform.instance = InMemorySharedPreferencesAsync.empty();
+
+  SharedPreferencesAsyncPlatform.instance =
+      InMemorySharedPreferencesAsync.empty();
 
   Beat beat({String? mixTitle}) => Beat(
         id: 1,

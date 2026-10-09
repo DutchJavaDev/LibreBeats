@@ -59,7 +59,8 @@ Beat _playable(int id) => Beat(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  SharedPreferencesAsyncPlatform.instance = InMemorySharedPreferencesAsync.empty();
+  SharedPreferencesAsyncPlatform.instance =
+      InMemorySharedPreferencesAsync.empty();
 
   Future<LikedProvider> makeLikedProvider(Directory temp) async {
     final provider = LikedProvider(

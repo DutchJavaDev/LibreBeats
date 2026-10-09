@@ -22,11 +22,11 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() async {
-  SharedPreferencesAsyncPlatform.instance =
-      InMemorySharedPreferencesAsync.empty();
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
 
-  //await store.clear();
-});
+    //await store.clear();
+  });
 
   Future<LikedProvider> makeLikedProvider(Directory temp) async {
     final provider = LikedProvider(

@@ -31,7 +31,8 @@ Future<PlayStatsStore> memStore() async => PlayStatsStore(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  SharedPreferencesAsyncPlatform.instance = InMemorySharedPreferencesAsync.empty();
+  SharedPreferencesAsyncPlatform.instance =
+      InMemorySharedPreferencesAsync.empty();
 
   Future<void> pumpHome(
     WidgetTester tester, {

@@ -18,18 +18,18 @@ class CatalogCacheStore {
   static const _modeKey = 'librebeats_cache_persistent';
 
   Future<bool> loadPersistentMode() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_modeKey) ?? true;
+    final prefs = SharedPreferencesAsync();
+    return await prefs.getBool(_modeKey) ?? true;
   }
 
   Future<void> savePersistentMode(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = SharedPreferencesAsync();
     await prefs.setBool(_modeKey, value);
   }
 
   Future<Map<String, CachedServerCatalog>> load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_cacheKey);
+    final prefs = SharedPreferencesAsync();
+    final raw = await prefs.getString(_cacheKey);
     if (raw == null) return {};
 
     try {
@@ -42,7 +42,7 @@ class CatalogCacheStore {
   }
 
   Future<void> save(Map<String, CachedServerCatalog> cache) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = SharedPreferencesAsync();
     await prefs.setString(
         _cacheKey,
         jsonEncode(cache.map((url, e) => MapEntry(url, {
@@ -52,7 +52,7 @@ class CatalogCacheStore {
   }
 
   Future<void> clear() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = SharedPreferencesAsync();
     await prefs.remove(_cacheKey);
   }
 

@@ -2,13 +2,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:liberated_beats/data/catalog_cache_store.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUp(() => SharedPreferences.setMockInitialValues({}));
-
   final store = CatalogCacheStore();
+
+  setUp(() async {
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
+
+    await store.clear();
+  });
 
   Map<String, CachedServerCatalog> sampleCache() => {
         'https://a': CachedServerCatalog(
@@ -65,6 +72,7 @@ void main() {
 
     SharedPreferences.setMockInitialValues(
         {'librebeats_catalog_cache': 'not json {'});
+
     expect(await store.load(), isEmpty);
   });
 

@@ -12,6 +12,7 @@ import 'package:liberated_beats/data/offline_media_store.dart';
 import 'package:liberated_beats/data/play_stats_store.dart';
 import 'package:liberated_beats/data/server_registry.dart';
 import 'package:liberated_beats/providers/background_audio_provider.dart';
+import 'package:shared_preferences/util/legacy_to_async_migration_util.dart';
 import 'package:liberated_beats/providers/liked_provider.dart';
 import 'package:liberated_beats/providers/play_stats_provider.dart';
 import 'package:liberated_beats/providers/theme_provider.dart';
@@ -29,10 +30,23 @@ Future<void> main() async {
     CachedNetworkImage.logLevel = CacheManagerLogLevel.debug;
   } else {
     // Log to file?
-    CachedNetworkImage.logLevel = CacheManagerLogLevel.warning;
+    CachedNetworkImage.logLevel = CacheManagerLogLevel.none;
   }
 
   WidgetsFlutterBinding.ensureInitialized();
+
+  // SharedPreferences will be a legacy API in the close future from today 8-10-2026
+  // Migrate to SharedPreferences without losting data
+  // This is supported to run every startup
+  const sharedPreferencesOptions = SharedPreferencesOptions();
+  final SharedPreferences prefs = await SharedPreferences.getInstance();
+  await migrateLegacySharedPreferencesToSharedPreferencesAsyncIfNecessary(
+    legacySharedPreferencesInstance: prefs,
+    sharedPreferencesAsyncOptions: sharedPreferencesOptions,
+
+    // Don't ever change this key or else rip settings, kinda
+    migrationCompletedKey: 'migrationCompleted',
+  );
 
   // fonts are bundled in assets/google_fonts, no runtime download
   GoogleFonts.config.allowRuntimeFetching = false;
@@ -41,7 +55,7 @@ Future<void> main() async {
 
   // dark unless the user chose otherwise; also styles the system chrome
   final themeController = ThemeController();
-  await themeController.load(await SharedPreferences.getInstance());
+  await themeController.load(SharedPreferencesAsync());
 
   final serverRegistry = ServerRegistry();
   final audioPlaybackService = AudioPlaybackService();

@@ -4,7 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/providers/background_audio_provider.dart';
 import 'package:liberated_beats/services/audio_playback_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import '../fakes.dart';
 
@@ -32,7 +33,8 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(() async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
     // the first load in a process boots just_audio lazily, which drops an
     // orphan MissingPluginException into whichever test runs first. Trip
     // it here in a guarded zone instead.
@@ -41,8 +43,6 @@ void main() {
       await Future<void>.delayed(Duration.zero);
     }, (_, __) {});
   });
-
-  setUp(() => SharedPreferences.setMockInitialValues({}));
 
   test('setBeatMix keeps the queue in player order, unplayable beats out',
       () async {

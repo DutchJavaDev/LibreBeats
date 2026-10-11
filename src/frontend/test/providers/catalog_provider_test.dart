@@ -3,7 +3,8 @@ import 'package:liberated_beats/data/beat_repository.dart';
 import 'package:liberated_beats/data/catalog_cache_store.dart';
 import 'package:liberated_beats/data/server_registry.dart';
 import 'package:liberated_beats/providers/catalog_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import '../fakes.dart';
 
@@ -21,7 +22,8 @@ void main() {
   Future<void> setup(
       {Duration cacheTtl = const Duration(milliseconds: 60),
       Duration watchInterval = const Duration(seconds: 30)}) async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
     registry =
         ServerRegistry(connector: (s) async => s.status = ServerStatus.healthy);
     await registry.load(seed: const [(serverA, 'k1'), (serverB, 'k2')]);

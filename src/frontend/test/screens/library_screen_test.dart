@@ -14,6 +14,8 @@ import 'package:liberated_beats/widgets/lb_brand.dart';
 import 'package:provider/provider.dart';
 import 'package:sembast/sembast_memory.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import '../fakes.dart';
 
@@ -41,6 +43,11 @@ class _RecordingPlayback extends AudioPlaybackService {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() async {
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
+  });
 
   Beat beat(int id) => Beat(
         id: id,

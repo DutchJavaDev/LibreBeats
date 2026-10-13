@@ -1,4 +1,7 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+import 'package:liberated_beats/config/helpers.dart';
 import 'package:provider/provider.dart';
 
 import '../data/server_registry.dart';
@@ -28,6 +31,8 @@ class _MainScaffoldState extends State<MainScaffold>
   // work. IndexedStack keeps them alive afterwards so state is preserved.
   final _visited = <int>{0};
 
+  var num = 0;
+
   @override
   void initState() {
     super.initState();
@@ -52,6 +57,12 @@ class _MainScaffoldState extends State<MainScaffold>
       if (_selectedIndex == 0) context.read<ServerRegistry>().checkHealth();
     } else {
       catalog.setSearchVisible(false);
+    }
+    
+    PrintLog(num);
+    if(state == AppLifecycleState.detached)
+    {
+      num++;
     }
   }
 

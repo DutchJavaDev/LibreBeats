@@ -1,5 +1,10 @@
+import 'dart:ffi';
+
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:liberated_beats/config/helpers.dart';
+import 'package:liberated_beats/data/play_state_store.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/services/audio_playback_service.dart';
 
@@ -11,9 +16,27 @@ final class BackgroundAudioProvider extends ChangeNotifier {
     _playbackService.setRecentsChangedCallback(notifyListeners);
     // repaint when the sleep timer arms, disarms or fires
     _playbackService.setSleepChangedCallback(notifyListeners);
+
+    _playStateStore = PlayStateStore();
+
+    _fireAndForget();
+  }
+
+  void _fireAndForget() async {
+    
+    await _playStateStore.load();
+
+    _currentBeat = _playStateStore.lastPlayedBeat;
+    _progressNotifier.value = _playStateStore.lastPlayedBeatElapsed ?? 0;
+
+    notifyListeners();
+
+    PrintLog(_currentBeat!.title);
   }
 
   final AudioPlaybackService _playbackService;
+
+  late PlayStateStore _playStateStore;
 
   // TODO does not reflect actuall recents
   List<Beat> get recentBeats => _playbackService.recentBeats;
@@ -86,6 +109,8 @@ final class BackgroundAudioProvider extends ChangeNotifier {
     final loaded = await _playbackService.setBeatMix(beatmix, selectedBeat);
     if (!loaded) return false;
 
+    await _playStateStore.setLastPlayedBeatAndBeatMix(selectedBeat, 0, [], beatmix);
+
     await togglePlay();
     return true;
   }
@@ -112,6 +137,8 @@ final class BackgroundAudioProvider extends ChangeNotifier {
       return false;
     }
 
+    await _playStateStore.setLastPlayedBeatAndBeatMix(beat, 0, [], null);
+
     await togglePlay();
     return true;
   }
@@ -123,7 +150,7 @@ final class BackgroundAudioProvider extends ChangeNotifier {
 
   bool _lastNotifiedPlaying = false;
 
-  void updateProgress(double nProgress, Beat currentBeat) {
+  void updateProgress(double nProgress, Beat currentBeat) async {
     _progressNotifier.value = nProgress;
 
     // a full notify only for what actually repaints widgets: a track change
@@ -135,6 +162,8 @@ final class BackgroundAudioProvider extends ChangeNotifier {
       _lastNotifiedPlaying = playing;
       notifyListeners();
     }
+
+    await _playStateStore.updateElapsed(nProgress);
   }
 
   void toggleShuffle() {

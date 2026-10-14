@@ -6,12 +6,11 @@ import 'dart:convert';
 import 'package:liberated_beats/config/helpers.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:duration/duration.dart';
 
 class PlayStateStore {
 
   static const _playStateKey = 'librebeats_play_state';
-
-  final _saveIntervalMs = 100;
 
   Beat? _lastPlayedBeat;
   Beat? get lastPlayedBeat => _lastPlayedBeat;
@@ -22,8 +21,8 @@ class PlayStateStore {
   BeatMix? _lastPlayedBeatMix;
   BeatMix? get lastPlayedBeatMix => _lastPlayedBeatMix;
 
-  double? _lastPlayedBeatElapsed;
-  double? get lastPlayedBeatElapsed => _lastPlayedBeatElapsed;
+  Duration? _lastPlayedBeatElapsed;
+  Duration? get lastPlayedBeatElapsed => _lastPlayedBeatElapsed ?? Duration.zero;
 
   Future<void> load() async {    
     final pref = SharedPreferencesAsync();
@@ -38,30 +37,29 @@ class PlayStateStore {
 
     final rawState = jsonDecode(await pref.getString(_playStateKey) ?? "");
 
-    PrintLog(rawState);
-
     _lastPlayedBeat = _beatFromJson(jsonDecode(rawState["last_beat"]));
 
     //_lastKnowQueue = jsonDecode(rawState["last_beat_queue"]) as List<Beat?>;
 
     //_lastPlayedBeatMix = jsonDecode(rawState["last_know_beat_mix"]) as BeatMix?;
 
-    _lastPlayedBeatElapsed = double.parse(rawState["last_beat_elapsed"]);
+    _lastPlayedBeatElapsed = parseTime(rawState["last_beat_elapsed"].toString());
   }
 
-  Future<void> updateElapsed(double newElapsed, {bool force = false}) async
+  Future<void> updateElapsed(Duration newElapsed, {bool force = false}) async
   {
     _lastPlayedBeatElapsed = newElapsed;
 
     if(force)
     {
+      PrintLog("Saving elapsed time: ${newElapsed}");
       await _updateStore(_lastPlayedBeat, _lastPlayedBeatElapsed, _lastKnowQueue, _lastPlayedBeatMix);
       return;
     }
     // We don't want to be writting every second to disk.
   }
 
-  Future<void> setLastPlayedBeatAndBeatMix(Beat? beat, double? elapsed, List<Beat?> queue, BeatMix? beatMix) async
+  Future<void> setLastPlayedBeatAndBeatMix(Beat? beat, Duration? elapsed, List<Beat?> queue, BeatMix? beatMix) async
   {
     _lastPlayedBeat = beat;
     _lastKnowQueue = queue;
@@ -71,9 +69,9 @@ class PlayStateStore {
     await _updateStore(beat, elapsed, queue, beatMix);
   }
 
-  Future<void> _updateStore(Beat? beat, double? elapsed, List<Beat?> queue, BeatMix? beatMix) async {
+  Future<void> _updateStore(Beat? beat, Duration? elapsed, List<Beat?> queue, BeatMix? beatMix) async {
 
-    final _queue = queue.map((beat) => _beatToJson(beat)).toList();
+    final _queue = queue.map((beat) => _beatToJson(beat!)).toList();
 
     Map<String, String> state = {
       "last_beat": jsonEncode(_beatToJson(beat)),

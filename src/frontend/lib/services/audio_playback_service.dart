@@ -6,6 +6,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:liberated_beats/config/helpers.dart';
 import 'package:liberated_beats/data/history_store.dart';
+import 'package:liberated_beats/data/play_state_store.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/services/play_threshold_counter.dart';
 
@@ -37,6 +38,10 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
       : _historyStore = historyStore ?? HistoryStore() {
     _setupAudioSession();
     _restoreRecents();
+
+    _playStateStore = PlayStateStore();
+
+    unawaited(_playStateStore.load());
 
     // So that our clients (the Flutter UI and the system notification) know
     // what state to display, here we set up our audio handler to broadcast all
@@ -227,6 +232,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
 
   final List<MediaItem> beatMediaItems = [];
   final List<UriAudioSource> beatAudioSources = [];
+  late PlayStateStore _playStateStore;
 
   // the queue in player order, playable beats only. _currentBeatMix.beats
   // keeps the unplayable ones so its indices do not line up with the player
@@ -375,7 +381,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     _onPlayCounted = cb;
   }
 
-  void updateProgress(Duration position) {
+  void updateProgress(Duration position) async {
     final beat = _currentBeat;
     if (beat == null) return;
 
@@ -389,9 +395,12 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
       _onPlayCounted?.call(beat, _currentBeatMix);
     }
 
+
     if (totalMs == 0) {
       return;
     }
+    
+    await _playStateStore.updateElapsed(position, force: true);
 
     // Set progress directly from the actual position
     _progress = (position.inMilliseconds / totalMs).clamp(0.0, 1.0);

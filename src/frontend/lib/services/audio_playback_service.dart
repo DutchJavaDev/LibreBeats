@@ -39,10 +39,6 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     _setupAudioSession();
     _restoreRecents();
 
-    _playStateStore = PlayStateStore();
-
-    unawaited(_playStateStore.load());
-
     // So that our clients (the Flutter UI and the system notification) know
     // what state to display, here we set up our audio handler to broadcast all
     // playback state changes as they happen via playbackState...
@@ -558,6 +554,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   // Reload the persisted history on startup. Anything already played before
   // the load finished stays on top of the restored entries.
   Future<void> _restoreRecents() async {
+    _playStateStore = await PlayStateStore.instance();
     final stored = await _historyStore.load();
     if (stored.isEmpty) return;
 

@@ -1,4 +1,3 @@
-
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -17,36 +16,32 @@ final class BackgroundAudioProvider extends ChangeNotifier {
     // repaint when the sleep timer arms, disarms or fires
     _playbackService.setSleepChangedCallback(notifyListeners);
 
-    _playStateStore = PlayStateStore();
-
-    unawaited(_fireAndForget());
+    unawaited(_resumeLastPlayState());
   }
 
-  Future<void> _fireAndForget() async {
-    
-    await _playStateStore.load();
+  Future<void> _resumeLastPlayState() async {
 
-    _currentBeat = _playStateStore.lastPlayedBeat;
+    _playStateStore = await PlayStateStore.instance();
 
-    // a failed load (dead server, bad url) should not flip to "playing"
-    final loaded = await _playbackService.setBeatSource(_currentBeat!);
-    if (!loaded) {
-      _playbackService.removeRecent(_currentBeat!.key);
-      PrintLog("Failed to load beatmix");
-      return;
+    if (_playStateStore.lastPlayedBeat != null) {
+      _currentBeat = _playStateStore.lastPlayedBeat;
+
+      // a failed load (dead server, bad url) should not flip to "playing"
+      final loaded = await _playbackService.setBeatSource(_currentBeat!);
+      if (!loaded) {
+        _playbackService.removeRecent(_currentBeat!.key);
+        PrintLog("Failed to load beatmix");
+        return;
+      }
     }
 
-    final elapsedDuration = _playStateStore.lastPlayedBeatElapsed!;
-    
-    await _playStateStore.setLastPlayedBeatAndBeatMix(_currentBeat!, elapsedDuration, [], null);
+    if (_playStateStore.lastPlayedBeatElapsedDuration != null) {
+      final elapsedDuration = _playStateStore.lastPlayedBeatElapsedDuration!;
 
-    PrintLog("Saved Elpased Time: ${elapsedDuration}");
+      await _playbackService.seek(elapsedDuration);
 
-    await _playbackService.seek(elapsedDuration);
-
-    _playbackService.updateProgress(elapsedDuration);
-
-    notifyListeners();
+      _playbackService.updateProgress(elapsedDuration);
+    }
   }
 
   final AudioPlaybackService _playbackService;
@@ -124,7 +119,8 @@ final class BackgroundAudioProvider extends ChangeNotifier {
     final loaded = await _playbackService.setBeatMix(beatmix, selectedBeat);
     if (!loaded) return false;
 
-    await _playStateStore.setLastPlayedBeatAndBeatMix(selectedBeat, Duration.zero, [], beatmix);
+    await _playStateStore.setLastPlayedBeatAndBeatMix(
+        selectedBeat, Duration.zero, [], beatmix);
 
     await togglePlay();
     return true;
@@ -152,7 +148,8 @@ final class BackgroundAudioProvider extends ChangeNotifier {
       return false;
     }
 
-    await _playStateStore.setLastPlayedBeatAndBeatMix(beat, Duration.zero, [], null);
+    await _playStateStore.setLastPlayedBeatAndBeatMix(
+        beat, Duration.zero, [], null);
 
     await togglePlay();
     return true;

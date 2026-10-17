@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:liberated_beats/data/beat_repository.dart';
 import 'package:liberated_beats/data/liked_store.dart';
 import 'package:liberated_beats/data/offline_media_store.dart';
+import 'package:liberated_beats/data/play_state_store.dart';
 import 'package:liberated_beats/data/play_stats_store.dart';
 import 'package:liberated_beats/data/server_registry.dart';
 import 'package:liberated_beats/providers/background_audio_provider.dart';
@@ -47,6 +48,9 @@ Future<void> main() async {
     // Don't ever change this key or else rip settings, kinda
     migrationCompletedKey: 'migrationCompleted',
   );
+
+    // pre-Load playstate instance
+  unawaited(PlayStateStore.instance());
 
   // fonts are bundled in assets/google_fonts, no runtime download
   GoogleFonts.config.allowRuntimeFetching = false;

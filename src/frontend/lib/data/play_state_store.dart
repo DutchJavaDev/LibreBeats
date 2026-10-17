@@ -9,75 +9,96 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:duration/duration.dart';
 
 class PlayStateStore {
-
   static const _playStateKey = 'librebeats_play_state';
+  static const _lastBeatKey = 'librebeats_last_beat';
+  static const _lastBeatQueueKey = 'librebeats_last_beat_queue';
+  static const _lastKnowBeatMixKey = 'librebeats_last_know_beat_mix';
+  static const _lastBeatElapsedDurationKey =
+      'librebeats_last_beat_elapsed_duration';
+  
+  static PlayStateStore? _playStoreInstance = null;
+
+  PlayStateStore._(){}
+  PlayStateStore._internal(){}
 
   Beat? _lastPlayedBeat;
   Beat? get lastPlayedBeat => _lastPlayedBeat;
-  
+
   List<Beat?> _lastKnowQueue = [];
   List<Beat?> get lastKnowQueue => _lastKnowQueue;
 
   BeatMix? _lastPlayedBeatMix;
   BeatMix? get lastPlayedBeatMix => _lastPlayedBeatMix;
 
-  Duration? _lastPlayedBeatElapsed;
-  Duration? get lastPlayedBeatElapsed => _lastPlayedBeatElapsed ?? Duration.zero;
+  Duration? _lastPlayedBeatElapsedDuration;
+  Duration? get lastPlayedBeatElapsedDuration =>
+      _lastPlayedBeatElapsedDuration ?? Duration.zero;
 
-  Future<void> load() async {    
+  Future<void> _load() async {
     final pref = SharedPreferencesAsync();
 
     final hasKey = await pref.containsKey(_playStateKey);
 
-    if(!hasKey)
-    {
+    if (!hasKey) {
       // Nothing has been saved / first launch
-      return;      
+      return;
     }
 
-    final rawState = jsonDecode(await pref.getString(_playStateKey) ?? "");
+    final rawState = jsonDecode(await pref.getString(_playStateKey) ?? "")
+        as Map<String, dynamic>;
 
-    _lastPlayedBeat = _beatFromJson(jsonDecode(rawState["last_beat"]));
+    if (rawState[_lastBeatKey] != null && jsonDecode(rawState[_lastBeatKey])['id'] is int) {
+      
+      PrintLog(rawState);
 
-    //_lastKnowQueue = jsonDecode(rawState["last_beat_queue"]) as List<Beat?>;
+      _lastPlayedBeat = beatFromJson(jsonDecode(rawState[_lastBeatKey]));
 
-    //_lastPlayedBeatMix = jsonDecode(rawState["last_know_beat_mix"]) as BeatMix?;
+      _lastKnowQueue = (jsonDecode(rawState[_lastBeatQueueKey]) as Iterable)!
+          .map((b) => beatFromJson(b))
+          .toList();
 
-    _lastPlayedBeatElapsed = parseTime(rawState["last_beat_elapsed"].toString());
+      final _rbeatMix = jsonDecode(rawState[_lastKnowBeatMixKey]);
+
+      if(_rbeatMix['id'] != null)
+      {
+        _lastPlayedBeatMix = beatMixFromJson(_rbeatMix);
+      }
+
+      _lastPlayedBeatElapsedDuration =
+          parseTime(rawState[_lastBeatElapsedDurationKey] as String);
+    }
   }
 
-  Future<void> updateElapsed(Duration newElapsed, {bool force = false}) async
-  {
-    _lastPlayedBeatElapsed = newElapsed;
+  Future<void> updateElapsed(Duration newElapsed, {bool force = false}) async {
+    _lastPlayedBeatElapsedDuration = newElapsed;
 
-    if(force)
-    {
+    if (force) {
       PrintLog("Saving elapsed time: ${newElapsed}");
-      await _updateStore(_lastPlayedBeat, _lastPlayedBeatElapsed, _lastKnowQueue, _lastPlayedBeatMix);
+      await _updateStore(_lastPlayedBeat, _lastPlayedBeatElapsedDuration,
+          _lastKnowQueue, _lastPlayedBeatMix);
       return;
     }
     // We don't want to be writting every second to disk.
   }
 
-  Future<void> setLastPlayedBeatAndBeatMix(Beat? beat, Duration? elapsed, List<Beat?> queue, BeatMix? beatMix) async
-  {
+  Future<void> setLastPlayedBeatAndBeatMix(Beat? beat,
+      Duration? elapsedDuration, List<Beat?> queue, BeatMix? beatMix) async {
     _lastPlayedBeat = beat;
     _lastKnowQueue = queue;
-    _lastPlayedBeatElapsed = elapsed;
+    _lastPlayedBeatElapsedDuration = elapsedDuration;
     _lastPlayedBeatMix = beatMix;
-    
-    await _updateStore(beat, elapsed, queue, beatMix);
+
+    await _updateStore(beat, elapsedDuration, queue, beatMix);
   }
 
-  Future<void> _updateStore(Beat? beat, Duration? elapsed, List<Beat?> queue, BeatMix? beatMix) async {
-
-    final _queue = queue.map((beat) => _beatToJson(beat!)).toList();
-
+  Future<void> _updateStore(Beat? beat, Duration? elapsedDuration,
+      List<Beat?>? queue, BeatMix? beatMix) async {
     Map<String, String> state = {
-      "last_beat": jsonEncode(_beatToJson(beat)),
-      "last_beat_elapsed": elapsed.toString(),
-      "last_beat_queue": jsonEncode(_queue),
-      //"last_know_beat_mix": jsonEncode(beatMix)
+      _lastBeatKey: jsonEncode(beatToJson(beat)),
+      _lastBeatElapsedDurationKey: elapsedDuration.toString(),
+      _lastBeatQueueKey:
+          jsonEncode(queue?.map((beat) => beatToJson(beat!)).toList()),
+      _lastKnowBeatMixKey: jsonEncode(beatMixToJson(beatMix))
     };
 
     final pref = SharedPreferencesAsync();
@@ -85,28 +106,17 @@ class PlayStateStore {
     await pref.setString(_playStateKey, jsonEncode(state));
   }
 
-    // same field names as the catalog cache, plus the source server
-  Map<String, dynamic> _beatToJson(Beat? b) => {
-        'id': b!.id,
-        'sourceid': b.sourceId,
-        'title': b.title,
-        'artist': b.artist,
-        'thumbnailurl': b.thumbnailUrl,
-        'streamingurl': b.audioUrl,
-        'duration': b.duration.inSeconds,
-        'mixtitle': b.mixTitle,
-      };
+  static Future<PlayStateStore> instance() async {
 
-  Beat _beatFromJson(dynamic json) => Beat(
-        id: json['id'] as int,
-        sourceId: json['sourceid'] as String? ?? 'sample',
-        title: json['title'] as String,
-        artist: json['artist'] as String? ?? '',
-        thumbnailUrl: json['thumbnailurl'] as String? ?? '',
-        duration: Duration(seconds: json['duration'] as int? ?? 0),
-        color: gradientForKey('${json['sourceid'] ?? 'sample'}:${json['id']}'),
-        audioUrl: json['streamingurl'] as String?,
-        // entries saved before the subtitle rule have no mix title
-        mixTitle: json['mixtitle'] as String?,
-      );
+    if(_playStoreInstance != null)
+    {
+      return _playStoreInstance!;
+    }
+
+    _playStoreInstance = PlayStateStore._internal();
+
+    await _playStoreInstance!._load();
+
+    return _playStoreInstance!;
+  }
 }

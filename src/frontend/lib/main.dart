@@ -50,7 +50,7 @@ Future<void> main() async {
   );
 
     // pre-Load playstate instance
-  unawaited(PlayStateStore.instance());
+  await PlayStateStore.instance();
 
   // fonts are bundled in assets/google_fonts, no runtime download
   GoogleFonts.config.allowRuntimeFetching = false;

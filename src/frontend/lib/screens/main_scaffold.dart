@@ -58,12 +58,6 @@ class _MainScaffoldState extends State<MainScaffold>
     } else {
       catalog.setSearchVisible(false);
     }
-    
-    PrintLog(num);
-    if(state == AppLifecycleState.detached)
-    {
-      num++;
-    }
   }
 
   void _selectTab(int i) {

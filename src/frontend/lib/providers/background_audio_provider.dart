@@ -15,11 +15,9 @@ final class BackgroundAudioProvider extends ChangeNotifier {
     _playbackService.setRecentsChangedCallback(notifyListeners);
     // repaint when the sleep timer arms, disarms or fires
     _playbackService.setSleepChangedCallback(notifyListeners);
-
-    unawaited(_resumeLastPlayState());
   }
 
-  Future<void> _resumeLastPlayState() async {
+  Future<void> resumeLastPlayState() async {
 
     _playStateStore = await PlayStateStore.instance();
 
@@ -31,6 +29,7 @@ final class BackgroundAudioProvider extends ChangeNotifier {
       if (!loaded) {
         _playbackService.removeRecent(_currentBeat!.key);
         PrintLog("Failed to load beatmix");
+        tryResumeLastPlaystate = true;
         return;
       }
     }
@@ -42,6 +41,7 @@ final class BackgroundAudioProvider extends ChangeNotifier {
 
       _playbackService.updateProgress(elapsedDuration);
     }
+    tryResumeLastPlaystate = true;
   }
 
   final AudioPlaybackService _playbackService;
@@ -92,6 +92,8 @@ final class BackgroundAudioProvider extends ChangeNotifier {
   Duration? get sleepDuration => _playbackService.sleepDuration;
 
   bool get sleepArmed => sleepRemaining != null || sleepEndOfTrack;
+
+  bool tryResumeLastPlaystate = false;
 
   void setSleepTimer(Duration? duration) {
     _playbackService.setSleepTimer(duration);

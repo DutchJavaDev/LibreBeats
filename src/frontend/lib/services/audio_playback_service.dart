@@ -335,6 +335,19 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   }
 
   Future<bool> togglePlay() async {
+
+    if(_currentBeat == null)
+    {
+      _setCurrentBeat();
+      
+      bool? loaded = await setBeatSource(_currentBeat!) ?? false;
+      
+      if (!loaded) {
+        removeRecent(_currentBeat!.key);
+        return false;
+      }
+    }
+
     // the player, not our flag, decides: the flag rides playingStream and is
     // written only there
     final playing = audioPlayer.playing;
@@ -432,6 +445,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> seek(Duration position) async {
+    _setCurrentBeat();
     await setSeek(position);
   }
 
@@ -592,6 +606,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   PlaybackState _transformEvent(PlaybackEvent event) {
     return PlaybackState(
       controls: [
+
         MediaControl.skipToPrevious,
         if (audioPlayer.playing) MediaControl.pause else MediaControl.play,
         MediaControl.stop,

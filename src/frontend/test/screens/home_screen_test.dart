@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:liberated_beats/data/play_state_store.dart';
 import 'package:liberated_beats/data/play_stats_store.dart';
 import 'package:liberated_beats/data/server_registry.dart';
 import 'package:liberated_beats/providers/background_audio_provider.dart';
@@ -27,7 +28,7 @@ ServerConnector _connector({Set<String> failing = const {}}) {
 Future<PlayStatsStore> memStore() async => PlayStatsStore(
     database: await newDatabaseFactoryMemory().openDatabase('stats.db'));
 
-void main() {
+void main(){
   TestWidgetsFlutterBinding.ensureInitialized();
 
   SharedPreferencesAsyncPlatform.instance =
@@ -38,6 +39,10 @@ void main() {
     PlayStatsProvider? stats,
     ServerRegistry? registry,
   }) async {
+
+    // pre-Load playstate instance
+    final playstoreState = await PlayStateStore.instance();
+    
     // tall surface so every sliver section actually builds
     tester.view.physicalSize = const Size(800, 2400);
     tester.view.devicePixelRatio = 1.0;
@@ -52,7 +57,7 @@ void main() {
 
     // the real service stays idle in tests: no audio platform is touched
     // until something plays, and nothing here is playable
-    final provider = BackgroundAudioProvider(AudioPlaybackService());
+    final provider = BackgroundAudioProvider(AudioPlaybackService(), playstoreState);
     await tester.pumpWidget(
       MultiProvider(
         providers: [

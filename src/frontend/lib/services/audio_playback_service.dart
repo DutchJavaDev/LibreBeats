@@ -346,6 +346,8 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
       // awaiting it here would block the caller for the whole track
       unawaited(audioPlayer.play());
     }
+
+    _playStateStore.updateElapsed(audioPlayer.position, force: true);
     return !playing;
   }
 
@@ -395,8 +397,6 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     if (totalMs == 0) {
       return;
     }
-    
-    await _playStateStore.updateElapsed(position, force: true);
 
     // Set progress directly from the actual position
     _progress = (position.inMilliseconds / totalMs).clamp(0.0, 1.0);
@@ -410,11 +410,13 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   @override
   Future<void> play() async {
     if (!audioPlayer.playing) await togglePlay();
+    _playStateStore.updateElapsed(audioPlayer.position, force: true);
   }
 
   @override
   Future<void> pause() async {
     if (audioPlayer.playing) await togglePlay();
+    _playStateStore.updateElapsed(audioPlayer.position, force: true);
   }
 
   @override
@@ -424,6 +426,8 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     await audioPlayer.stop();
     // let audio_service tear down the notification / foreground service
     await super.stop();
+
+    _playStateStore.updateElapsed(audioPlayer.position, force: true);
   }
 
   @override
@@ -433,6 +437,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
 
   Future<void> setSeek(Duration position) async {
     await audioPlayer.seek(position < Duration.zero ? Duration.zero : position);
+    _playStateStore.updateElapsed(audioPlayer.position, force: true);
   }
 
   @override
@@ -532,7 +537,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   // Play history, newest first. A replayed beat moves back to the top instead
   // of appearing twice, the oldest entry drops off past the cap. Persisted so
   // it survives an app restart.
-  static const _maxRecents = 10;
+  static const _maxRecents = 15;
   void _recordRecent(Beat beat) {
     _recentBeats.removeWhere((b) => b.key == beat.key);
     _recentBeats.insert(0, beat);

@@ -5,21 +5,17 @@ import 'dart:convert';
 
 import 'package:liberated_beats/config/helpers.dart';
 import 'package:liberated_beats/models/beat_models.dart';
+import 'package:liberated_beats/models/store_models.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:duration/duration.dart';
 
 class PlayStateStore {
   static const _playStateKey = 'librebeats_play_state';
-  static const _lastBeatKey = 'librebeats_last_beat';
-  static const _lastBeatQueueKey = 'librebeats_last_beat_queue';
-  static const _lastKnowBeatMixKey = 'librebeats_last_know_beat_mix';
-  static const _lastBeatElapsedDurationKey =
-      'librebeats_last_beat_elapsed_duration';
   
-  static PlayStateStore? _playStoreInstance = null;
+  static PlayStateStore? _playStoreInstance;
 
-  PlayStateStore._(){}
-  PlayStateStore._internal(){}
+  PlayState? _playState;
+
+  PlayStateStore._internal();
 
   Beat? _lastPlayedBeat;
   Beat? get lastPlayedBeat => _lastPlayedBeat;
@@ -31,41 +27,35 @@ class PlayStateStore {
   BeatMix? get lastPlayedBeatMix => _lastPlayedBeatMix;
 
   Duration? _lastPlayedBeatElapsedDuration;
-  Duration? get lastPlayedBeatElapsedDuration =>
-      _lastPlayedBeatElapsedDuration ?? Duration.zero;
+  Duration? get lastPlayedBeatElapsedDuration => _lastPlayedBeatElapsedDuration ?? Duration.zero;
 
   Future<void> _load() async {
+
     final pref = SharedPreferencesAsync();
 
     final hasKey = await pref.containsKey(_playStateKey);
 
     if (!hasKey) {
       // Nothing has been saved / first launch
+      _playState = PlayState(currentPlayingBeat: null, currentDuration: Duration.zero, currentBeatMix: null, currentQueue: []);
       return;
     }
 
     final rawState = jsonDecode(await pref.getString(_playStateKey) ?? "")
         as Map<String, dynamic>;
+    
+    _playState = playStateFromJson(rawState);
 
-    if (rawState[_lastBeatKey] != null && jsonDecode(rawState[_lastBeatKey])['id'] is int) {
-      
-      PrintLog(rawState);
-
-      _lastPlayedBeat = beatFromJson(jsonDecode(rawState[_lastBeatKey]));
-
-      _lastKnowQueue = (jsonDecode(rawState[_lastBeatQueueKey]) as Iterable)!
-          .map((b) => beatFromJson(b))
-          .toList();
-
-      final _rbeatMix = jsonDecode(rawState[_lastKnowBeatMixKey]);
-
-      if(_rbeatMix['id'] != null)
-      {
-        _lastPlayedBeatMix = beatMixFromJson(_rbeatMix);
-      }
-
-      _lastPlayedBeatElapsedDuration =
-          parseTime(rawState[_lastBeatElapsedDurationKey] as String);
+    if(_playState != null && _playState!.currentPlayingBeat != null)
+    {
+      _lastPlayedBeat = _playState!.currentPlayingBeat;
+      _lastPlayedBeatElapsedDuration = _playState!.currentDuration;
+      _lastKnowQueue = _playState!.currentQueue;
+      _lastPlayedBeatMix = _playState!.currentBeatMix;
+    }
+    else
+    {
+      _playState = PlayState(currentPlayingBeat: null, currentDuration: Duration.zero, currentBeatMix: null, currentQueue: []);
     }
   }
 
@@ -78,7 +68,6 @@ class PlayStateStore {
           _lastKnowQueue, _lastPlayedBeatMix);
       return;
     }
-    // We don't want to be writting every second to disk.
   }
 
   Future<void> setLastPlayedBeatAndBeatMix(Beat? beat,
@@ -92,18 +81,18 @@ class PlayStateStore {
   }
 
   Future<void> _updateStore(Beat? beat, Duration? elapsedDuration,
-      List<Beat?>? queue, BeatMix? beatMix) async {
-    Map<String, String> state = {
-      _lastBeatKey: jsonEncode(beatToJson(beat)),
-      _lastBeatElapsedDurationKey: elapsedDuration.toString(),
-      _lastBeatQueueKey:
-          jsonEncode(queue?.map((beat) => beatToJson(beat!)).toList()),
-      _lastKnowBeatMixKey: jsonEncode(beatMixToJson(beatMix))
-    };
+      List<Beat?> queue, BeatMix? beatMix) async {
+
+    _playState!.currentPlayingBeat = beat ?? null;
+    _playState!.currentDuration = elapsedDuration ?? Duration.zero;
+    _playState!.currentBeatMix = beatMix ?? null;
+    _playState!.currentQueue = queue ?? [];
 
     final pref = SharedPreferencesAsync();
 
-    await pref.setString(_playStateKey, jsonEncode(state));
+    final playState = playStateToJson(_playState);
+
+    await pref.setString(_playStateKey, jsonEncode(playState));
   }
 
   static Future<PlayStateStore> instance() async {

@@ -49,7 +49,7 @@ Future<void> main() async {
     migrationCompletedKey: 'migrationCompleted',
   );
 
-    // pre-Load playstate instance
+  // pre-Load playstate instance
   await PlayStateStore.instance();
 
   // fonts are bundled in assets/google_fonts, no runtime download
@@ -106,7 +106,8 @@ Future<void> main() async {
         Provider<BeatRepository>.value(value: beatRepository),
         Provider<AudioPlaybackService>.value(value: audioPlaybackService),
         ChangeNotifierProvider(
-            create: (_) => BackgroundAudioProvider(audioPlaybackService, playStateStore)),
+            create: (_) =>
+                BackgroundAudioProvider(audioPlaybackService, playStateStore)),
         ChangeNotifierProvider(
             create: (_) => LibreProvider(
                 serverRegistry, beatMixRepository, beatRepository)),

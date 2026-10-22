@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:liberated_beats/config/helpers.dart';
 import 'package:liberated_beats/data/play_state_store.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/services/audio_playback_service.dart';
@@ -26,6 +27,7 @@ final class BackgroundAudioProvider extends ChangeNotifier {
       // a failed load (dead server, bad url) should not flip to "playing"
       final loaded = await _playbackService.setBeatSource(_currentBeat!);
       if (!loaded) {
+        PrintLog('Failed to load ${_currentBeat!.artist}');
         _playbackService.removeRecent(_currentBeat!.key);
         return;
       }

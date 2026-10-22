@@ -71,11 +71,15 @@ PlayState playStateFromJson(dynamic rawJson) => PlayState(
     currentPlayingBeat: beatFromJson(rawJson['current_beat']),
     currentDuration: parseTime(rawJson['current_duration']),
     currentBeatMix: beatMixFromJsonState(rawJson['current_beat_mix']),
-    currentQueue: (rawJson['current_queue'] as List<dynamic>).map((b) => beatFromJson(b)).toList());
+    currentQueue: (rawJson['current_queue'] as List<dynamic>)
+        .map((b) => beatFromJson(b))
+        .toList());
 
-    BeatMix beatMixFromJsonState(dynamic rawJson) => BeatMix(
+BeatMix beatMixFromJsonState(dynamic rawJson) => BeatMix(
     id: rawJson['id'] ?? -5,
     title: rawJson['title'] ?? '',
     thumbnailUrl: rawJson['thumbnailurl'] as String? ?? '',
     trackCount: rawJson['trackcount'] ?? -5,
-    beats: ((rawJson['beats'] ?? []) as Iterable).map((b) => beatFromJson(b)).toList());
+    beats: ((rawJson['beats'] ?? []) as Iterable)
+        .map((b) => beatFromJson(b))
+        .toList());

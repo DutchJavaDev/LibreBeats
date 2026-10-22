@@ -17,10 +17,10 @@ void PrintLog(Object? object) {
 }
 
 Map<String, dynamic> playStateToJson(PlayState? state) => {
-      'current_beat': beatToJson(state!.currentPlayingBeat!),
-      'current_duration': state.currentDuration.toString(),
-      'current_beat_mix': beatMixToJson(state.currentBeatMix!),
-      'current_queue': state.currentQueue.map((b) => beatToJson(b)).toList()
+      'current_beat': beatToJson(state?.currentPlayingBeat),
+      'current_duration': state?.currentDuration.toString(),
+      'current_beat_mix': beatMixToJson(state?.currentBeatMix),
+      'current_queue': state?.currentQueue.map((b) => beatToJson(b)).toList()
     };
 
 // same field names as the catalog cache, plus the source server
@@ -74,8 +74,8 @@ PlayState playStateFromJson(dynamic rawJson) => PlayState(
     currentQueue: (rawJson['current_queue'] as List<dynamic>).map((b) => beatFromJson(b)).toList());
 
     BeatMix beatMixFromJsonState(dynamic rawJson) => BeatMix(
-    id: rawJson['id'],
-    title: rawJson['title'] as String,
+    id: rawJson['id'] ?? -5,
+    title: rawJson['title'] ?? '',
     thumbnailUrl: rawJson['thumbnailurl'] as String? ?? '',
-    trackCount: rawJson['trackcount'] as int,
-    beats: (rawJson['beats'] as List).map((b) => beatFromJson(b)).toList());
+    trackCount: rawJson['trackcount'] ?? -5,
+    beats: ((rawJson['beats'] ?? []) as Iterable).map((b) => beatFromJson(b)).toList());

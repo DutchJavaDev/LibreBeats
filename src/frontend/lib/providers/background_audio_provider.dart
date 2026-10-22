@@ -2,34 +2,31 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:liberated_beats/config/helpers.dart';
 import 'package:liberated_beats/data/play_state_store.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/services/audio_playback_service.dart';
 
 final class BackgroundAudioProvider extends ChangeNotifier {
-  BackgroundAudioProvider(this._playbackService) {
+  BackgroundAudioProvider(this._playbackService, this._playStateStore) {
     _playbackService.setUpdateProgressCallback(updateProgress);
     // repaint the history UI when a play is recorded or the persisted
     // history finishes loading on startup
     _playbackService.setRecentsChangedCallback(notifyListeners);
     // repaint when the sleep timer arms, disarms or fires
     _playbackService.setSleepChangedCallback(notifyListeners);
+
+    unawaited(resumeLastPlayState());
   }
 
   Future<void> resumeLastPlayState() async {
 
-    _playStateStore = await PlayStateStore.instance();
-
-    if (_playStateStore.lastPlayedBeat != null) {
+    if (_playStateStore.lastPlayedBeat != null && _currentBeat == null) {
       _currentBeat = _playStateStore.lastPlayedBeat;
 
       // a failed load (dead server, bad url) should not flip to "playing"
       final loaded = await _playbackService.setBeatSource(_currentBeat!);
       if (!loaded) {
         _playbackService.removeRecent(_currentBeat!.key);
-        PrintLog("Failed to load beatmix");
-        tryResumeLastPlaystate = true;
         return;
       }
     }
@@ -38,15 +35,12 @@ final class BackgroundAudioProvider extends ChangeNotifier {
       final elapsedDuration = _playStateStore.lastPlayedBeatElapsedDuration!;
 
       await _playbackService.seek(elapsedDuration);
-
-      _playbackService.updateProgress(elapsedDuration);
     }
-    tryResumeLastPlaystate = true;
   }
 
   final AudioPlaybackService _playbackService;
 
-  late PlayStateStore _playStateStore;
+  final PlayStateStore _playStateStore;
 
   // TODO does not reflect actuall recents
   List<Beat> get recentBeats => _playbackService.recentBeats;
@@ -93,8 +87,6 @@ final class BackgroundAudioProvider extends ChangeNotifier {
 
   bool get sleepArmed => sleepRemaining != null || sleepEndOfTrack;
 
-  bool tryResumeLastPlaystate = false;
-
   void setSleepTimer(Duration? duration) {
     _playbackService.setSleepTimer(duration);
     notifyListeners();
@@ -122,7 +114,7 @@ final class BackgroundAudioProvider extends ChangeNotifier {
     if (!loaded) return false;
 
     await _playStateStore.setLastPlayedBeatAndBeatMix(
-        selectedBeat, Duration.zero, [], beatmix);
+        selectedBeat, Duration.zero, _playbackService.queueBeats, beatmix);
 
     await togglePlay();
     return true;
@@ -174,6 +166,7 @@ final class BackgroundAudioProvider extends ChangeNotifier {
     if (_currentBeat != currentBeat || _lastNotifiedPlaying != playing) {
       _currentBeat = currentBeat;
       _lastNotifiedPlaying = playing;
+      _playStateStore.setLastPlayedBeatAndBeatMix(_currentBeat, Duration.zero, _playbackService.queueBeats ?? [], _playbackService.currentBeatMix ?? null);
       notifyListeners();
     }
   }

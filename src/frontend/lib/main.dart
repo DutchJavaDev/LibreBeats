@@ -95,6 +95,8 @@ Future<void> main() async {
   unawaited(playStatsProvider.init());
   audioPlaybackService.setPlayCountedCallback(playStatsProvider.recordPlay);
 
+  final playStateStore = await PlayStateStore.instance();
+
   runApp(
     MultiProvider(
       providers: [
@@ -104,7 +106,7 @@ Future<void> main() async {
         Provider<BeatRepository>.value(value: beatRepository),
         Provider<AudioPlaybackService>.value(value: audioPlaybackService),
         ChangeNotifierProvider(
-            create: (_) => BackgroundAudioProvider(audioPlaybackService)),
+            create: (_) => BackgroundAudioProvider(audioPlaybackService, playStateStore)),
         ChangeNotifierProvider(
             create: (_) => LibreProvider(
                 serverRegistry, beatMixRepository, beatRepository)),

@@ -50,11 +50,9 @@ void main() {
   setUp(() async {
     SharedPreferencesAsyncPlatform.instance =
         InMemorySharedPreferencesAsync.empty();
-        // pre-Load playstate instance
-      playstoreState = await PlayStateStore.instance();
+    // pre-Load playstate instance
+    playstoreState = await PlayStateStore.instance();
   });
-
-  
 
   Beat beat(int id) => Beat(
         id: id,

@@ -21,7 +21,8 @@ final class BackgroundAudioProvider extends ChangeNotifier {
 
   Future<void> resumeLastPlayState() async {
     if (_playStateStore.lastPlayedBeat != null &&
-        _playStateStore.lastPlayedBeatMix != null && _playStateStore.lastPlayedBeatMix!.title.isNotEmpty) {
+        _playStateStore.lastPlayedBeatMix != null &&
+        _playStateStore.lastPlayedBeatMix!.title.isNotEmpty) {
       _currentBeat = _playStateStore.lastPlayedBeat;
 
       // PrintLog('Restoring beat + beatmix');

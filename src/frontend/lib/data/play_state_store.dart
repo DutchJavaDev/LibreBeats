@@ -10,7 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class PlayStateStore {
   static const _playStateKey = 'librebeats_play_state';
-  
+
   static PlayStateStore? _playStoreInstance;
 
   PlayState? _playState;
@@ -27,35 +27,40 @@ class PlayStateStore {
   BeatMix? get lastPlayedBeatMix => _lastPlayedBeatMix;
 
   Duration? _lastPlayedBeatElapsedDuration;
-  Duration? get lastPlayedBeatElapsedDuration => _lastPlayedBeatElapsedDuration ?? Duration.zero;
+  Duration? get lastPlayedBeatElapsedDuration =>
+      _lastPlayedBeatElapsedDuration ?? Duration.zero;
 
   Future<void> _load() async {
-
     final pref = SharedPreferencesAsync();
 
     final hasKey = await pref.containsKey(_playStateKey);
 
     if (!hasKey) {
       // Nothing has been saved / first launch
-      _playState = PlayState(currentPlayingBeat: null, currentDuration: Duration.zero, currentBeatMix: null, currentQueue: []);
+      _playState = PlayState(
+          currentPlayingBeat: null,
+          currentDuration: Duration.zero,
+          currentBeatMix: null,
+          currentQueue: []);
       return;
     }
 
     final rawState = jsonDecode(await pref.getString(_playStateKey) ?? "")
         as Map<String, dynamic>;
-    
+
     _playState = playStateFromJson(rawState);
 
-    if(_playState != null && _playState!.currentPlayingBeat != null)
-    {
+    if (_playState != null && _playState!.currentPlayingBeat != null) {
       _lastPlayedBeat = _playState!.currentPlayingBeat;
       _lastPlayedBeatElapsedDuration = _playState!.currentDuration;
       _lastKnowQueue = _playState!.currentQueue;
       _lastPlayedBeatMix = _playState!.currentBeatMix;
-    }
-    else
-    {
-      _playState = PlayState(currentPlayingBeat: null, currentDuration: Duration.zero, currentBeatMix: null, currentQueue: []);
+    } else {
+      _playState = PlayState(
+          currentPlayingBeat: null,
+          currentDuration: Duration.zero,
+          currentBeatMix: null,
+          currentQueue: []);
     }
   }
 
@@ -82,7 +87,6 @@ class PlayStateStore {
 
   Future<void> _updateStore(Beat? beat, Duration? elapsedDuration,
       List<Beat?> queue, BeatMix? beatMix) async {
-
     _playState!.currentPlayingBeat = beat ?? null;
     _playState!.currentDuration = elapsedDuration ?? Duration.zero;
     _playState!.currentBeatMix = beatMix ?? null;
@@ -96,9 +100,7 @@ class PlayStateStore {
   }
 
   static Future<PlayStateStore> instance() async {
-
-    if(_playStoreInstance != null)
-    {
+    if (_playStoreInstance != null) {
       return _playStoreInstance!;
     }
 

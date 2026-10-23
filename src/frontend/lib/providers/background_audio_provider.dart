@@ -189,11 +189,8 @@ final class BackgroundAudioProvider extends ChangeNotifier {
     if (_currentBeat != currentBeat || _lastNotifiedPlaying != playing) {
       _currentBeat = currentBeat;
       _lastNotifiedPlaying = playing;
-      _playStateStore.setLastPlayedBeatAndBeatMix(
-          _currentBeat,
-          Duration.zero,
-          _playbackService.queueBeats,
-          _playbackService.currentBeatMix);
+      _playStateStore.setLastPlayedBeatAndBeatMix(_currentBeat, Duration.zero,
+          _playbackService.queueBeats, _playbackService.currentBeatMix);
       notifyListeners();
     }
   }

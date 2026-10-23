@@ -20,7 +20,8 @@ Map<String, dynamic> playStateToJson(PlayState? state) => {
       'current_beat': beatToJson(state?.currentPlayingBeat),
       'current_duration': state?.currentDuration.toString(),
       'current_beat_mix': beatMixToJson(state?.currentBeatMix),
-      'current_queue': state?.currentQueue.map((b) => beatToJson(b)).toList()
+      'current_queue': state?.currentQueue.map((b) => beatToJson(b)).toList(),
+      'current_volume': state?.currentVolume
     };
 
 // same field names as the catalog cache, plus the source server
@@ -73,7 +74,8 @@ PlayState playStateFromJson(dynamic rawJson) => PlayState(
     currentBeatMix: beatMixFromJsonState(rawJson['current_beat_mix']),
     currentQueue: (rawJson['current_queue'] as List<dynamic>)
         .map((b) => beatFromJson(b))
-        .toList());
+        .toList(),
+    currentVolume: rawJson['current_volume'] as double);
 
 BeatMix beatMixFromJsonState(dynamic rawJson) => BeatMix(
     id: rawJson['id'] ?? -5,

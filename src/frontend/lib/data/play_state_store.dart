@@ -30,6 +30,9 @@ class PlayStateStore {
   Duration? get lastPlayedBeatElapsedDuration =>
       _lastPlayedBeatElapsedDuration ?? Duration.zero;
 
+  double? _lastKnowVolume = 0.25;
+  double? get lastKnowVolume => _lastKnowVolume;
+
   Future<void> _load() async {
     final pref = SharedPreferencesAsync();
 
@@ -41,7 +44,8 @@ class PlayStateStore {
           currentPlayingBeat: null,
           currentDuration: Duration.zero,
           currentBeatMix: null,
-          currentQueue: []);
+          currentQueue: [],
+          currentVolume: _lastKnowVolume);
       return;
     }
 
@@ -55,12 +59,14 @@ class PlayStateStore {
       _lastPlayedBeatElapsedDuration = _playState!.currentDuration;
       _lastKnowQueue = _playState!.currentQueue;
       _lastPlayedBeatMix = _playState!.currentBeatMix;
+      _lastKnowVolume = _playState!.currentVolume;
     } else {
       _playState = PlayState(
           currentPlayingBeat: null,
           currentDuration: Duration.zero,
           currentBeatMix: null,
-          currentQueue: []);
+          currentQueue: [],
+          currentVolume: _lastKnowVolume);
     }
   }
 
@@ -70,9 +76,16 @@ class PlayStateStore {
     if (force) {
       PrintLog("Saving elapsed time: $newElapsed");
       await _updateStore(_lastPlayedBeat, _lastPlayedBeatElapsedDuration,
-          _lastKnowQueue, _lastPlayedBeatMix);
+          _lastKnowQueue, _lastKnowVolume, _lastPlayedBeatMix);
       return;
     }
+  }
+
+  Future<void> updateVolume(double newVolume) async {
+    _lastKnowVolume = newVolume;
+
+    await _updateStore(_lastPlayedBeat, _lastPlayedBeatElapsedDuration,
+          _lastKnowQueue, _lastKnowVolume, _lastPlayedBeatMix);
   }
 
   Future<void> setLastPlayedBeatAndBeatMix(Beat? beat,
@@ -82,15 +95,16 @@ class PlayStateStore {
     _lastPlayedBeatElapsedDuration = elapsedDuration;
     _lastPlayedBeatMix = beatMix;
 
-    await _updateStore(beat, elapsedDuration, queue, beatMix);
+    await _updateStore(beat, elapsedDuration, queue, _lastKnowVolume, beatMix);
   }
 
   Future<void> _updateStore(Beat? beat, Duration? elapsedDuration,
-      List<Beat?> queue, BeatMix? beatMix) async {
+      List<Beat?> queue, double? volume, BeatMix? beatMix) async {
     _playState!.currentPlayingBeat = beat;
     _playState!.currentDuration = elapsedDuration ?? Duration.zero;
     _playState!.currentBeatMix = beatMix;
     _playState!.currentQueue = queue;
+    _playState!.currentVolume = _lastKnowVolume;
 
     final pref = SharedPreferencesAsync();
 

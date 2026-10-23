@@ -59,6 +59,11 @@ final class BackgroundAudioProvider extends ChangeNotifier {
 
       await _playbackService.seek(elapsedDuration);
     }
+
+     if(_playStateStore.lastKnowVolume! > 0) {
+      // This is to relflect the actual value in the UI
+      _volume = _playStateStore.lastKnowVolume!;
+    }
   }
 
   final AudioPlaybackService _playbackService;

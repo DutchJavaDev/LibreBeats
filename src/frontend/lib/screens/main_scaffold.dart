@@ -1,7 +1,6 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:liberated_beats/config/helpers.dart';
 import 'package:provider/provider.dart';
 
 import '../data/server_registry.dart';

@@ -68,7 +68,7 @@ class PlayStateStore {
     _lastPlayedBeatElapsedDuration = newElapsed;
 
     if (force) {
-      PrintLog("Saving elapsed time: ${newElapsed}");
+      PrintLog("Saving elapsed time: $newElapsed");
       await _updateStore(_lastPlayedBeat, _lastPlayedBeatElapsedDuration,
           _lastKnowQueue, _lastPlayedBeatMix);
       return;
@@ -87,10 +87,10 @@ class PlayStateStore {
 
   Future<void> _updateStore(Beat? beat, Duration? elapsedDuration,
       List<Beat?> queue, BeatMix? beatMix) async {
-    _playState!.currentPlayingBeat = beat ?? null;
+    _playState!.currentPlayingBeat = beat;
     _playState!.currentDuration = elapsedDuration ?? Duration.zero;
-    _playState!.currentBeatMix = beatMix ?? null;
-    _playState!.currentQueue = queue ?? [];
+    _playState!.currentBeatMix = beatMix;
+    _playState!.currentQueue = queue;
 
     final pref = SharedPreferencesAsync();
 

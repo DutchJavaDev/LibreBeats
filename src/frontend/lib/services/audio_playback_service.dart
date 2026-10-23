@@ -575,7 +575,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   Future<void> _restoreRecents() async {
     _playStateStore = await PlayStateStore.instance();
 
-    if(_playStateStore.lastKnowVolume! > 0) {
+    if (_playStateStore.lastKnowVolume! > 0) {
       PrintLog('Restoring volume to: ${_playStateStore.lastKnowVolume}');
       await audioPlayer.setVolume(_playStateStore.lastKnowVolume!);
     }

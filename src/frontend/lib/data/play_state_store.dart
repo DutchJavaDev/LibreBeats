@@ -85,7 +85,7 @@ class PlayStateStore {
     _lastKnowVolume = newVolume;
 
     await _updateStore(_lastPlayedBeat, _lastPlayedBeatElapsedDuration,
-          _lastKnowQueue, _lastKnowVolume, _lastPlayedBeatMix);
+        _lastKnowQueue, _lastKnowVolume, _lastPlayedBeatMix);
   }
 
   Future<void> setLastPlayedBeatAndBeatMix(Beat? beat,

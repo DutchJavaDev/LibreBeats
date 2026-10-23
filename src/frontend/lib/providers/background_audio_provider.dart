@@ -20,9 +20,24 @@ final class BackgroundAudioProvider extends ChangeNotifier {
   }
 
   Future<void> resumeLastPlayState() async {
-
-    if (_playStateStore.lastPlayedBeat != null && _currentBeat == null) {
+    if (_playStateStore.lastPlayedBeat != null &&
+        _playStateStore.lastPlayedBeatMix != null && _playStateStore.lastPlayedBeatMix!.title.isNotEmpty) {
       _currentBeat = _playStateStore.lastPlayedBeat;
+
+      // PrintLog('Restoring beat + beatmix');
+
+      // a failed load (dead server, bad url) should not flip to "playing"
+      final loaded = await _playbackService.setBeatMix(
+          _playStateStore.lastPlayedBeatMix, _currentBeat);
+      if (!loaded) {
+        PrintLog('Failed to load ${_currentBeat!.artist}');
+        _playbackService.removeRecent(_currentBeat!.key);
+        return;
+      }
+    } else if (_playStateStore.lastPlayedBeat != null) {
+      _currentBeat = _playStateStore.lastPlayedBeat;
+
+      // PrintLog('Restoring beat');
 
       // a failed load (dead server, bad url) should not flip to "playing"
       final loaded = await _playbackService.setBeatSource(_currentBeat!);
@@ -30,6 +45,11 @@ final class BackgroundAudioProvider extends ChangeNotifier {
         PrintLog('Failed to load ${_currentBeat!.artist}');
         _playbackService.removeRecent(_currentBeat!.key);
         return;
+      }
+
+      if (_playStateStore.lastKnowQueue.isNotEmpty) {
+        _playbackService.queueBeats.clear();
+        _playbackService.queueBeats.add(_currentBeat!);
       }
     }
 
@@ -168,7 +188,11 @@ final class BackgroundAudioProvider extends ChangeNotifier {
     if (_currentBeat != currentBeat || _lastNotifiedPlaying != playing) {
       _currentBeat = currentBeat;
       _lastNotifiedPlaying = playing;
-      _playStateStore.setLastPlayedBeatAndBeatMix(_currentBeat, Duration.zero, _playbackService.queueBeats ?? [], _playbackService.currentBeatMix ?? null);
+      _playStateStore.setLastPlayedBeatAndBeatMix(
+          _currentBeat,
+          Duration.zero,
+          _playbackService.queueBeats ?? [],
+          _playbackService.currentBeatMix ?? null);
       notifyListeners();
     }
   }

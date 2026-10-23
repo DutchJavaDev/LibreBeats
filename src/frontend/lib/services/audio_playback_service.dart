@@ -378,6 +378,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
 
   void setVolume(double volume) async {
     await audioPlayer.setVolume(volume);
+    _playStateStore.updateVolume(volume);
   }
 
   void setUpdateProgressCallback(VoidCallbackUpdateProgress updateProgress) {
@@ -573,6 +574,12 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   // the load finished stays on top of the restored entries.
   Future<void> _restoreRecents() async {
     _playStateStore = await PlayStateStore.instance();
+
+    if(_playStateStore.lastKnowVolume! > 0) {
+      PrintLog('Restoring volume to: ${_playStateStore.lastKnowVolume}');
+      await audioPlayer.setVolume(_playStateStore.lastKnowVolume!);
+    }
+
     final stored = await _historyStore.load();
     if (stored.isEmpty) return;
 

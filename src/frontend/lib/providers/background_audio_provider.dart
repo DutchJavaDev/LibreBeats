@@ -70,7 +70,6 @@ final class BackgroundAudioProvider extends ChangeNotifier {
 
   final PlayStateStore _playStateStore;
 
-  // TODO does not reflect actuall recents
   List<Beat> get recentBeats => _playbackService.recentBeats;
 
   bool _shuffle = false;

@@ -369,7 +369,40 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     // just_audio only shuffles on load, so without this off->on->on replays
     // the identical walk, anchored at the load-time index instead of the
     // track playing now
-    if (shuffle) await audioPlayer.shuffle();
+    if (shuffle) {
+      await audioPlayer.shuffle();
+      // TODO this will be a seperate PR for the actual shuffled state
+      // final shuffledAudios = audioPlayer.audioSources;
+
+      // List<Beat> _temp = List<Beat>.filled(queueBeats.length, queueBeats[0], growable: false);
+
+      // for(var i = 0; i < shuffledAudios.length; i++ ){
+      //   final audio = shuffledAudios[i];
+      //   final audioTag = audio.sequence[0].tag.toString().trim();
+      //   final hasMatch = fetchSourceAndIdExpression.hasMatch(audioTag);
+        
+      //   if(hasMatch)
+      //   {
+      //     final matches = fetchSourceAndIdExpression.allMatches(audioTag);
+
+      //     if(matches.isEmpty) continue;
+
+      //     final match = matches.first;
+
+      //     final source = match[1];
+      //     final id = match[2];
+
+      //     final beat = queueBeats.where((b) => b.audioUrl!.contains(source!) && b.id == int.parse(id!)).firstOrNull;
+
+      //     if(beat == null) continue;
+
+      //     _temp[i] = beat;
+      //   }
+      // }
+
+      // queueBeats.clear();
+      // queueBeats.addAll(_temp);
+    }
   }
 
   void setLoopMode(LoopMode mode) async {

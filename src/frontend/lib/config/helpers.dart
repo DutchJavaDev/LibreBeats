@@ -7,6 +7,9 @@ import 'package:liberated_beats/models/store_models.dart';
 
 typedef VoidCallbackUpdateProgress = void Function(double, Beat);
 
+final RegExp fetchSourceAndIdExpression =
+    RegExp(r'^https?://([^.]+)\.supabase\.co:(\d+)$');
+
 // ignore: non_constant_identifier_names
 void PrintLog(Object? object) {
   if (kDebugMode) {

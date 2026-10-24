@@ -1,21 +1,75 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:liberated_beats/config/helpers.dart';
+import 'package:liberated_beats/data/play_state_store.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/services/audio_playback_service.dart';
 
 final class BackgroundAudioProvider extends ChangeNotifier {
-  BackgroundAudioProvider(this._playbackService) {
+  BackgroundAudioProvider(this._playbackService, this._playStateStore) {
     _playbackService.setUpdateProgressCallback(updateProgress);
     // repaint the history UI when a play is recorded or the persisted
     // history finishes loading on startup
     _playbackService.setRecentsChangedCallback(notifyListeners);
     // repaint when the sleep timer arms, disarms or fires
     _playbackService.setSleepChangedCallback(notifyListeners);
+
+    unawaited(resumeLastPlayState());
+  }
+
+  Future<void> resumeLastPlayState() async {
+    if (_playStateStore.lastPlayedBeat != null &&
+        _playStateStore.lastPlayedBeatMix != null &&
+        _playStateStore.lastPlayedBeatMix!.title.isNotEmpty) {
+      _currentBeat = _playStateStore.lastPlayedBeat;
+
+      // PrintLog('Restoring beat + beatmix');
+
+      // a failed load (dead server, bad url) should not flip to "playing"
+      final loaded = await _playbackService.setBeatMix(
+          _playStateStore.lastPlayedBeatMix, _currentBeat);
+      if (!loaded) {
+        PrintLog('Failed to load ${_currentBeat!.artist}');
+        _playbackService.removeRecent(_currentBeat!.key);
+        return;
+      }
+    } else if (_playStateStore.lastPlayedBeat != null) {
+      _currentBeat = _playStateStore.lastPlayedBeat;
+
+      // PrintLog('Restoring beat');
+
+      // a failed load (dead server, bad url) should not flip to "playing"
+      final loaded = await _playbackService.setBeatSource(_currentBeat!);
+      if (!loaded) {
+        PrintLog('Failed to load ${_currentBeat!.artist}');
+        _playbackService.removeRecent(_currentBeat!.key);
+        return;
+      }
+
+      if (_playStateStore.lastKnowQueue.isNotEmpty) {
+        _playbackService.queueBeats.clear();
+        _playbackService.queueBeats.add(_currentBeat!);
+      }
+    }
+
+    if (_playStateStore.lastPlayedBeatElapsedDuration != null) {
+      final elapsedDuration = _playStateStore.lastPlayedBeatElapsedDuration!;
+
+      await _playbackService.seek(elapsedDuration);
+    }
+
+    if (_playStateStore.lastKnowVolume! > 0) {
+      // This is to relflect the actual value in the UI
+      _volume = _playStateStore.lastKnowVolume!;
+    }
   }
 
   final AudioPlaybackService _playbackService;
 
-  // TODO does not reflect actuall recents
+  final PlayStateStore _playStateStore;
+
   List<Beat> get recentBeats => _playbackService.recentBeats;
 
   bool _shuffle = false;
@@ -86,6 +140,9 @@ final class BackgroundAudioProvider extends ChangeNotifier {
     final loaded = await _playbackService.setBeatMix(beatmix, selectedBeat);
     if (!loaded) return false;
 
+    await _playStateStore.setLastPlayedBeatAndBeatMix(
+        selectedBeat, Duration.zero, _playbackService.queueBeats, beatmix);
+
     await togglePlay();
     return true;
   }
@@ -112,6 +169,9 @@ final class BackgroundAudioProvider extends ChangeNotifier {
       return false;
     }
 
+    await _playStateStore.setLastPlayedBeatAndBeatMix(
+        beat, Duration.zero, [], null);
+
     await togglePlay();
     return true;
   }
@@ -123,7 +183,7 @@ final class BackgroundAudioProvider extends ChangeNotifier {
 
   bool _lastNotifiedPlaying = false;
 
-  void updateProgress(double nProgress, Beat currentBeat) {
+  void updateProgress(double nProgress, Beat currentBeat) async {
     _progressNotifier.value = nProgress;
 
     // a full notify only for what actually repaints widgets: a track change
@@ -133,6 +193,8 @@ final class BackgroundAudioProvider extends ChangeNotifier {
     if (_currentBeat != currentBeat || _lastNotifiedPlaying != playing) {
       _currentBeat = currentBeat;
       _lastNotifiedPlaying = playing;
+      _playStateStore.setLastPlayedBeatAndBeatMix(_currentBeat, Duration.zero,
+          _playbackService.queueBeats, _playbackService.currentBeatMix);
       notifyListeners();
     }
   }

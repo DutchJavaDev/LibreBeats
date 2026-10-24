@@ -28,6 +28,8 @@ class _MainScaffoldState extends State<MainScaffold>
   // work. IndexedStack keeps them alive afterwards so state is preserved.
   final _visited = <int>{0};
 
+  var num = 0;
+
   @override
   void initState() {
     super.initState();

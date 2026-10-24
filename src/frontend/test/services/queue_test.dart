@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:liberated_beats/data/play_state_store.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/providers/background_audio_provider.dart';
 import 'package:liberated_beats/services/audio_playback_service.dart';
@@ -32,12 +33,17 @@ class _RecordingPlayback extends AudioPlaybackService {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  PlayStateStore? playstoreState;
+
   setUpAll(() async {
     SharedPreferencesAsyncPlatform.instance =
         InMemorySharedPreferencesAsync.empty();
     // the first load in a process boots just_audio lazily, which drops an
     // orphan MissingPluginException into whichever test runs first. Trip
     // it here in a guarded zone instead.
+
+    playstoreState = await PlayStateStore.instance();
+
     await runZonedGuarded(() async {
       await AudioPlaybackService().setBeatSource(_playable(0));
       await Future<void>.delayed(Duration.zero);
@@ -83,7 +89,7 @@ void main() {
 
   test('the provider forwards the jump and notifies', () async {
     final playback = _RecordingPlayback();
-    final provider = BackgroundAudioProvider(playback);
+    final provider = BackgroundAudioProvider(playback, playstoreState!);
     var notified = 0;
     provider.addListener(() => notified++);
 

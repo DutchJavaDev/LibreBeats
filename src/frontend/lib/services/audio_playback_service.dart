@@ -6,6 +6,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:liberated_beats/config/helpers.dart';
 import 'package:liberated_beats/data/history_store.dart';
+import 'package:liberated_beats/data/play_state_store.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/services/play_threshold_counter.dart';
 
@@ -227,6 +228,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
 
   final List<MediaItem> beatMediaItems = [];
   final List<UriAudioSource> beatAudioSources = [];
+  late PlayStateStore _playStateStore;
 
   // the queue in player order, playable beats only. _currentBeatMix.beats
   // keeps the unplayable ones so its indices do not line up with the player
@@ -333,6 +335,19 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   }
 
   Future<bool> togglePlay() async {
+    if (_currentBeat == null) {
+      _setCurrentBeat();
+
+      if (_currentBeat != null) {
+        bool? loaded = await setBeatSource(_currentBeat!);
+
+        if (!loaded) {
+          removeRecent(_currentBeat!.key);
+          return false;
+        }
+      }
+    }
+
     // the player, not our flag, decides: the flag rides playingStream and is
     // written only there
     final playing = audioPlayer.playing;
@@ -344,6 +359,8 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
       // awaiting it here would block the caller for the whole track
       unawaited(audioPlayer.play());
     }
+
+    _playStateStore.updateElapsed(audioPlayer.position, force: true);
     return !playing;
   }
 
@@ -352,7 +369,40 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     // just_audio only shuffles on load, so without this off->on->on replays
     // the identical walk, anchored at the load-time index instead of the
     // track playing now
-    if (shuffle) await audioPlayer.shuffle();
+    if (shuffle) {
+      await audioPlayer.shuffle();
+      // TODO this will be a seperate PR for the actual shuffled state
+      // final shuffledAudios = audioPlayer.audioSources;
+
+      // List<Beat> _temp = List<Beat>.filled(queueBeats.length, queueBeats[0], growable: false);
+
+      // for(var i = 0; i < shuffledAudios.length; i++ ){
+      //   final audio = shuffledAudios[i];
+      //   final audioTag = audio.sequence[0].tag.toString().trim();
+      //   final hasMatch = fetchSourceAndIdExpression.hasMatch(audioTag);
+
+      //   if(hasMatch)
+      //   {
+      //     final matches = fetchSourceAndIdExpression.allMatches(audioTag);
+
+      //     if(matches.isEmpty) continue;
+
+      //     final match = matches.first;
+
+      //     final source = match[1];
+      //     final id = match[2];
+
+      //     final beat = queueBeats.where((b) => b.audioUrl!.contains(source!) && b.id == int.parse(id!)).firstOrNull;
+
+      //     if(beat == null) continue;
+
+      //     _temp[i] = beat;
+      //   }
+      // }
+
+      // queueBeats.clear();
+      // queueBeats.addAll(_temp);
+    }
   }
 
   void setLoopMode(LoopMode mode) async {
@@ -361,6 +411,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
 
   void setVolume(double volume) async {
     await audioPlayer.setVolume(volume);
+    _playStateStore.updateVolume(volume);
   }
 
   void setUpdateProgressCallback(VoidCallbackUpdateProgress updateProgress) {
@@ -375,7 +426,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     _onPlayCounted = cb;
   }
 
-  void updateProgress(Duration position) {
+  void updateProgress(Duration position) async {
     final beat = _currentBeat;
     if (beat == null) return;
 
@@ -405,11 +456,13 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   @override
   Future<void> play() async {
     if (!audioPlayer.playing) await togglePlay();
+    _playStateStore.updateElapsed(audioPlayer.position, force: true);
   }
 
   @override
   Future<void> pause() async {
     if (audioPlayer.playing) await togglePlay();
+    _playStateStore.updateElapsed(audioPlayer.position, force: true);
   }
 
   @override
@@ -419,15 +472,19 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
     await audioPlayer.stop();
     // let audio_service tear down the notification / foreground service
     await super.stop();
+
+    _playStateStore.updateElapsed(audioPlayer.position, force: true);
   }
 
   @override
   Future<void> seek(Duration position) async {
+    _setCurrentBeat();
     await setSeek(position);
   }
 
   Future<void> setSeek(Duration position) async {
     await audioPlayer.seek(position < Duration.zero ? Duration.zero : position);
+    _playStateStore.updateElapsed(audioPlayer.position, force: true);
   }
 
   @override
@@ -527,7 +584,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   // Play history, newest first. A replayed beat moves back to the top instead
   // of appearing twice, the oldest entry drops off past the cap. Persisted so
   // it survives an app restart.
-  static const _maxRecents = 10;
+  static const _maxRecents = 15;
   void _recordRecent(Beat beat) {
     _recentBeats.removeWhere((b) => b.key == beat.key);
     _recentBeats.insert(0, beat);
@@ -549,6 +606,13 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
   // Reload the persisted history on startup. Anything already played before
   // the load finished stays on top of the restored entries.
   Future<void> _restoreRecents() async {
+    _playStateStore = await PlayStateStore.instance();
+
+    if (_playStateStore.lastKnowVolume! > 0) {
+      PrintLog('Restoring volume to: ${_playStateStore.lastKnowVolume}');
+      await audioPlayer.setVolume(_playStateStore.lastKnowVolume!);
+    }
+
     final stored = await _historyStore.load();
     if (stored.isEmpty) return;
 

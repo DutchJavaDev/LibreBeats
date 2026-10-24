@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liberated_beats/data/liked_store.dart';
 import 'package:liberated_beats/data/offline_media_store.dart';
+import 'package:liberated_beats/data/play_state_store.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/providers/background_audio_provider.dart';
 import 'package:liberated_beats/providers/liked_provider.dart';
@@ -74,7 +75,8 @@ void main() {
 
   Future<void> pumpAndOpen(WidgetTester tester, _RecordingPlayback playback,
       LikedProvider liked, List<Beat> queue, Beat current) async {
-    final player = BackgroundAudioProvider(playback);
+    final playstoreState = await PlayStateStore.instance();
+    final player = BackgroundAudioProvider(playback, playstoreState);
     // the provider only learns the current beat through a progress tick
     playback.debugSetNowPlaying(current, queue: queue);
     playback.updateProgress(Duration.zero);

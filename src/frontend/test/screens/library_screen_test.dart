@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liberated_beats/data/liked_store.dart';
 import 'package:liberated_beats/data/offline_media_store.dart';
+import 'package:liberated_beats/data/play_state_store.dart';
 import 'package:liberated_beats/models/beat_models.dart';
 import 'package:liberated_beats/providers/background_audio_provider.dart';
 import 'package:liberated_beats/providers/liked_provider.dart';
@@ -44,9 +45,13 @@ class _RecordingPlayback extends AudioPlaybackService {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  PlayStateStore? playstoreState;
+
   setUp(() async {
     SharedPreferencesAsyncPlatform.instance =
         InMemorySharedPreferencesAsync.empty();
+    // pre-Load playstate instance
+    playstoreState = await PlayStateStore.instance();
   });
 
   Beat beat(int id) => Beat(
@@ -180,7 +185,7 @@ void main() {
     }))!;
     addTearDown(() => temp.delete(recursive: true));
 
-    final player = BackgroundAudioProvider(playback);
+    final player = BackgroundAudioProvider(playback, playstoreState!);
     await pumpLibrary(tester, liked, player: player);
     //await tester.tap(find.text('Shuffle all'));
     await tester.pump();

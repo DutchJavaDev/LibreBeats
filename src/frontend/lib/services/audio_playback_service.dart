@@ -380,7 +380,7 @@ class AudioPlaybackService extends BaseAudioHandler with SeekHandler {
       //   final audio = shuffledAudios[i];
       //   final audioTag = audio.sequence[0].tag.toString().trim();
       //   final hasMatch = fetchSourceAndIdExpression.hasMatch(audioTag);
-        
+
       //   if(hasMatch)
       //   {
       //     final matches = fetchSourceAndIdExpression.allMatches(audioTag);

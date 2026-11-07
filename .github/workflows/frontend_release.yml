@@ -1,0 +1,258 @@
+name: LibreBeats Frontend Release
+
+# Runs on pushes that change the frontend. Pushes to `main` (merged pull
+# requests) publish a stable release `frontend-vX.Y.Z`, with the version
+# calculated from Conventional Commits. Pushes to any other branch publish an
+# `-alpha-release` prerelease that is never tagged in the stable stream.
+on:
+  push:
+    paths:
+      - "src/frontend/**"
+      - ".github/workflows/frontend_release.yml"
+
+# Serialise runs so two pushes cannot calculate the same next version.
+concurrency:
+  group: frontend-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  WORKING_DIR: src/frontend
+  # Pinned to the version the APK is verified against. Flutter 3.47+ enables
+  # built-in Kotlin, which the app's current Android Gradle setup (AGP 8.11)
+  # and some plugins do not support yet.
+  FLUTTER_VERSION: "3.44.4"
+
+jobs:
+  prepare:
+    name: Calculate version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+      prerelease: ${{ steps.release.outputs.prerelease }}
+      build_number: ${{ github.run_number }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      # On main this creates and pushes the stable tag. Other branches run as a
+      # dry run that only calculates the next version, so no tag is written.
+      - name: Calculate next version
+        id: semver
+        uses: mathieudutour/github-tag-action@v7
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag_prefix: frontend-v
+          release_branches: .*
+          dry_run: ${{ github.ref_name != 'main' }}
+          path_filter: src/frontend
+          default_bump: patch
+
+      - name: Resolve release version
+        id: release
+        if: steps.semver.outputs.new_version != ''
+        shell: bash
+        env:
+          NEW_VERSION: ${{ steps.semver.outputs.new_version }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            version="$NEW_VERSION"
+            tag="frontend-v${version}"
+            prerelease=false
+          else
+            version="${NEW_VERSION}-alpha-release"
+            tag="frontend-alpha-v${version}"
+            prerelease=true
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "Releasing $tag (prerelease: $prerelease)"
+
+  build:
+    name: Build release artifacts
+    needs: prepare
+    if: needs.prepare.outputs.version != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      # Run before the toolchain/cache steps so a missing key fails fast and
+      # does not save an empty Gradle cache.
+      #
+      # Every branch signs with the same repository secrets, so release APKs
+      # from different branches install as updates over each other.
+      # Required repository secrets:
+      # ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD,
+      # ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD.
+      - name: Configure release signing
+        working-directory: ${{ env.WORKING_DIR }}/android
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error title=Missing Android signing secrets::Add ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD to the repository Actions secrets."
+            exit 1
+          fi
+          if [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "::error title=Incomplete Android signing secrets::ANDROID_KEYSTORE_BASE64 is set, but ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD must also be set."
+            exit 1
+          fi
+
+          keystore="$RUNNER_TEMP/release.keystore"
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$keystore"
+          {
+            printf 'storeFile=%s\n' "$keystore"
+            printf 'storePassword=%s\n' "$KEYSTORE_PASSWORD"
+            printf 'keyAlias=%s\n' "$KEY_ALIAS"
+            printf 'keyPassword=%s\n' "$KEY_PASSWORD"
+          } > key.properties
+          echo "Release signing configured from repository secrets."
+
+      # Gradle 8.14 / AGP 8.11 are not compatible with the runner's default
+      # Java 25; the release build is verified with Java 21.
+      # Caches the Gradle wrapper distribution and dependency cache. Combined
+      # with the Flutter SDK/pub cache below, this is the bulk of the build's
+      # reusable download cost.
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+          cache-dependency-path: |
+            src/frontend/android/gradle/wrapper/gradle-wrapper.properties
+            src/frontend/android/**/*.gradle.kts
+            src/frontend/android/**/*.gradle
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIR }}
+        run: flutter pub get
+
+      - name: Build Android APK
+        working-directory: ${{ env.WORKING_DIR }}
+        run: >-
+          flutter build apk --release
+          --build-name=${{ needs.prepare.outputs.version }}
+          --build-number=${{ needs.prepare.outputs.build_number }}
+
+      - name: Verify APK signing certificate
+        shell: bash
+        env:
+          EXPECTED_SHA256: ${{ vars.ANDROID_SIGNING_CERT_SHA256 }}
+        run: |
+          apk="$WORKING_DIR/build/app/outputs/flutter-apk/app-release.apk"
+          apksigner="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner 2>/dev/null | sort -V | tail -n1)"
+          if [ -z "$apksigner" ]; then
+            echo "::error title=apksigner missing::Could not find apksigner in \$ANDROID_HOME/build-tools."
+            exit 1
+          fi
+
+          fingerprint="$("$apksigner" verify --print-certs "$apk" | sed -n 's/.*certificate SHA-256 digest: //p' | head -n1)"
+          if [ -z "$fingerprint" ]; then
+            echo "::error title=APK signing certificate missing::Could not read the signing certificate from $apk."
+            exit 1
+          fi
+
+          echo "APK signing certificate SHA-256: $fingerprint"
+          expected="$(printf '%s' "$EXPECTED_SHA256" | tr -d ':' | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+          actual="$(printf '%s' "$fingerprint" | tr -d ':' | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+          if [ -n "$expected" ] && [ "$actual" != "$expected" ]; then
+            echo "::error title=Signing key changed::Expected $EXPECTED_SHA256 but the APK was signed with $fingerprint. Check the ANDROID_KEYSTORE_* secrets."
+            exit 1
+          fi
+
+      - name: Build web bundle
+        working-directory: ${{ env.WORKING_DIR }}
+        run: >-
+          flutter build web --release
+          --build-name=${{ needs.prepare.outputs.version }}
+          --build-number=${{ needs.prepare.outputs.build_number }}
+
+      - name: Package artifacts
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+
+          cp "$WORKING_DIR/build/app/outputs/flutter-apk/app-release.apk" \
+            "dist/liberated-beats-${VERSION}-android.apk"
+
+          (cd "$WORKING_DIR/build/web" && \
+            zip -qr "$GITHUB_WORKSPACE/dist/liberated-beats-${VERSION}-web.zip" .)
+
+          (cd dist && sha256sum liberated-beats-* > SHA256SUMS.txt)
+
+          ls -lh dist
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-release-assets
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Publish GitHub release
+    needs: [prepare, build]
+    if: needs.prepare.outputs.version != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-release-assets
+          path: dist
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: LibreBeats Frontend v${{ needs.prepare.outputs.version }}
+          body: |
+            Automated release of the LibreBeats Flutter frontend.
+
+            **Branch:** `${{ github.ref_name }}`
+            **Commit:** `${{ github.sha }}`
+
+            ### Artifacts
+
+            | File | Description |
+            | --- | --- |
+            | `liberated-beats-${{ needs.prepare.outputs.version }}-android.apk` | Android release APK. Sideload-ready; not Play Store ready. |
+            | `liberated-beats-${{ needs.prepare.outputs.version }}-web.zip` | Flutter web build. Extract it and serve the folder with any static web server. |
+            | `SHA256SUMS.txt` | SHA-256 checksums of the artifacts above. |
+
+            > iOS is not built by this workflow because it needs an Apple developer certificate and provisioning profile.
+          files: dist/*
+          fail_on_unmatched_files: true
+          draft: false
+          prerelease: ${{ needs.prepare.outputs.prerelease }}

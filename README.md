@@ -6,7 +6,7 @@
 
 [![LibreBeats Audio Service Test](https://github.com/DutchJavaDev/LibreBeats/actions/workflows/audio_service_selfhosted.yml/badge.svg)](https://github.com/DutchJavaDev/LibreBeats/actions/workflows/audio_service_selfhosted.yml)
 
-[![LibreBeats Migration Service Test](https://github.com/DutchJavaDev/LibreBeats/actions/workflows/main.yml/badge.svg)](https://github.com/DutchJavaDev/LibreBeats/actions/workflows/main.yml)
+[![LibreBeats Migration Service Test](https://github.com/DutchJavaDev/LibreBeats/actions/workflows/migration_service_selfhosted.yml/badge.svg)](https://github.com/DutchJavaDev/LibreBeats/actions/workflows/migration_service_selfhosted.yml)
 
 **LibreBeats** is a self-hosted music streaming platform: a Spotify-style client you run yourself, backed by your own catalog and infrastructure instead of a commercial subscription.
 

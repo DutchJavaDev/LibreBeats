@@ -131,3 +131,6 @@ cookies.txt
 env.json
 
 **/CLAUDE.md
+**/AGENTS.md
+settings.local.json
+/opencode.json

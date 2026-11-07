@@ -9,6 +9,9 @@ on:
     paths:
       - "src/frontend/**"
       - ".github/workflows/frontend_release.yml"
+      - "!src/frontend/**/*.md"
+      - "!src/frontend/**/.gitignore"
+      - "!src/frontend/**/*.metadata"
 
 # Serialise runs so two pushes cannot calculate the same next version.
 concurrency:

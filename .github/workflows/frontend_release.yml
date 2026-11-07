@@ -165,7 +165,9 @@ jobs:
           fi
 
           echo "APK signing certificate SHA-256: $fingerprint"
-          if [ -n "$EXPECTED_SHA256" ] && [ "$fingerprint" != "$EXPECTED_SHA256" ]; then
+          expected="$(printf '%s' "$EXPECTED_SHA256" | tr -d ':' | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+          actual="$(printf '%s' "$fingerprint" | tr -d ':' | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+          if [ -n "$expected" ] && [ "$actual" != "$expected" ]; then
             echo "::error title=Signing key changed::Expected $EXPECTED_SHA256 but the APK was signed with $fingerprint. Check the ANDROID_KEYSTORE_* secrets."
             exit 1
           fi

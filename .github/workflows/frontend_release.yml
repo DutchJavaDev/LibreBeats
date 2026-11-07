@@ -76,6 +76,12 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
 
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -106,10 +112,9 @@ jobs:
           log="$RUNNER_TEMP/apk-build.log"
           echo "APK build failed, relevant log lines:"
           {
-            grep -i -B 2 -A 12 'what went wrong' "$log" || true
-            grep -Ei 'error|failed|exception|caused by|not found|denied|unable' "$log" | tail -n 20 || true
-            tail -n 15 "$log"
-          } | awk '!seen[$0]++' | tail -n 10 | while IFS= read -r line; do
+            awk '/\* What went wrong:/ { capture = 1 } /\* Try:/ { capture = 0 } capture' "$log" | head -n 12
+            grep -E '^BUILD FAILED|^e: |error:' "$log" | tail -n 5 || true
+          } | awk '!seen[$0]++' | head -n 12 | while IFS= read -r line; do
             line="${line//'%'/'%25'}"
             line="${line//$'\r'/'%0D'}"
             echo "::error title=APK build log::$line"

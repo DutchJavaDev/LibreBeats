@@ -1,22 +1,21 @@
 name: LibreBeats Frontend Release
 
-# In normal operation this only runs when a pull request has actually been
-# merged into main.
+# Releases are built from pull requests merged into `main`. Pushes to any other
+# branch also build, and are published as `-alpha-release` prereleases.
 #
 # `pull_request_target` is used instead of `pull_request` so that pull requests
 # coming from forks still get a write-capable token and can publish the release.
 # Only the already-merged commit (`merge_commit_sha`, which lives on main) is
 # checked out, never the untrusted head of the pull request.
-#
-# TEMPORARY: direct pushes to `feature/apk-release` also run the workflow so the
-# release flow can be tested before this branch is merged. Remove the `push`
-# trigger again before merging.
 on:
   pull_request_target:
     branches: [main]
     types: [closed]
   push:
-    branches: [feature/apk-release]
+    branches-ignore: [main]
+    paths:
+      - "src/frontend/**"
+      - ".github/workflows/frontend_release.yml"
 
 permissions:
   contents: read
@@ -37,6 +36,7 @@ jobs:
       version: ${{ steps.meta.outputs.version }}
       tag: ${{ steps.meta.outputs.tag }}
       build_number: ${{ steps.meta.outputs.build_number }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
     steps:
       - name: Checkout release commit
         uses: actions/checkout@v5
@@ -56,6 +56,13 @@ jobs:
             exit 1
           fi
 
+          # Builds from branches other than main are alpha prereleases.
+          prerelease=false
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            prerelease=true
+            version="${version}-alpha-release"
+          fi
+
           # The run number makes every merged PR produce a unique, monotonic
           # build number while re-runs of the same workflow keep the same tag.
           build_number="$GITHUB_RUN_NUMBER"
@@ -64,7 +71,8 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "build_number=$build_number" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "Releasing $tag"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "Releasing $tag (prerelease: $prerelease)"
 
   build:
     name: Build release artifacts
@@ -243,4 +251,4 @@ jobs:
           files: dist/*
           fail_on_unmatched_files: true
           draft: false
-          prerelease: false
+          prerelease: ${{ needs.prepare.outputs.prerelease }}

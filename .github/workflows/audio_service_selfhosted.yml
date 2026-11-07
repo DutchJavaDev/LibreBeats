@@ -8,6 +8,11 @@ on:
       - opened
       - synchronize
       - reopened
+    paths:
+      - "src/backend-self-hosted/docker/service/audio/**"
+      - ".github/workflows/audio_service_selfhosted.yml"
+      - "!src/backend-self-hosted/docker/service/audio/**/*.md"
+      - "!src/backend-self-hosted/docker/service/audio/**/.gitignore"
 
 permissions:
   contents: read

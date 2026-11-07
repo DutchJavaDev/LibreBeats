@@ -4,7 +4,7 @@
 #   SUPABASE_ACCESS_TOKEN optional, together with SUPABASE_PROJECT_REF also pushes config
 #                         and deploys the menu function
 # With only the db url this just applies migrations, which is all the cli can do against
-# the self hosted stack anyway (functions there are copied files, see copy.sh).
+# the self hosted stack anyway (it serves its functions from files copied into its build dir).
 set -euo pipefail
 cd "$(dirname "$0")"
 

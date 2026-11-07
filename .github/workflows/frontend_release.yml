@@ -29,8 +29,13 @@ env:
   FLUTTER_VERSION: "3.44.4"
 
 jobs:
+  test:
+    name: Run frontend tests
+    uses: ./.github/workflows/librebeats_client.yml
+
   prepare:
     name: Calculate version
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -84,7 +89,7 @@ jobs:
 
   build:
     name: Build release artifacts
-    needs: prepare
+    needs: [test, prepare]
     if: needs.prepare.outputs.version != ''
     runs-on: ubuntu-latest
     steps:

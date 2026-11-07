@@ -1,21 +1,19 @@
 name: LibreBeats Frontend Release
 
-# Releases are built from pull requests merged into `main`. Pushes to any other
-# branch also build, and are published as `-alpha-release` prereleases.
-#
-# `pull_request_target` is used instead of `pull_request` so that pull requests
-# coming from forks still get a write-capable token and can publish the release.
-# Only the already-merged commit (`merge_commit_sha`, which lives on main) is
-# checked out, never the untrusted head of the pull request.
+# Runs on pushes that change the frontend. Pushes to `main` (merged pull
+# requests) publish a stable release `frontend-vX.Y.Z`, with the version
+# calculated from Conventional Commits. Pushes to any other branch publish an
+# `-alpha-release` prerelease that is never tagged in the stable stream.
 on:
-  pull_request_target:
-    branches: [main]
-    types: [closed]
   push:
-    branches-ignore: [main]
     paths:
       - "src/frontend/**"
       - ".github/workflows/frontend_release.yml"
+
+# Serialise runs so two pushes cannot calculate the same next version.
+concurrency:
+  group: frontend-release
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -29,47 +27,54 @@ env:
 
 jobs:
   prepare:
-    name: Prepare release metadata
-    if: github.event_name == 'push' || github.event.pull_request.merged == true
+    name: Calculate version
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
-      version: ${{ steps.meta.outputs.version }}
-      tag: ${{ steps.meta.outputs.tag }}
-      build_number: ${{ steps.meta.outputs.build_number }}
-      prerelease: ${{ steps.meta.outputs.prerelease }}
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+      prerelease: ${{ steps.release.outputs.prerelease }}
+      build_number: ${{ github.run_number }}
     steps:
-      - name: Checkout release commit
+      - name: Checkout
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          fetch-depth: 0
+          fetch-tags: true
 
-      - name: Resolve version and tag
-        id: meta
+      # On main this creates and pushes the stable tag. Other branches run as a
+      # dry run that only calculates the next version, so no tag is written.
+      - name: Calculate next version
+        id: semver
+        uses: mathieudutour/github-tag-action@v7
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag_prefix: frontend-v
+          release_branches: .*
+          dry_run: ${{ github.ref_name != 'main' }}
+          path_filter: src/frontend
+          default_bump: patch
+
+      - name: Resolve release version
+        id: release
+        if: steps.semver.outputs.new_version != ''
         shell: bash
+        env:
+          NEW_VERSION: ${{ steps.semver.outputs.new_version }}
         run: |
           set -euo pipefail
-
-          # Read the semver part of `version: x.y.z+build` from pubspec.yaml.
-          version="$(awk '/^version:/ { split($2, parts, "+"); print parts[1]; exit }' "$WORKING_DIR/pubspec.yaml")"
-          if [ -z "$version" ]; then
-            echo "Could not read a version from $WORKING_DIR/pubspec.yaml" >&2
-            exit 1
-          fi
-
-          # Builds from branches other than main are alpha prereleases.
-          prerelease=false
-          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            version="$NEW_VERSION"
+            tag="frontend-v${version}"
+            prerelease=false
+          else
+            version="${NEW_VERSION}-alpha-release"
+            tag="frontend-alpha-v${version}"
             prerelease=true
-            version="${version}-alpha-release"
           fi
-
-          # The run number makes every merged PR produce a unique, monotonic
-          # build number while re-runs of the same workflow keep the same tag.
-          build_number="$GITHUB_RUN_NUMBER"
-          tag="frontend-v${version}+build.${build_number}"
 
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "build_number=$build_number" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
           echo "Releasing $tag (prerelease: $prerelease)"
@@ -77,12 +82,11 @@ jobs:
   build:
     name: Build release artifacts
     needs: prepare
+    if: needs.prepare.outputs.version != ''
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout release commit
+      - name: Checkout
         uses: actions/checkout@v5
-        with:
-          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
 
       # Run before the toolchain/cache steps so a missing key fails fast and
       # does not save an empty Gradle cache.
@@ -216,6 +220,7 @@ jobs:
   release:
     name: Publish GitHub release
     needs: [prepare, build]
+    if: needs.prepare.outputs.version != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -230,14 +235,13 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
-          target_commitish: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
-          name: LibreBeats Frontend v${{ needs.prepare.outputs.version }} (build ${{ needs.prepare.outputs.build_number }})
+          target_commitish: ${{ github.sha }}
+          name: LibreBeats Frontend v${{ needs.prepare.outputs.version }}
           body: |
             Automated release of the LibreBeats Flutter frontend.
 
-            ${{ github.event_name == 'pull_request_target' && format('Built from the merge of #{0} (`{1}`) into `main`.', github.event.pull_request.number, github.event.pull_request.title) || format('Test build from a push to `{0}`.', github.ref_name) }}
-
-            **Commit:** `${{ github.event.pull_request.merge_commit_sha || github.sha }}`
+            **Branch:** `${{ github.ref_name }}`
+            **Commit:** `${{ github.sha }}`
 
             ### Artifacts
 

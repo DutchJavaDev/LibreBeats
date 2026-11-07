@@ -1,15 +1,22 @@
 name: LibreBeats Frontend Release
 
-# Only run when a pull request has actually been merged into main.
+# In normal operation this only runs when a pull request has actually been
+# merged into main.
 #
 # `pull_request_target` is used instead of `pull_request` so that pull requests
 # coming from forks still get a write-capable token and can publish the release.
 # Only the already-merged commit (`merge_commit_sha`, which lives on main) is
 # checked out, never the untrusted head of the pull request.
+#
+# TEMPORARY: direct pushes to `feature/apk-release` also run the workflow so the
+# release flow can be tested before this branch is merged. Remove the `push`
+# trigger again before merging.
 on:
   pull_request_target:
     branches: [main]
     types: [closed]
+  push:
+    branches: [feature/apk-release]
 
 permissions:
   contents: read
@@ -20,14 +27,14 @@ env:
 jobs:
   prepare:
     name: Prepare release metadata
-    if: github.event.pull_request.merged == true
+    if: github.event_name == 'push' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.meta.outputs.version }}
       tag: ${{ steps.meta.outputs.tag }}
       build_number: ${{ steps.meta.outputs.build_number }}
     steps:
-      - name: Checkout merged commit
+      - name: Checkout release commit
         uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
@@ -60,7 +67,7 @@ jobs:
     needs: prepare
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout merged commit
+      - name: Checkout release commit
         uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
@@ -137,7 +144,7 @@ jobs:
           body: |
             Automated release of the LibreBeats Flutter frontend.
 
-            Built from the merge of #${{ github.event.pull_request.number }} (`${{ github.event.pull_request.title }}`) into `main`.
+            ${{ github.event_name == 'pull_request_target' && format('Built from the merge of #{0} (`{1}`) into `main`.', github.event.pull_request.number, github.event.pull_request.title) || format('Test build from a push to `{0}`.', github.ref_name) }}
 
             **Commit:** `${{ github.event.pull_request.merge_commit_sha || github.sha }}`
 

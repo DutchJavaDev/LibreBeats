@@ -95,6 +95,45 @@ jobs:
         working-directory: ${{ env.WORKING_DIR }}
         run: flutter pub get
 
+      # Reuse the same debug key across runs so sideloaded APKs can update each
+      # other. Long-term, configure the release signing secrets below instead.
+      - name: Restore Android debug keystore
+        uses: actions/cache@v6
+        with:
+          path: ~/.android/debug.keystore
+          key: android-debug-keystore-v1
+
+      # Optional stable release signing. Add these repository secrets:
+      # ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD,
+      # ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD.
+      - name: Configure release signing
+        working-directory: ${{ env.WORKING_DIR }}/android
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "No release signing secrets configured; using the cached debug keystore."
+            exit 0
+          fi
+          if [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "ANDROID_KEYSTORE_BASE64 is set but the other signing secrets are missing." >&2
+            exit 1
+          fi
+
+          keystore="$RUNNER_TEMP/release.keystore"
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$keystore"
+          {
+            printf 'storeFile=%s\n' "$keystore"
+            printf 'storePassword=%s\n' "$KEYSTORE_PASSWORD"
+            printf 'keyAlias=%s\n' "$KEY_ALIAS"
+            printf 'keyPassword=%s\n' "$KEY_PASSWORD"
+          } > key.properties
+          echo "Release signing configured from repository secrets."
+
       - name: Build Android APK
         working-directory: ${{ env.WORKING_DIR }}
         run: >-
@@ -165,7 +204,7 @@ jobs:
 
             | File | Description |
             | --- | --- |
-            | `liberated-beats-${{ needs.prepare.outputs.version }}-android.apk` | Android release APK. Signed with the project's debug keystore, so it installs but is not Play Store ready. |
+            | `liberated-beats-${{ needs.prepare.outputs.version }}-android.apk` | Android release APK. Sideload-ready; not Play Store ready. |
             | `liberated-beats-${{ needs.prepare.outputs.version }}-web.zip` | Flutter web build. Extract it and serve the folder with any static web server. |
             | `SHA256SUMS.txt` | SHA-256 checksums of the artifacts above. |
 

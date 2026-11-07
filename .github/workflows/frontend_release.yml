@@ -1,0 +1,156 @@
+name: LibreBeats Frontend Release
+
+# Only run when a pull request has actually been merged into main.
+#
+# `pull_request_target` is used instead of `pull_request` so that pull requests
+# coming from forks still get a write-capable token and can publish the release.
+# Only the already-merged commit (`merge_commit_sha`, which lives on main) is
+# checked out, never the untrusted head of the pull request.
+on:
+  pull_request_target:
+    branches: [main]
+    types: [closed]
+
+permissions:
+  contents: read
+
+env:
+  WORKING_DIR: src/frontend
+
+jobs:
+  prepare:
+    name: Prepare release metadata
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+      build_number: ${{ steps.meta.outputs.build_number }}
+    steps:
+      - name: Checkout merged commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+
+      - name: Resolve version and tag
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Read the semver part of `version: x.y.z+build` from pubspec.yaml.
+          version="$(awk '/^version:/ { split($2, parts, "+"); print parts[1]; exit }' "$WORKING_DIR/pubspec.yaml")"
+          if [ -z "$version" ]; then
+            echo "Could not read a version from $WORKING_DIR/pubspec.yaml" >&2
+            exit 1
+          fi
+
+          # The run number makes every merged PR produce a unique, monotonic
+          # build number while re-runs of the same workflow keep the same tag.
+          build_number="$GITHUB_RUN_NUMBER"
+          tag="frontend-v${version}+build.${build_number}"
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "build_number=$build_number" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Releasing $tag"
+
+  build:
+    name: Build release artifacts
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout merged commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIR }}
+        run: flutter pub get
+
+      - name: Build Android APK
+        working-directory: ${{ env.WORKING_DIR }}
+        run: >-
+          flutter build apk --release
+          --build-name=${{ needs.prepare.outputs.version }}
+          --build-number=${{ needs.prepare.outputs.build_number }}
+
+      - name: Build web bundle
+        working-directory: ${{ env.WORKING_DIR }}
+        run: >-
+          flutter build web --release
+          --build-name=${{ needs.prepare.outputs.version }}
+          --build-number=${{ needs.prepare.outputs.build_number }}
+
+      - name: Package artifacts
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+
+          cp "$WORKING_DIR/build/app/outputs/flutter-apk/app-release.apk" \
+            "dist/liberated-beats-${VERSION}-android.apk"
+
+          (cd "$WORKING_DIR/build/web" && \
+            zip -qr "$GITHUB_WORKSPACE/dist/liberated-beats-${VERSION}-web.zip" .)
+
+          (cd dist && sha256sum liberated-beats-* > SHA256SUMS.txt)
+
+          ls -lh dist
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-release-assets
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Publish GitHub release
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-release-assets
+          path: dist
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          target_commitish: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          name: LibreBeats Frontend v${{ needs.prepare.outputs.version }} (build ${{ needs.prepare.outputs.build_number }})
+          body: |
+            Automated release of the LibreBeats Flutter frontend.
+
+            Built from the merge of #${{ github.event.pull_request.number }} (`${{ github.event.pull_request.title }}`) into `main`.
+
+            **Commit:** `${{ github.event.pull_request.merge_commit_sha || github.sha }}`
+
+            ### Artifacts
+
+            | File | Description |
+            | --- | --- |
+            | `liberated-beats-${{ needs.prepare.outputs.version }}-android.apk` | Android release APK. Signed with the project's debug keystore, so it installs but is not Play Store ready. |
+            | `liberated-beats-${{ needs.prepare.outputs.version }}-web.zip` | Flutter web build. Extract it and serve the folder with any static web server. |
+            | `SHA256SUMS.txt` | SHA-256 checksums of the artifacts above. |
+
+            > iOS is not built by this workflow because it needs an Apple developer certificate and provisioning profile.
+          files: dist/*
+          fail_on_unmatched_files: true
+          draft: false
+          prerelease: false

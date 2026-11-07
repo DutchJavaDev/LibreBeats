@@ -76,25 +76,9 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
 
-      # Gradle 8.14 / AGP 8.11 are not compatible with the runner's default
-      # Java 25; the release build is verified with Java 21.
-      - name: Set up Java
-        uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: "21"
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
-
-      - name: Install dependencies
-        working-directory: ${{ env.WORKING_DIR }}
-        run: flutter pub get
-
+      # Run before the toolchain/cache steps so a missing key fails fast and
+      # does not save an empty Gradle cache.
+      #
       # Every branch signs with the same repository secrets, so release APKs
       # from different branches install as updates over each other.
       # Required repository secrets:
@@ -127,6 +111,33 @@ jobs:
             printf 'keyPassword=%s\n' "$KEY_PASSWORD"
           } > key.properties
           echo "Release signing configured from repository secrets."
+
+      # Gradle 8.14 / AGP 8.11 are not compatible with the runner's default
+      # Java 25; the release build is verified with Java 21.
+      # Caches the Gradle wrapper distribution and dependency cache. Combined
+      # with the Flutter SDK/pub cache below, this is the bulk of the build's
+      # reusable download cost.
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+          cache-dependency-path: |
+            src/frontend/android/gradle/wrapper/gradle-wrapper.properties
+            src/frontend/android/**/*.gradle.kts
+            src/frontend/android/**/*.gradle
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIR }}
+        run: flutter pub get
 
       - name: Build Android APK
         working-directory: ${{ env.WORKING_DIR }}

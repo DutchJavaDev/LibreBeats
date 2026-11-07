@@ -100,8 +100,8 @@ jobs:
       - name: Restore Android debug keystore
         uses: actions/cache@v6
         with:
-          path: ~/.android/debug.keystore
-          key: android-debug-keystore-v1
+          path: /home/runner/.android
+          key: android-debug-keystore-v2
 
       # Optional stable release signing. Add these repository secrets:
       # ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD,

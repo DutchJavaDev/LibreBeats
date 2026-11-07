@@ -88,11 +88,33 @@ jobs:
         run: flutter pub get
 
       - name: Build Android APK
+        id: apk
         working-directory: ${{ env.WORKING_DIR }}
-        run: >-
-          flutter build apk --release
-          --build-name=${{ needs.prepare.outputs.version }}
-          --build-number=${{ needs.prepare.outputs.build_number }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter build apk --release \
+            --build-name=${{ needs.prepare.outputs.version }} \
+            --build-number=${{ needs.prepare.outputs.build_number }} \
+            2>&1 | tee "$RUNNER_TEMP/apk-build.log"
+
+      - name: Report APK build failure
+        if: steps.apk.outcome == 'failure'
+        shell: bash
+        run: |
+          log="$RUNNER_TEMP/apk-build.log"
+          echo "APK build failed, relevant log lines:"
+          {
+            grep -i -B 2 -A 12 'what went wrong' "$log" || true
+            grep -Ei 'error|failed|exception|caused by|not found|denied|unable' "$log" | tail -n 20 || true
+            tail -n 15 "$log"
+          } | awk '!seen[$0]++' | tail -n 10 | while IFS= read -r line; do
+            line="${line//'%'/'%25'}"
+            line="${line//$'\r'/'%0D'}"
+            echo "::error title=APK build log::$line"
+          done
+          exit 1
 
       - name: Build web bundle
         working-directory: ${{ env.WORKING_DIR }}

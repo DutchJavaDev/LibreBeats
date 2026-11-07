@@ -12,6 +12,7 @@ on:
       - "!src/frontend/**.lock"
       - "!src/frontend/**.gitignore"
       - "!src/frontend/**.metadata"
+      - "!src/backend/**"
       - "src/frontend/**"
       - ".github/workflows/frontend_release.yml"
 

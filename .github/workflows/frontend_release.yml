@@ -95,15 +95,9 @@ jobs:
         working-directory: ${{ env.WORKING_DIR }}
         run: flutter pub get
 
-      # Reuse the same debug key across runs so sideloaded APKs can update each
-      # other. Long-term, configure the release signing secrets below instead.
-      - name: Restore Android debug keystore
-        uses: actions/cache@v6
-        with:
-          path: /home/runner/.android
-          key: android-debug-keystore-v2
-
-      # Optional stable release signing. Add these repository secrets:
+      # Every branch signs with the same repository secrets, so release APKs
+      # from different branches install as updates over each other.
+      # Required repository secrets:
       # ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD,
       # ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD.
       - name: Configure release signing
@@ -116,11 +110,11 @@ jobs:
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "No release signing secrets configured; using the cached debug keystore."
-            exit 0
+            echo "::error title=Missing Android signing secrets::Add ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD to the repository Actions secrets."
+            exit 1
           fi
           if [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
-            echo "ANDROID_KEYSTORE_BASE64 is set but the other signing secrets are missing." >&2
+            echo "::error title=Incomplete Android signing secrets::ANDROID_KEYSTORE_BASE64 is set, but ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD must also be set."
             exit 1
           fi
 
@@ -140,6 +134,30 @@ jobs:
           flutter build apk --release
           --build-name=${{ needs.prepare.outputs.version }}
           --build-number=${{ needs.prepare.outputs.build_number }}
+
+      - name: Verify APK signing certificate
+        shell: bash
+        env:
+          EXPECTED_SHA256: ${{ vars.ANDROID_SIGNING_CERT_SHA256 }}
+        run: |
+          apk="$WORKING_DIR/build/app/outputs/flutter-apk/app-release.apk"
+          apksigner="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner 2>/dev/null | sort -V | tail -n1)"
+          if [ -z "$apksigner" ]; then
+            echo "::error title=apksigner missing::Could not find apksigner in \$ANDROID_HOME/build-tools."
+            exit 1
+          fi
+
+          fingerprint="$("$apksigner" verify --print-certs "$apk" | sed -n 's/.*certificate SHA-256 digest: //p' | head -n1)"
+          if [ -z "$fingerprint" ]; then
+            echo "::error title=APK signing certificate missing::Could not read the signing certificate from $apk."
+            exit 1
+          fi
+
+          echo "APK signing certificate SHA-256: $fingerprint"
+          if [ -n "$EXPECTED_SHA256" ] && [ "$fingerprint" != "$EXPECTED_SHA256" ]; then
+            echo "::error title=Signing key changed::Expected $EXPECTED_SHA256 but the APK was signed with $fingerprint. Check the ANDROID_KEYSTORE_* secrets."
+            exit 1
+          fi
 
       - name: Build web bundle
         working-directory: ${{ env.WORKING_DIR }}

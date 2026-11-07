@@ -8,6 +8,11 @@ on:
       - opened
       - synchronize
       - reopened
+    paths:
+      - "src/backend-self-hosted/docker/service/migration/**"
+      - ".github/workflows/migration_service_selfhosted.yml"
+      - "!src/backend-self-hosted/docker/service/migration/**/*.md"
+      - "!src/backend-self-hosted/docker/service/migration/**/.gitignore"
 
 permissions:
   contents: read

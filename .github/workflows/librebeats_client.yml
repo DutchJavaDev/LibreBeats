@@ -6,11 +6,20 @@ on:
       - opened
       - synchronize
       - reopened
+    paths:
+      - "src/frontend/**"
+      - ".github/workflows/librebeats_client.yml"
+      - "!src/frontend/**/*.md"
+      - "!src/frontend/**/.gitignore"
+      - "!src/frontend/**/*.metadata"
+  workflow_call:
 
 permissions:
   contents: read
 env:
   WORKING_DIR: src/frontend
+  # Same pin as frontend_release.yml, so tests and release builds use one Flutter version.
+  FLUTTER_VERSION: "3.44.4"
 jobs:
   flutter_tests:
     runs-on: ubuntu-latest
@@ -22,6 +31,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
         

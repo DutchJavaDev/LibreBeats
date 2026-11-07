@@ -16,6 +16,7 @@ flutter run \
 
 The app needs Flutter 3.38.4 or newer and Dart 3.12 or newer. `pubspec.yaml` only says `>=3.0.0`, but `pubspec.lock` records `dart >=3.12.0` and `flutter >=3.38.4`. CI uses the Flutter `stable` channel, and release builds pin Flutter `3.44.4`.
 
+
 The seed defines register your first server(s) on a fresh install. After that, servers are managed in Settings and persist on device. No login ships in the app. A fresh install opens a first-run screen with an "Add your first server" button and a "Set your login" button. For a local build you can bake a dev login into a git-ignored `env.json` (`flutter run --dart-define-from-file=env.json`). See [Configuration](#configuration).
 
 ## Architecture

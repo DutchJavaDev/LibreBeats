@@ -7,6 +7,11 @@ name: LibreBeats Frontend Release
 on:
   push:
     paths:
+      - "!src/frontend/**.md"
+      - "!src/frontend/**.yaml"
+      - "!src/frontend/**.lock"
+      - "!src/frontend/**.gitignore"
+      - "!src/frontend/**.metadata"
       - "src/frontend/**"
       - ".github/workflows/frontend_release.yml"
 

@@ -12,6 +12,7 @@ on:
       - "!src/frontend/**/*.md"
       - "!src/frontend/**/.gitignore"
       - "!src/frontend/**/*.metadata"
+      - "!src/frontend/env.json.example"
   workflow_call:
 
 permissions:

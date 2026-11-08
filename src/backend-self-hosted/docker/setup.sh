@@ -389,9 +389,10 @@ log "Creating project at $target"
 mkdir -p "$target"
 cp -rf "$SRC_DIR/." "$target/"
 
-if [ -f "$target/.env.example" ] && [ ! -f "$target/.env" ]; then
-    #cp "$target/.env.example" "$target/.env" # need custom env to enable certian schema's in data-api
-    cp ".env.example" "$target/.env"
+if [ -f "$LIBREBEATS_ROOT/.env.example" ] && [ ! -f "$target/.env" ]; then
+    # Use the LibreBeats template (exposes the `librebeats` schema to
+    # PostgREST) instead of the stock Supabase one cloned into $target.
+    cp "$LIBREBEATS_ROOT/.env.example" "$target/.env"
 fi
 
 cd "$target"

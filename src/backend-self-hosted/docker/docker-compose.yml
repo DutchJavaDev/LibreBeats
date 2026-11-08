@@ -619,6 +619,7 @@ services:
       QUEUE_VISIBILITY_TIMEOUT_SEC: "600"
       QUEUE_MAX_READ_COUNT: "5"
       STORAGE_URL: http://kong:8000/storage/v1
+      STORAGE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL}
       STORAGE_KEY: ${SERVICE_ROLE_KEY}
       AUDIO_BUCKET_ID: audio-files
       IMAGE_BUCKET_ID: image-files

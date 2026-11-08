@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"strings"
 
 	storage "github.com/supabase-community/storage-go"
 )
@@ -22,6 +24,7 @@ type StorageService struct {
 	client        *storage.Client
 	audioBucketId string
 	imageBucketId string
+	publicBaseUrl string
 }
 
 func NewStorageService() *StorageService {
@@ -52,12 +55,19 @@ func NewStorageService() *StorageService {
 		panic("IMAGE_BUCKET_ID environment variable is not set")
 	}
 
+	publicBaseUrl := os.Getenv("STORAGE_PUBLIC_URL")
+
+	if publicBaseUrl == "" {
+		panic("STORAGE_PUBLIC_URL environment variable is not set")
+	}
+
 	storageClient := storage.NewClient(storageUrl, storageKey, nil)
 
 	return &StorageService{
 		client:        storageClient,
 		audioBucketId: audioBucketId,
 		imageBucketId: imageBucketId,
+		publicBaseUrl: strings.TrimRight(publicBaseUrl, "/"),
 	}
 }
 
@@ -70,10 +80,11 @@ func (s *StorageService) GetImagePublicUrl(filePath string) storage.SignedUrlRes
 }
 
 func (s *StorageService) getPublicUrl(bucketId string, filePath string) storage.SignedUrlResponse {
-	options := storage.UrlOptions{
-		Download: true,
-	}
-	return s.client.GetPublicUrl(bucketId, filePath, options)
+	// Public object URLs must point at the externally reachable host
+	// (STORAGE_PUBLIC_URL), not the internal gateway (STORAGE_URL), otherwise
+	// clients outside the Docker network cannot stream audio or load artwork.
+	urlStr := fmt.Sprintf("%s/storage/v1/object/public/%s/%s?download=true", s.publicBaseUrl, bucketId, filePath)
+	return storage.SignedUrlResponse{SignedURL: urlStr}
 }
 
 func (s *StorageService) EnsureBucketsExists() {

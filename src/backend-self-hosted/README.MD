@@ -164,3 +164,5 @@ No Docker, Postgres or yt-dlp needed. Covered: migration filename parsing and th
 ## Production
 
 The Supabase defaults are not production safe. Rotate every secret in `.env`, review CORS and put a proxy in front.
+
+If the host already runs nginx (or another reverse proxy) with SSL, don't use the Docker proxy overrides — see [hosting-with-existing-nginx.md](hosting-with-existing-nginx.md).

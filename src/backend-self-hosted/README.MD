@@ -25,6 +25,30 @@ Docker compose never runs from the repo. Use `setup.sh --project-dir` to specify
 
 `.env` is seeded from [`.env.example`](.env.example). The placeholder keys in the template are not valid JWTs, the stack only works once `setup.hs` has minted real ones. The key script only updates `.env` when run in an actual terminal, piped runs print the keys and skip the file.
 
+## Connecting the app
+
+The Flutter app reaches this stack the same way it reaches a hosted Supabase
+project: a base URL plus a publishable key. In `.env` those are
+`SUPABASE_PUBLIC_URL` (your reverse-proxied domain) and
+`SUPABASE_PUBLISHABLE_KEY` (minted by `setup.sh`; read it back with
+`sh run.sh secrets`).
+
+Copy `../frontend/env.json.example` to `../frontend/env.json` and fill in:
+
+```json
+{
+  "LIBREBEATS_SEED_URLS": "https://beats.example.com",
+  "LIBREBEATS_SEED_KEYS": "sb_publishable_yourkey",
+  "LIBREBEATS_DEV_EMAIL": "you@example.com",
+  "LIBREBEATS_DEV_PASSWORD": "yourpassword"
+}
+```
+
+There is no registration flow, so the login must already exist. The migration
+service seeds one listening account (`3 seed_libre_user.sql`); use its email
+and password, or any other account you have created. See `../frontend/README.md`
+for the full seed format and the Settings → Servers screen for adding more.
+
 ## What runs
 
 Stock Supabase self host (Postgres, Kong, Auth, PostgREST, Realtime, Storage + imgproxy, Studio, edge runtime, logs) plus the two services in the same compose file:
@@ -88,6 +112,7 @@ Env vars, all set in the compose file. The worker panics at startup when a requi
 | `QUEUE_VISIBILITY_TIMEOUT_SEC` | `600` | Claim duration, doubles as the retry delay |
 | `QUEUE_MAX_READ_COUNT` | `5` | Attempts before a message is dead-lettered |
 | `STORAGE_URL` | required, deployed as `http://kong:8000/storage/v1` | Storage API |
+| `STORAGE_PUBLIC_URL` | required, deployed as `SUPABASE_PUBLIC_URL` | Public base URL used to build the streaming/thumbnail URLs persisted in the catalog |
 | `STORAGE_KEY` | required, deployed as the service role key | Storage auth |
 | `AUDIO_BUCKET_ID` | required, deployed as `audio-files` | Bucket for opus files |
 | `IMAGE_BUCKET_ID` | required, deployed as `image-files` | Bucket for thumbnails |

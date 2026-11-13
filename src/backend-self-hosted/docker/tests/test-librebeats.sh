@@ -134,7 +134,7 @@ cp -R "$RELEASE/." "$LBREPO/src/backend-self-hosted/docker/"
 LB_DOCKER="$LBREPO/src/backend-self-hosted/docker"
 
 COOKIE="$T/cookies.txt"
-echo "# test cookies" > "$COOKIE"
+printf '# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t4102444800\tCONSENT\tYES+\n' > "$COOKIE"
 
 UP_NATIVE=$(native "$UP")
 LB_NATIVE=$(native "$LBREPO")
@@ -249,6 +249,45 @@ echo "$out" | grep -qF -- '--public-url must be an https' && ok "setup rejects a
 out=$(cd "$T" && sh "$LB_DOCKER/setup.sh" --yes --skip-deps -p "$T/dep-noemail" \
     --public-url https://beats.example.com --proxy docker --cookies "$COOKIE" 2>&1 || true)
 echo "$out" | grep -qF -- '--certbot-email is required' && ok "setup requires a certbot email in docker mode" || bad "setup requires a certbot email in docker mode"
+
+echo "--- cookies format"
+cookie_check() { ( . "$LB_DOCKER/librebeats-lib.sh"; lb_check_cookies "$1" ) >"$T/cookie.out" 2>&1; }
+
+COOK="$T/cookie-cases"
+mkdir -p "$COOK"
+printf '[{"domain":".youtube.com","name":"CONSENT"}]\n' > "$COOK/json.txt"
+printf 'domain,flag,path\n.youtube.com,TRUE,/\n' > "$COOK/csv.txt"
+printf '# Netscape HTTP Cookie File\n' > "$COOK/header-only.txt"
+printf '# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tNAME\n' > "$COOK/six-fields.txt"
+printf '# Netscape HTTP Cookie File\n.youtube.com\tyes\t/\tTRUE\t0\tNAME\tVAL\n' > "$COOK/bad-bool.txt"
+printf '# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t1\tOLD\tVAL\n' > "$COOK/expired.txt"
+printf '# Netscape HTTP Cookie File\r\n.youtube.com\tTRUE\t/\tTRUE\t4102444800\tCONSENT\tYES+\r\n' > "$COOK/crlf.txt"
+printf '# Netscape HTTP Cookie File\n#HttpOnly_.youtube.com\tTRUE\t/\tTRUE\t0\tSID\tabc\n' > "$COOK/httponly.txt"
+
+cookie_check "$COOK/crlf.txt" && ok "a CRLF Netscape file is accepted" || bad "a CRLF Netscape file is accepted"
+cookie_check "$COOK/httponly.txt" && ok "an #HttpOnly_ cookie line is accepted" || bad "an #HttpOnly_ cookie line is accepted"
+cookie_check "$COOKIE" && ok "the test cookie file is accepted" || bad "the test cookie file is accepted"
+cookie_check "$COOK/json.txt" && bad "a JSON export is rejected" || { grep -qF 'not in Netscape cookie format' "$T/cookie.out" && ok "a JSON export is rejected" || bad "a JSON export is rejected"; }
+cookie_check "$COOK/csv.txt" && bad "a CSV export is rejected" || { grep -qF 'not in Netscape cookie format' "$T/cookie.out" && ok "a CSV export is rejected" || bad "a CSV export is rejected"; }
+cookie_check "$COOK/header-only.txt" && bad "a header with no cookies is rejected" || { grep -qF 'no cookies' "$T/cookie.out" && ok "a header with no cookies is rejected" || bad "a header with no cookies is rejected"; }
+cookie_check "$COOK/six-fields.txt" && bad "a cookie line with 6 fields is rejected" || { grep -qF 'tab-separated fields' "$T/cookie.out" && ok "a cookie line with 6 fields is rejected" || bad "a cookie line with 6 fields is rejected"; }
+cookie_check "$COOK/bad-bool.txt" && bad "a non-boolean flag is rejected" || { grep -qF 'must be TRUE or FALSE' "$T/cookie.out" && ok "a non-boolean flag is rejected" || bad "a non-boolean flag is rejected"; }
+cookie_check "$COOK/missing.txt" && bad "a missing file is rejected" || ok "a missing file is rejected"
+
+( . "$LB_DOCKER/librebeats-lib.sh"; lb_check_cookies "$COOK/expired.txt" ) >/dev/null 2>"$T/expired.err"
+grep -qF 'has expired' "$T/expired.err" && ok "an all-expired file warns" || bad "an all-expired file warns"
+[ -s "$T/expired.err" ] && ( . "$LB_DOCKER/librebeats-lib.sh"; lb_check_cookies "$COOK/expired.txt" ) >/dev/null 2>&1 && ok "an all-expired file is still accepted" || bad "an all-expired file is still accepted"
+
+out=$(cd "$T" && sh "$LB_DOCKER/setup.sh" --yes --skip-deps -p "$T/dep-cookie-json" \
+    --public-url https://beats.example.com --proxy host --cookies "$COOK/json.txt" 2>&1 || true)
+echo "$out" | grep -qF 'cannot be used as cookies.txt' && ok "setup aborts on a non-Netscape cookies file" || bad "setup aborts on a non-Netscape cookies file"
+[ ! -e "$T/dep-cookie-json" ] && ok "setup creates nothing when the cookies file is rejected" || bad "setup creates nothing when the cookies file is rejected"
+
+DEP_CK="$T/dep-cookie-check"
+clean_copy "$DEP_CK"
+cp "$COOK/csv.txt" "$DEP_CK/service/audio/cookies.txt"
+out=$(cd "$DEP_CK" && sh update.sh --check 2>&1 || true)
+echo "$out" | grep -qF 'not in Netscape cookie format' && ok "--check fails on a non-Netscape cookies.txt in the deployment" || bad "--check fails on a non-Netscape cookies.txt in the deployment"
 
 echo "--- docker mode"
 DEP_DOCKER="$T/dep-docker"

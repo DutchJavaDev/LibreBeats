@@ -213,6 +213,57 @@ lb_generate_keys() {
     rm -f .env.old docker-compose.yml.old
 }
 
+# lb_check_cookies <file> - the file must be a Netscape cookies file, the format
+# yt-dlp reads: a "Netscape HTTP Cookie File" header, then one cookie per line
+# with seven tab-separated fields. CRLF line endings are accepted. A problem is
+# printed on stdout and the function returns 1. A file whose cookies have all
+# expired only warns, on stderr.
+lb_check_cookies() {
+    if [ ! -f "$1" ]; then
+        echo "file not found: $1"
+        return 1
+    fi
+    _clean=$(mktemp) || { echo "cannot create a temporary file"; return 1; }
+    tr -d '\r' < "$1" > "$_clean"
+    _first=$(head -n1 "$_clean")
+    if ! printf '%s\n' "$_first" | grep -qE '^#[[:space:]]*(Netscape HTTP Cookie File|HTTP Cookie File)'; then
+        rm -f "$_clean"
+        echo "not in Netscape cookie format: the first line must be '# Netscape HTTP Cookie File'. Export cookies.txt from your browser; JSON and CSV exports are rejected."
+        return 1
+    fi
+    _out=$(awk -F '\t' -v now="$(date +%s)" '
+        BEGIN { total = 0; live = 0; err = "" }
+        err != "" { next }
+        /^#HttpOnly_/ { sub(/^#HttpOnly_/, "") }
+        /^[ \t]*$/ { next }
+        /^#/ { next }
+        {
+            if (NF != 7) { err = sprintf("line %d has %d tab-separated fields, the Netscape format needs 7", NR, NF); next }
+            if ($2 != "TRUE" && $2 != "FALSE") { err = sprintf("line %d: include-subdomains must be TRUE or FALSE", NR); next }
+            if ($4 != "TRUE" && $4 != "FALSE") { err = sprintf("line %d: secure must be TRUE or FALSE", NR); next }
+            if ($3 !~ /^\//) { err = sprintf("line %d: the path must start with /", NR); next }
+            if ($5 !~ /^[0-9]+$/) { err = sprintf("line %d: the expiry must be a whole number of seconds", NR); next }
+            total++
+            if ($5 + 0 == 0 || $5 + 0 > now + 0) live++
+        }
+        END {
+            if (err != "") { print err; exit 1 }
+            if (total == 0) { print "the file has a header but no cookies"; exit 1 }
+            printf "%d %d\n", total, live
+        }
+    ' "$_clean")
+    _rc=$?
+    rm -f "$_clean"
+    if [ "$_rc" -ne 0 ]; then
+        echo "$_out"
+        return 1
+    fi
+    if [ "${_out#* }" -eq 0 ]; then
+        echo "WARN: every cookie in $1 has expired; export a fresh file from the browser" >&2
+    fi
+    return 0
+}
+
 LB_FAILS=0
 lb_fail() { printf 'FAIL: %s\n' "$*"; LB_FAILS=$((LB_FAILS + 1)); }
 lb_note() { printf 'WARN: %s\n' "$*"; }
@@ -272,7 +323,13 @@ lb_preflight() {
         *) lb_fail "SUPABASE_PUBLIC_URL must be an https:// URL (got: ${_url:-unset})" ;;
     esac
 
-    [ -f service/audio/cookies.txt ] || lb_fail "service/audio/cookies.txt is missing. Copy your yt-dlp cookies file there (it is git-ignored)."
+    if [ ! -f service/audio/cookies.txt ]; then
+        lb_fail "service/audio/cookies.txt is missing. Copy your yt-dlp cookies file there (it is git-ignored)."
+    elif _cerr=$(lb_check_cookies service/audio/cookies.txt); then
+        :
+    else
+        lb_fail "service/audio/cookies.txt: $_cerr"
+    fi
 
     for _f in docker-compose*.yml volumes/db/jwt.sql volumes/proxy/caddy/Caddyfile volumes/proxy/nginx/supabase-nginx.conf.tpl; do
         [ -f "$_f" ] && grep -q '^<<<<<<< ' "$_f" && lb_fail "$_f has unresolved merge conflict markers"

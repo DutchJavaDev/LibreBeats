@@ -1,149 +1,144 @@
-# Hosting behind an existing nginx reverse proxy
+# Hosting behind an existing nginx (scenario A)
 
-This is the setup for a VPS that already has a domain, TLS via Let's Encrypt, and
-nginx running directly on the host (not inside a container). Instead of the
-Docker-based proxies the repo ships, the stack is exposed on loopback and the
-existing nginx forwards public traffic to it.
+For a server where nginx already runs on the host with a domain and a Let's
+Encrypt certificate. LibreBeats runs in Docker, bound to loopback, and your
+nginx forwards public traffic to it. The bundled `docker-compose.nginx.yml`
+(scenario B, see `hosting-with-docker-nginx.md`) is not used here.
 
-## Why not the bundled proxy overrides
+## 1. Install
 
-`docker-compose.nginx.yml` and `docker-compose.caddy.yml` run the proxy inside
-Docker and bind ports 80/443 themselves. With nginx already on the host, those
-overrides would fight over the ports and terminate TLS a second time. For this
-scenario only the base `docker-compose.yml` runs.
-
-## What listens where
-
-- `api-gw` (Envoy by default) is the single entry point. It already routes
-  `/auth/v1`, `/rest/v1`, `/storage/v1`, `/realtime/v1`, `/functions/v1`,
-  `/graphql/v1` and `/` (Studio), so nginx only has to forward to it.
-- `supavisor` exposes Postgres on `5432` (session) and `6543` (transaction).
-- The base compose binds `8000`, `5432` and `6543` and never touches 80/443, so
-  there is no conflict with the host nginx.
-
-## 1. Public URLs in `.env`
-
-In the project directory created by `setup.sh`, point every public URL at the
-real HTTPS domain:
-
-```ini
-SUPABASE_PUBLIC_URL=https://beats.example.com
-API_EXTERNAL_URL=https://beats.example.com/auth/v1
-SITE_URL=https://beats.example.com
-```
-
-`SUPABASE_PUBLIC_URL` is what Storage, imgproxy, Auth and Studio use to build
-absolute URLs, and what the audio worker writes into the catalog's
-streaming/thumbnail URLs — so it must be the externally reachable domain, not
-`localhost:8000`.
-
-Also change `DASHBOARD_PASSWORD` (and `DASHBOARD_USERNAME` if you like); these
-guard the Studio dashboard with basic auth at the gateway.
-
-`PROXY_DOMAIN` and `CERTBOT_EMAIL` are only read by the Docker proxies, so leave
-them alone here.
-
-## 2. Keep the gateway off the public internet
-
-By default the gateway binds `8000` on all interfaces. Since nginx runs on the
-same host, bind it to loopback in `.env`:
-
-```ini
-API_GW_HTTP_PORT=127.0.0.1:8000
-```
-
-Docker Compose accepts `ip:port` in a port mapping, so this binds only on
-localhost. If you also want `psql` from the host, do the same for
-`POSTGRES_PORT=127.0.0.1:5432` and `POOLER_PROXY_PORT_TRANSACTION=127.0.0.1:6543`;
-otherwise make sure the firewall blocks those three ports externally.
-
-## 3. Start
+On the server, clone the repository on the `librebeats` branch, then run the
+installer from the checkout:
 
 ```sh
+cd LibreBeats/src/backend-self-hosted/docker
+sh setup.sh --public-url https://beats.example.com --proxy host \
+    --proxy-domain beats.example.com --cookies ~/yt-dlp-cookies.txt
+```
+
+- `--public-url` is the HTTPS address your nginx serves. It must not be
+  `localhost`.
+- `--cookies` is a yt-dlp cookies file exported from your browser. The audio
+  worker's image needs it. The file is git-ignored and is copied to
+  `service/audio/cookies.txt` inside the deployment.
+- Setup creates `supabase-project/`, installs Docker on Debian, Ubuntu, RHEL or
+  Fedora if it is missing, generates the secrets and API keys, binds the API
+  gateway to `127.0.0.1:8000`, and runs the preflight. The preflight lists what
+  is still missing. Fix those items, then run `sh update.sh --check`.
+
+Use `--skip-deps` if Docker is already installed.
+
+## 2. Add the server block to nginx
+
+From the deployment directory, print the block with your domain filled in:
+
+```sh
+cd supabase-project
+sh update.sh --nginx-snippet
+```
+
+Add it to your nginx configuration for that domain. You only need the
+`upstream` and `location` parts. Keep your existing `listen` and certificate
+lines. Then test and reload:
+
+```sh
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Your certificates stay where they are, in `/etc/letsencrypt`. LibreBeats never
+touches them in this scenario.
+
+## 3. Start the stack
+
+```sh
+sh update.sh --check     # must print "preflight: ok (host proxy)"
 sh run.sh start
 ```
 
-Run the base file only — do not `sh run.sh config add nginx` or `add caddy`.
+`run.sh start` is the upstream Supabase command. It does not run the preflight
+itself, so run `--check` first.
 
-## 4. nginx
+## 4. Check it works
 
-Merge the following into the existing `server { }` block that already has
-`listen 443 ssl`, `server_name` and the Let's Encrypt certificate paths:
-
-```nginx
-upstream librebeats_gw {
-    server 127.0.0.1:8000;
-    keepalive 2;
-}
-
-server {
-    # keep your existing listen 443 ssl / server_name / ssl_certificate lines
-
-    proxy_http_version 1.1;
-    proxy_set_header Host              $host;
-    proxy_set_header X-Real-IP         $remote_addr;
-    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Forwarded-Host  $http_host;
-    proxy_set_header X-Forwarded-Port  $server_port;
-
-    # Supabase auth cookies get large
-    large_client_header_buffers 4 16k;
-    proxy_buffer_size 128k;
-    proxy_buffers 4 256k;
-    proxy_busy_buffers_size 256k;
-
-    # Realtime websocket
-    location /realtime/v1/ {
-        proxy_pass http://librebeats_gw;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_read_timeout 3600s;
-    }
-
-    # Storage: stream without buffering, no upload size cap
-    location /storage/v1/ {
-        proxy_pass http://librebeats_gw;
-        proxy_buffering off;
-        proxy_request_buffering off;
-        client_max_body_size 0;
-    }
-
-    # Everything else (auth, rest, functions, graphql, Studio)
-    location / {
-        proxy_pass http://librebeats_gw;
-    }
-}
+```sh
+curl -fsS https://beats.example.com/auth/v1/health
 ```
 
-The Studio dashboard is already basic-auth protected by the gateway
-(`DASHBOARD_USERNAME` / `DASHBOARD_PASSWORD`); the API paths use JWT/apikey auth
-and are left open. To gate the dashboard at nginx instead, add your own
-`auth_basic` to the `location /` block.
+The answer is JSON. Then open `https://beats.example.com/` in a browser. Studio
+asks for `DASHBOARD_USERNAME` and `DASHBOARD_PASSWORD` from `.env`.
 
-## 5. Point the app at it
+## 5. Connect the app
 
-The Flutter app connects like any hosted Supabase project: a base URL plus a
-publishable key.
+```sh
+sh run.sh secrets        # prints the publishable key; do not paste the output anywhere
+```
 
-- `LIBREBEATS_SEED_URLS=https://beats.example.com`
-- `LIBREBEATS_SEED_KEYS=<SUPABASE_PUBLISHABLE_KEY>` — read it with `sh run.sh secrets`
+Build or run the Flutter app with the public URL and the publishable key:
 
-Sign-in is for existing accounts only. Use the seeded listener account
-(`listner@librebeats.com`); see the note below about its password.
+```
+LIBREBEATS_SEED_URLS=https://beats.example.com
+LIBREBEATS_SEED_KEYS=<SUPABASE_PUBLISHABLE_KEY>
+```
 
-## Gotchas
+There is no registration, so sign-in uses an existing account. The migration
+seeds `listner@librebeats.com`. Its password is written in plaintext in
+`service/migration/scripts/3 seed_libre_user.sql`, so change it in the database
+and in that file before the server is reachable from the internet.
 
-- **WebSocket**: Realtime needs the `Upgrade`/`Connection` headers and the long
-  `proxy_read_timeout` in the `/realtime/v1/` block, or subscriptions hang.
-- **Streaming URLs**: the audio worker stores public object URLs ending in
-  `?download=true` (legacy behavior). That sets `Content-Disposition: attachment`,
-  which is fine for artwork but can break audio streaming in some players. If
-  playback misbehaves, drop `?download=true` in `service/audio/storage.go`.
-- **Large uploads**: keep `client_max_body_size 0` and the buffering overrides on
-  `/storage/v1/`.
-- **Seeded password**: the listener user's password is hardcoded in plaintext in
-  `service/migration/scripts/3 seed_libre_user.sql`. Change it in the database
-  (and that file) before exposing the server.
-- **Firewall**: only 80/443 need to be open publicly; `8000`, `5432` and `6543`
-  should be loopback-only or blocked.
+## 6. Updates
+
+```sh
+cd supabase-project
+sh update.sh --check
+sh update.sh --dry-run   # shows what would change
+sh update.sh             # applies it, and stops on conflicts with exit code 2
+sh run.sh recreate
+```
+
+- The update reads the `librebeats` branch of the repository. Commit and push
+  your LibreBeats changes first, or the update will not see them.
+- If the server block changed, the update prints a warning. Run
+  `sh update.sh --nginx-snippet`, apply it, and reload nginx.
+- Conflicts leave markers in the file. Resolve them, then run
+  `sh update.sh --check` before starting the stack.
+
+## 7. Reset
+
+```sh
+cd supabase-project
+sh reset.sh
+```
+
+This archives the deployment to `backups/`, then deletes the database, storage,
+SQL snippets and secrets, and rebuilds the deployment from the recorded release
+and LibreBeats version. Your nginx configuration and `/etc/letsencrypt` are not
+touched. Start the stack again with `sh run.sh start`.
+
+## Existing deployment without the install record
+
+A deployment made by the earlier `setup.sh` has no `.librebeats-version`. Adopt
+it once:
+
+```sh
+cd supabase-project
+sh update.sh --adopt --dry-run   # lists the files that would be replaced
+sh update.sh --adopt
+```
+
+Adopt backs up the deployment first. It compares the compose structure before
+and after, and rolls back if it changed. Environment changes are printed for
+you to review.
+
+## Notes
+
+- Only ports 80 and 443 need to be public. The gateway on `127.0.0.1:8000`,
+  Postgres on `5432` and the pooler on `6543` should not be reachable from the
+  internet.
+- `.env` holds every secret. `backups/` archives are created with mode 600, but
+  keep them off shared storage anyway.
+- Public object URLs end in `?download=true`, which tells the browser to save
+  the file. That is fine for artwork. If audio playback misbehaves through the
+  proxy, drop that query in `service/audio/storage.go`.
+- The Studio dashboard is protected by the gateway's basic auth, and the API
+  paths use JWT or API keys, so the server block does not add its own
+  `auth_basic`.

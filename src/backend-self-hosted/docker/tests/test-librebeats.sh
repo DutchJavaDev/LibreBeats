@@ -283,6 +283,11 @@ out=$(cd "$T" && sh "$LB_DOCKER/setup.sh" --yes --skip-deps -p "$T/dep-cookie-js
 echo "$out" | grep -qF 'cannot be used as cookies.txt' && ok "setup aborts on a non-Netscape cookies file" || bad "setup aborts on a non-Netscape cookies file"
 [ ! -e "$T/dep-cookie-json" ] && ok "setup creates nothing when the cookies file is rejected" || bad "setup creates nothing when the cookies file is rejected"
 
+(cd "$T" && cp "$COOKIE" rel-cookies.txt && sh "$LB_DOCKER/setup.sh" --yes --skip-deps -p "$T/dep-relcookie" \
+    --public-url https://beats.example.com --proxy host --cookies rel-cookies.txt \
+    --ref self-hosted/v0.8.1) > "$T/relc.log" 2>&1
+check "setup accepts a relative --cookies path" cmp -s "$COOKIE" "$T/dep-relcookie/service/audio/cookies.txt"
+
 DEP_CK="$T/dep-cookie-check"
 clean_copy "$DEP_CK"
 cp "$COOK/csv.txt" "$DEP_CK/service/audio/cookies.txt"

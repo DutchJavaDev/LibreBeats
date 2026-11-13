@@ -18,8 +18,9 @@ sh setup.sh --public-url https://beats.example.com --proxy host \
 
 - `--public-url` is the HTTPS address your nginx serves. It must not be
   `localhost`.
-- `--cookies` is a yt-dlp cookies file exported from your browser. The audio
-  worker's image needs it. The file is git-ignored and is copied to
+- `--cookies` is a yt-dlp cookies file exported from your browser in Netscape
+  format (the first line is `# Netscape HTTP Cookie File`). Setup aborts on any
+  other format. The file is git-ignored and is copied to
   `service/audio/cookies.txt` inside the deployment.
 - Setup creates `supabase-project/`, installs Docker on Debian, Ubuntu, RHEL or
   Fedora if it is missing, generates the secrets and API keys, binds the API

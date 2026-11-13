@@ -1,6 +1,10 @@
 #!/bin/sh
 #
-# Update an existing self-hosted Supabase deployment in place.
+# Update an existing LibreBeats deployment in place: the Supabase files and the
+# LibreBeats layer (librebeats-lib.sh). The rules below apply to the Supabase
+# files. LibreBeats-owned files are synced from the LibreBeats branch, and the
+# user-owned ones (.env, docker-compose.override.yml, cookies, data) are never
+# written.
 #
 # The deployment directory mixes vendor-owned files (docker-compose.yml, the
 # override files, volumes/*, scripts, .env.example) with user-owned state
@@ -25,9 +29,15 @@
 #   sh update.sh --to <tag>            # update to a specific tag/branch
 #   sh update.sh --from <ref>          # base to merge from (if no .supabase-version)
 #   sh update.sh --yes                 # don't prompt, even on breaking changes
+#   sh update.sh --check               # preflight only, changes nothing
+#   sh update.sh --nginx-snippet       # print the host nginx server block
+#   sh update.sh --adopt               # turn a setup.sh deployment into a managed one
+#   sh update.sh --librebeats-ref <b>  # LibreBeats branch (default: the recorded one, else 'librebeats')
+#   sh update.sh --librebeats-url <u>  # LibreBeats repository (default: the recorded one)
 #
 # Env:
 #   SUPABASE_REPO_URL   Override the upstream repo (default: github supabase/supabase)
+#   LIBREBEATS_REPO_URL Override the LibreBeats repo when none is recorded
 #
 # Documentation: https://supabase.com/docs/guides/self-hosting/updating
 #
@@ -35,6 +45,9 @@
 set -e
 
 cd "$(dirname "$0")"
+
+LB_SELF="update.sh"
+. ./librebeats-lib.sh
 
 # Pipeline (see main at the bottom):
 #   resolve refs -> fetch base+target snapshots -> [report-only exit]
@@ -81,6 +94,17 @@ BASE_REF=""
 BASE_VER=""
 TARGET_VER=""
 REPORT_ONLY=0
+
+CHECK_ONLY=0
+ADOPT=0
+NGINX_SNIPPET=0
+LB_URL=""
+LB_REF=""
+LB_TARGET_DIR=""
+LB_TARGET_COMMIT=""
+LB_OWNED_FILE=""
+LB_NEW_MANIFEST=""
+LAST_BACKUP=""
 
 TMP_ROOT=""
 TARGET_DIR=""
@@ -131,6 +155,9 @@ is_excluded() {
     case "$1" in
         .git|.git/*) return 0 ;;
     esac
+    if [ -n "$LB_OWNED_FILE" ] && grep -qxF "$1" "$LB_OWNED_FILE" 2>/dev/null; then
+        return 0
+    fi
     [ -n "$IGNORE_FILE" ] || return 1
     git -C "$IGNORE_GIT_DIR" -c "core.excludesfile=$IGNORE_FILE" \
         check-ignore -q --no-index "$1" 2>/dev/null
@@ -191,10 +218,7 @@ fetch_snapshot() {
 }
 
 latest_release_tag() {
-    git ls-remote --tags --refs "$REPO_URL" 2>/dev/null \
-        | sed 's#^.*refs/tags/##' \
-        | grep -E '^self-hosted/v[0-9]' \
-        | sort -V | tail -n1
+    lb_latest_upstream_tag "$REPO_URL"
 }
 
 list_files() {
@@ -234,7 +258,8 @@ resolve_target_ref() {
         TARGET_REF="$TO_REF"
         return
     fi
-    TARGET_REF=$(latest_release_tag)
+    TARGET_REF=$(latest_release_tag) \
+        || die "Could not reach $REPO_URL to look up release tags. Check the network, or pass --to <tag>."
     if [ -n "$TARGET_REF" ]; then
         log "Latest release tag: $TARGET_REF"
     else
@@ -393,13 +418,15 @@ take_backup() {
         return 0
     fi
     mkdir -p backups
-    _backup="backups/pre-update-$(date +%Y%m%d-%H%M%S).tgz"
+    _backup="backups/${1:-pre-update}-$(date +%Y%m%d-%H%M%S).tgz"
+    LAST_BACKUP="$_backup"
     log "Backing up current configuration to $_backup (excluding data directories)"
     tar czf "$_backup" \
         --exclude='./backups' \
         --exclude='./volumes/db/data' \
         --exclude='./volumes/storage' \
         . 2>/dev/null || warn "Backup archive reported errors; review $_backup before relying on it."
+    chmod 600 "$_backup"
     warn "This does NOT back up your database. Back it up separately before updating."
 }
 
@@ -551,6 +578,8 @@ print_summary() {
     printf "  CONFLICTS:        %s\n" "$(count_status CONFLICT)"
     printf "  merge failures:   %s\n" "$(count_status merge-failed)"
     printf "  removed upstream: %s\n" "$(count_status removed-upstream)"
+    printf "  kept (your edits): %s\n" "$(count_status user-kept)"
+    printf "  LibreBeats needs review: %s\n" "$(count_status lb-no-base)"
     printf "  env keys added:   %s\n" "$( [ -s "$ENV_ADDED" ] && wc -l < "$ENV_ADDED" | tr -d ' ' || echo 0 )"
 
     if [ "$(count_status CONFLICT)" != "0" ]; then
@@ -601,12 +630,17 @@ print_summary() {
     log "For what changed in this update, see CHANGELOG.md (from $BASE_REF to $TARGET_REF)."
 }
 
+nginx_sha() {
+    sha256sum librebeats/nginx-host.conf.tpl 2>/dev/null | cut -d' ' -f1
+}
+
 write_stamp() {
-    {
-        echo "# Supabase self-hosted version stamp. Managed by setup.sh / update.sh."
-        echo "# Do not commit or edit by hand. Records the ref this deployment was based on."
-        echo "ref=$TARGET_REF"
-    } > "$STAMP_FILE"
+    _old_sha=$(lb_stamp_get nginx_sha256)
+    _new_sha=$(nginx_sha)
+    lb_write_stamps "$TARGET_REF" "$LB_URL" "$LB_REF" "$LB_TARGET_COMMIT" "$_new_sha"
+    if [ "$(lb_mode)" = host ] && [ -n "$_old_sha" ] && [ "$_old_sha" != "$_new_sha" ]; then
+        warn "The host nginx server block changed. Apply it and reload nginx: sh update.sh --nginx-snippet"
+    fi
 }
 
 print_next_steps() {
@@ -619,9 +653,195 @@ print_next_steps() {
 
 # --- main --------------------------------------------------------------------
 
+# --- LibreBeats layer --------------------------------------------------------
+
+fetch_librebeats() {
+    [ -n "$LB_URL" ] || LB_URL=$(lb_stamp_get librebeats_url)
+    [ -n "$LB_URL" ] || LB_URL="${LIBREBEATS_REPO_URL:-$LB_DEFAULT_REPO_URL}"
+    [ -n "$LB_REF" ] || LB_REF=$(lb_stamp_get librebeats_ref)
+    [ -n "$LB_REF" ] || LB_REF="$LB_DEFAULT_REF"
+
+    LB_TARGET_DIR="$TMP_ROOT/librebeats"
+    log "Fetching the LibreBeats layer '$LB_REF' from $LB_URL"
+    lb_fetch "$LB_URL" "$LB_REF" "$LB_SUBPATH" "$LB_TARGET_DIR" \
+        || die "Could not fetch branch '$LB_REF' from $LB_URL. Commit and push the layer first, or pass --librebeats-ref."
+    LB_TARGET_COMMIT="$LB_FETCHED_COMMIT"
+
+    LB_NEW_MANIFEST="$TMP_ROOT/lb-manifest"
+    lb_expand "$LB_TARGET_DIR" > "$LB_NEW_MANIFEST"
+
+    # Owned by LibreBeats now or before: the upstream merge must not touch these.
+    LB_OWNED_FILE="$TMP_ROOT/lb-owned"
+    {
+        [ -f "$LB_MANIFEST_FILE" ] && cat "$LB_MANIFEST_FILE"
+        cat "$LB_NEW_MANIFEST"
+    } | sort -u > "$LB_OWNED_FILE"
+}
+
+# lb_apply <dest> <src> - write a LibreBeats file unless this is a dry run.
+lb_apply() {
+    [ "$DRY_RUN" = "1" ] && return 0
+    lb_put "$2" "$1"
+}
+
+lb_set_base() {
+    [ "$DRY_RUN" = "1" ] && return 0
+    mkdir -p "$(dirname "$LB_BASE_DIR/$1")"
+    cp -f "$2" "$LB_BASE_DIR/$1"
+}
+
+# Same 3-way rules as the upstream files. "base" is the copy this deployment
+# installed last time. A conflict keeps markers in the file and leaves the base
+# unchanged, so the next run still sees the conflict.
+lb_sync_one() {
+    _f="$1"
+    _t="$LB_TARGET_DIR/$_f"
+    _b="$LB_BASE_DIR/$_f"
+    _m="$TMP_ROOT/lb-merged"
+
+    if [ ! -f "$_t" ]; then
+        [ -f "$_f" ] && record "removed-upstream" "$_f"
+        return 0
+    fi
+    if [ ! -f "$_f" ]; then
+        lb_apply "$_f" "$_t"
+        record new "$_f"
+        lb_set_base "$_f" "$_t"
+        return 0
+    fi
+    if cmp -s "$_f" "$_t"; then
+        record unchanged "$_f"
+        lb_set_base "$_f" "$_t"
+        return 0
+    fi
+    if [ ! -f "$_b" ]; then
+        record "lb-no-base" "$_f"
+        return 0
+    fi
+    if cmp -s "$_f" "$_b"; then
+        lb_apply "$_f" "$_t"
+        record updated "$_f"
+        lb_set_base "$_f" "$_t"
+        return 0
+    fi
+    if cmp -s "$_b" "$_t"; then
+        record user-kept "$_f"
+        return 0
+    fi
+    if git merge-file -p -q \
+        -L "yours ($_f)" -L "base" -L "librebeats ($LB_REF)" \
+        "$_f" "$_b" "$_t" > "$_m" 2>/dev/null; then
+        lb_apply "$_f" "$_m"
+        record merged-clean "$_f"
+        lb_set_base "$_f" "$_t"
+    elif [ -s "$_m" ]; then
+        lb_apply "$_f" "$_m"
+        record CONFLICT "$_f"
+    else
+        record merge-failed "$_f"
+    fi
+}
+
+sync_librebeats() {
+    while IFS= read -r _f; do
+        [ -n "$_f" ] || continue
+        lb_sync_one "$_f"
+    done < "$LB_OWNED_FILE"
+    if [ "$DRY_RUN" != "1" ]; then
+        mkdir -p .librebeats
+        cp -f "$LB_NEW_MANIFEST" "$LB_MANIFEST_FILE"
+    fi
+}
+
+# Upstream changed a file that LibreBeats replaces. The LibreBeats copy is not
+# merged automatically, so say so and let the owner rebase it.
+warn_librebeats_drift() {
+    [ "$REPORT_ONLY" = "1" ] && return 0
+    while IFS= read -r _f; do
+        [ -n "$_f" ] || continue
+        _b="$BASE_DIR/$_f"
+        _t="$TARGET_DIR/$_f"
+        if [ ! -f "$_b" ] && [ ! -f "$_t" ]; then continue; fi
+        if [ -f "$_b" ] && [ -f "$_t" ] && cmp -s "$_b" "$_t"; then continue; fi
+        warn "Supabase changed $_f, which LibreBeats replaces. Compare the new upstream file with the LibreBeats copy and rebase it in the LibreBeats repo."
+    done < "$LB_NEW_MANIFEST"
+}
+
+nginx_snippet() {
+    _domain=$(env_get PROXY_DOMAIN)
+    [ -n "$_domain" ] || die "PROXY_DOMAIN is not set in .env"
+    lb_render_nginx librebeats/nginx-host.conf.tpl "$_domain"
+}
+
+# Compose structure without the environment blocks, so a rename or a new
+# service shows up while the env changes stay visible separately.
+compose_structure() {
+    _json=$(docker compose config --format json 2>/dev/null) || return 1
+    printf '%s' "$_json" | jq -S 'walk(if type == "object" then del(.environment) else . end)'
+}
+
+compose_environment() {
+    _json=$(docker compose config --format json 2>/dev/null) || return 1
+    printf '%s' "$_json" | jq -S '.services | map_values(.environment // {})'
+}
+
+restore_backup() {
+    tar -xzf "$1" -C .
+    rm -rf .librebeats "$LB_STAMP" update.sh.new
+}
+
+# --adopt: a deployment made by the earlier setup.sh gets the LibreBeats layer.
+# The compose structure is compared before and after; if it differs, the
+# backup is restored and nothing is kept.
+adopt() {
+    [ -f .supabase-version ] || die "No .supabase-version here. --adopt converts a setup.sh deployment."
+    [ ! -f "$LB_STAMP" ] || die "$LB_STAMP exists, so this deployment is already managed. Use: sh update.sh"
+    if [ "$DRY_RUN" = "1" ]; then
+        log "LibreBeats files that adopt would write:"
+        lb_diff_report "$LB_TARGET_DIR"
+        log "Dry run: nothing changed."
+        return 0
+    fi
+    command -v docker >/dev/null 2>&1 || die "docker is required: adopt compares the compose config before and after."
+
+    compose_structure > "$TMP_ROOT/structure.before" || die "docker compose config failed. Fix the deployment first."
+    compose_environment > "$TMP_ROOT/env.before" || die "docker compose config failed. Fix the deployment first."
+
+    take_backup adopt
+    log "Writing the LibreBeats layer (replaced files are listed, your copies are in $LAST_BACKUP)"
+    lb_diff_report "$LB_TARGET_DIR"
+    lb_install "$LB_TARGET_DIR"
+    case ",$(env_get PGRST_DB_SCHEMAS)," in
+        *,librebeats,*) ;;
+        *) env_set PGRST_DB_SCHEMAS "public,librebeats" ;;
+    esac
+
+    if ! compose_structure > "$TMP_ROOT/structure.after" 2>/dev/null \
+        || ! cmp -s "$TMP_ROOT/structure.before" "$TMP_ROOT/structure.after"; then
+        restore_backup "$LAST_BACKUP"
+        die "The compose structure would change, so adopt was rolled back from $LAST_BACKUP. Nothing was kept."
+    fi
+
+    compose_environment > "$TMP_ROOT/env.after" 2>/dev/null || true
+    log "Environment changes (review these):"
+    diff "$TMP_ROOT/env.before" "$TMP_ROOT/env.after" || true
+
+    lb_apply_deferred
+    lb_write_stamps "$(read_stamp_ref)" "$LB_URL" "$LB_REF" "$LB_TARGET_COMMIT" "$(nginx_sha)"
+    log "Adopted. Containers only restart where their configuration changed; check with: sh run.sh status"
+    if ! lb_preflight; then
+        die "Adopted, but the preflight found problems (listed above). Fix them, then run: sh update.sh --check"
+    fi
+}
+
 while [ $# -gt 0 ]; do
     case "$1" in
         --dry-run)  DRY_RUN=1; shift ;;
+        --check)    CHECK_ONLY=1; shift ;;
+        --adopt)    ADOPT=1; shift ;;
+        --nginx-snippet) NGINX_SNIPPET=1; shift ;;
+        --librebeats-url) [ $# -ge 2 ] || die "--librebeats-url requires a value."; LB_URL="$2"; shift 2 ;;
+        --librebeats-ref) [ $# -ge 2 ] || die "--librebeats-ref requires a value."; LB_REF="$2"; shift 2 ;;
         --yes|-y)   ASSUME_YES=1; shift ;;
         --to)       [ $# -ge 2 ] || die "--to requires a <tag> argument."; TO_REF="$2"; shift 2 ;;
         --from)     [ $# -ge 2 ] || die "--from requires a <ref> argument."; FROM_REF="$2"; shift 2 ;;
@@ -634,6 +854,15 @@ done
 [ -f .env ] || die ".env not found in $(pwd). This does not look like a configured deployment."
 command -v git >/dev/null 2>&1 || die "git is required but was not found on PATH."
 command -v jq >/dev/null 2>&1 || die "jq is required but was not found on PATH."
+
+if [ "$CHECK_ONLY" = "1" ]; then
+    lb_preflight
+    exit $?
+fi
+if [ "$NGINX_SNIPPET" = "1" ]; then
+    nginx_snippet
+    exit 0
+fi
 
 resolve_target_ref
 resolve_base_ref
@@ -648,8 +877,15 @@ ENV_REMOVED="$TMP_ROOT/env_removed"
 GATE_REPORT="$TMP_ROOT/gate_report"
 trap 'rm -rf "$TMP_ROOT"' EXIT INT TERM
 
+fetch_librebeats
+if [ "$ADOPT" = "1" ]; then
+    adopt
+    exit 0
+fi
+
 fetch_snapshots
 load_ignore_file
+warn_librebeats_drift
 
 if [ "$REPORT_ONLY" = "1" ]; then
     run_report_only
@@ -669,6 +905,7 @@ confirm_gate
 take_backup
 merge_vendor_files
 merge_env_file
+sync_librebeats
 print_summary
 
 if [ "$DRY_RUN" = "1" ]; then
@@ -684,9 +921,14 @@ if [ "$(count_status CONFLICT)" != "0" ] || [ "$(count_status merge-failed)" != 
     warn "before starting the stack."
     warn "The version stamp was NOT advanced; it will update on your next clean run."
     warn "Exiting with status 2."
+    lb_apply_deferred
     exit 2
 fi
 
 write_stamp
+lb_apply_deferred
 print_next_steps
+if ! lb_preflight; then
+    die "Update applied, but the preflight found problems (listed above). Fix them, then run: sh update.sh --check"
+fi
 log "Update applied cleanly."

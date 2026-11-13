@@ -19,7 +19,9 @@ sh run.sh start        # the upstream Supabase stack
 
 Bash scripts, for Linux, macOS or WSL. The gateway listens on `127.0.0.1:8000` in host mode, so nothing is exposed until your proxy forwards to it.
 
-The audio image needs `service/audio/cookies.txt`, a yt-dlp cookies file that is git-ignored. Setup copies it from `--cookies`. The preflight fails until it exists.
+The audio image needs `service/audio/cookies.txt`, a yt-dlp cookies file in Netscape format that is git-ignored. Setup checks the file and copies it from `--cookies`; it aborts if the file is not Netscape format (JSON and CSV exports are rejected). The preflight checks the file the same way.
+
+Export it from a browser with a "cookies.txt" extension, such as "Get cookies.txt LOCALLY". The first line must be `# Netscape HTTP Cookie File`, and each cookie is one line of seven tab-separated fields.
 
 ### How the deployment is built
 

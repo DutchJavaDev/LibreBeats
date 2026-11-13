@@ -22,6 +22,8 @@ sh setup.sh --public-url https://beats.example.com --proxy docker \
 
 - `--certbot-email` is where Let's Encrypt sends expiry notices. Use a mailbox
   you read. `@example.com` addresses are rejected.
+- `--cookies` must be a Netscape-format cookies file (first line
+  `# Netscape HTTP Cookie File`). Setup aborts on JSON or CSV exports.
 - Setup adds `docker-compose.nginx.yml` to `COMPOSE_FILE`, so `run.sh` and the
   update and reset commands include it automatically.
 - The preflight checks that ports 80 and 443 are free or held by Docker, and

@@ -217,6 +217,10 @@ else
     warn "No cookies file given (--cookies). The preflight will fail until service/audio/cookies.txt exists."
 fi
 
+if [ -n "$COOKIES_SRC" ]; then
+    _cerr=$(lb_check_cookies "$COOKIES_SRC") || die "$COOKIES_SRC cannot be used as cookies.txt: $_cerr"
+fi
+
 [ ! -e "$PROJECT_DIR" ] || die "$PROJECT_DIR already exists. Pick another name with --project-dir."
 
 if [ -n "$SOURCE_REF" ]; then
@@ -248,7 +252,7 @@ log "Installing the LibreBeats layer"
 lb_install "$SCRIPT_DIR"
 
 if [ -n "$COOKIES_SRC" ]; then
-    cp -f "$COOKIES_SRC" service/audio/cookies.txt
+    tr -d '\r' < "$COOKIES_SRC" > service/audio/cookies.txt
 fi
 
 log "Writing .env"

@@ -4,26 +4,48 @@ Self hosted [Supabase](https://supabase.com/docs/guides/self-hosting/docker) wit
 
 ## Quick start
 
+Run the installer from this checkout (`src/backend-self-hosted/docker`) on the `librebeats` branch. It builds a separate deployment directory:
+
 ```bash
-./setup.sh   # Bootstrap a self-hosted Supabase project on Linux (Debian/Ubuntu or RHEL/CentOS/Fedora).
-./run.sh     # Manage the self-hosted Supabase docker compose stack.
-./reset.sh   # Removes the selfhosted instance
-./update.sh  # Update an existing self-hosted Supabase deployment in place.
+cd src/backend-self-hosted/docker
+sh setup.sh --public-url https://beats.example.com --proxy host --cookies ~/yt-dlp-cookies.txt
+#   --proxy host    nginx already runs on this server (hosting-with-existing-nginx.md)
+#   --proxy docker  the bundled nginx-certbot container (hosting-with-docker-nginx.md)
+
+cd supabase-project
+sh update.sh --check   # preflight: must pass before the first start
+sh run.sh start        # the upstream Supabase stack
 ```
 
-Bash scripts, so Linux/macOS/WSL Studio ends up behind Kong at `http://localhost:8000`, dashboard login is in `.env`.
+Bash scripts, for Linux, macOS or WSL. The gateway listens on `127.0.0.1:8000` in host mode, so nothing is exposed until your proxy forwards to it.
 
-Before the first run:
+The audio image needs `service/audio/cookies.txt`, a yt-dlp cookies file that is git-ignored. Setup copies it from `--cookies`. The preflight fails until it exists.
 
-- `setup.sh` is a fresh install.
-- Then `run.sh start`
-- the audio image needs a `cookies.txt` (yt-dlp cookies file, git-ignored). Export one from your browser to `service/audio/cookies.txt` before building, the image build fails without it. The image builds from the copy in the build dir, so if that already exists run `./copy.sh` after adding the file.
+### How the deployment is built
 
-### How deployment works
+`setup.sh` takes the Supabase release recorded in `.supabase-version` (latest `self-hosted/v*` tag unless `--ref` is given), then adds the LibreBeats layer:
 
-Docker compose never runs from the repo. Use `setup.sh --project-dir` to specify the directory in which the selfhosted version will run and operate, make sure its empty and does not contain an `.env` file.
+- `docker-compose.yml`, `volumes/db/jwt.sql`, the Caddy and nginx templates and `CONFIG.md` are LibreBeats versions of Supabase files.
+- `service/`, `volumes/functions/menu/`, `volumes/db/librebeats-worker.sql`, the tooling (`update.sh`, `reset.sh`, `librebeats-lib.sh`) and `librebeats/` are LibreBeats-owned.
 
-`.env` is seeded from [`.env.example`](.env.example). The placeholder keys in the template are not valid JWTs, the stack only works once `setup.hs` has minted real ones. The key script only updates `.env` when run in an actual terminal, piped runs print the keys and skip the file.
+The file list lives in `librebeats-lib.sh` (`LB_PATHS`). `.librebeats-version` records the LibreBeats commit that was installed, and `.librebeats/` keeps the installed copies that the next update merges against.
+
+`.env` is seeded from the upstream `.env.example`. The key scripts replace the placeholder secrets. They only update `.env` when run in a terminal, so setup and reset run them with the output discarded.
+
+### Updating, resetting, adopting
+
+| Command | What it does |
+|---|---|
+| `sh update.sh --check` | Preflight only. Changes nothing. |
+| `sh update.sh --dry-run` | Shows what an update would change. |
+| `sh update.sh` | Merges the new Supabase release and syncs the LibreBeats layer from the `librebeats` branch. Your `.env`, `docker-compose.override.yml`, cookies and data are never written. Conflicts exit with 2. |
+| `sh update.sh --nginx-snippet` | Prints the host nginx server block for the current domain. |
+| `sh update.sh --adopt` | Converts a deployment made by an earlier `setup.sh` into a managed one. |
+| `sh reset.sh` | Archives the deployment, deletes the database, storage, snippets and secrets, and rebuilds it from the recorded versions. The Let's Encrypt volume is kept unless `--purge-certs`. |
+
+The update reads the `librebeats` branch on the repository, so commit and push LibreBeats changes before updating. Override with `--librebeats-url` or `--librebeats-ref`.
+
+Put your own compose changes in `docker-compose.override.yml`, not in `docker-compose.yml`. The LibreBeats copy of that file is replaced when the layer changes.
 
 ## Connecting the app
 
@@ -145,6 +167,7 @@ Served by the edge runtime from the mounted `volumes/functions` folder (the copy
 ```bash
 cd service/migration && go test ./...
 cd service/audio && go test ./...
+cd docker && sh tests/test-librebeats.sh   # installer, preflight, update, adopt, reset (needs git, jq, openssl, node)
 ```
 
 No Docker, Postgres or yt-dlp needed. Covered: migration filename parsing and the missing-table detection, queue config defaults and validation, DLQ payload wrapping, url parsing and playlist detection, file helpers, the required-env panics and the progress state strings. Integration tests against a live stack are not included yet.

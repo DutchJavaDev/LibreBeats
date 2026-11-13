@@ -209,7 +209,7 @@ fi
 
 if [ -n "$COOKIES" ]; then
     [ -f "$COOKIES" ] || die "--cookies file not found: $COOKIES"
-    COOKIES_SRC="$COOKIES"
+    COOKIES_SRC="$(cd "$(dirname "$COOKIES")" && pwd)/$(basename "$COOKIES")"
 elif [ -f "$SCRIPT_DIR/service/audio/cookies.txt" ]; then
     COOKIES_SRC="$SCRIPT_DIR/service/audio/cookies.txt"
 else

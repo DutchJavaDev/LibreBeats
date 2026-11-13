@@ -13,7 +13,6 @@ volumes/functions/hello/**
 volumes/functions/menu/**
 !volumes/functions/menu/index.ts
 .env
-!.env.example
 test.http
 docker-compose.override.yml
 .supabase-version

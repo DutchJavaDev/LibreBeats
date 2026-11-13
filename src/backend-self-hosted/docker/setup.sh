@@ -1,126 +1,94 @@
 #!/bin/sh
 #
-# Bootstrap a self-hosted Supabase project on Linux (Debian/Ubuntu or RHEL/CentOS/Fedora).
+# Install LibreBeats on a Supabase self-hosted release.
 #
-# What it does:
-#   1. Installs prerequisites: git, openssl, jq, ca-certificates
-#   2. Installs Docker Engine + Compose plugin (if missing)
-#   3. Optionally installs the AWS CLI v2 (--with-aws)
-#   4. Sparse-clones the repo to extract the contents of ./docker
-#   5. Creates a project directory in CWD and copies docker/* into it
-#   6. Records the base version the deployment was set up from (.supabase-version)
-#   7. Prompts for the main URLs and writes them to .env
-#   8. Generates secrets and asymmetric API keys via utils/*.sh
+# Run this from the LibreBeats checkout (src/backend-self-hosted/docker). It
+# builds the deployment directory from upstream's release plus the LibreBeats
+# layer (see librebeats-lib.sh), then runs the preflight. Later changes go
+# through update.sh and reset.sh inside the deployment directory.
 #
 # Usage:
-#   sh setup.sh                            # interactive
-#   sh setup.sh -y                         # accept defaults, no prompts
-#   sh setup.sh --project-dir my-supabase  # name the project directory
-#   sh setup.sh --skip-deps                # skip system-package installation
-#   sh setup.sh --with-aws                 # also install the AWS CLI v2
-#   sh setup.sh --ref self-hosted/v0.7.0   # clone docker/ from a specific git ref
-#   sh setup.sh --head                     # clone docker/ from HEAD (skip tags)
+#   sh setup.sh --public-url https://beats.example.com --proxy host
+#   sh setup.sh --public-url https://beats.example.com --proxy docker \
+#               --certbot-email you@example.com --cookies ~/cookies.txt
 #
-#   curl -fsSL <url-to-this-script> | sh   # bootstrap from scratch in CWD
+# Options:
+#   -p, --project-dir <dir>   deployment directory (default: supabase-project)
+#   --public-url <url>        public https URL of the stack
+#   --proxy host|docker       host: nginx on this server (you manage it);
+#                             docker: the bundled nginx-certbot container
+#   --proxy-domain <host>     certificate domain (default: host of --public-url)
+#   --certbot-email <email>   Let's Encrypt contact (docker mode)
+#   --cookies <file>          yt-dlp cookies, copied to service/audio/cookies.txt
+#   --ref <tag|branch>        upstream ref (default: latest self-hosted/v* tag)
+#   --head                    upstream default branch instead of a release tag
+#   --skip-deps               do not install system packages
+#   -y, --yes                 no prompts; required values must come from flags
+#   -h, --help                show this help
 #
-# By default the docker/ sources are cloned from the latest self-hosted release
-# tag (self-hosted/v*), falling back to the default branch (HEAD) if none exist.
+# Environment:
+#   SUPABASE_REPO_URL         upstream repository (default: github supabase/supabase)
 #
+# Documentation: src/backend-self-hosted/hosting-with-existing-nginx.md
+#                src/backend-self-hosted/hosting-with-docker-nginx.md
 
 set -e
 
-LIBREBEATS_ROOT=$(pwd)
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+. "$SCRIPT_DIR/librebeats-lib.sh"
+
 PROJECT_DIR="supabase-project"
 SKIP_DEPS=0
-WITH_AWS=0
-ASSUME_YES=1
-SOURCE_REF="self-hosted/v0.8.1"
+ASSUME_YES=0
+SOURCE_REF=""
 FORCE_HEAD=0
+PUBLIC_URL=""
+PROXY=""
+PROXY_DOMAIN=""
+CERTBOT_EMAIL=""
+COOKIES=""
+REPO_URL="${SUPABASE_REPO_URL:-https://github.com/supabase/supabase}"
 
 print_help() {
-    cat <<EOF
-Usage: setup.sh [options]
-
-Options:
-  -p, --project-dir <name>  Name of the project directory (default: supabase-project)
-      --skip-deps           Skip installation of system packages
-      --with-aws            Install the AWS CLI v2
-      --ref <tag|branch>    Clone docker/ from this git ref instead of the
-                            latest self-hosted tag (no HEAD fallback)
-      --head                Clone docker/ from the default branch (HEAD),
-                            skipping self-hosted tag detection
-  -y, --yes                 Non-interactive: accept defaults, no prompts
-  -h, --help                Show this help and exit
-EOF
+    awk 'NR==1 {next} /^#/ {sub(/^# ?/, ""); print; next} {exit}' "$0"
 }
+
+die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+log() { printf '===> %s\n' "$*"; }
+warn() { printf 'WARNING: %s\n' "$*" >&2; }
 
 while [ $# -gt 0 ]; do
     case "$1" in
         -p|--project-dir) PROJECT_DIR="$2"; shift 2 ;;
-        --skip-deps) SKIP_DEPS=1; shift ;;
-        --with-aws) WITH_AWS=1; shift ;;
+        --public-url) PUBLIC_URL="$2"; shift 2 ;;
+        --proxy) PROXY="$2"; shift 2 ;;
+        --proxy-domain) PROXY_DOMAIN="$2"; shift 2 ;;
+        --certbot-email) CERTBOT_EMAIL="$2"; shift 2 ;;
+        --cookies) COOKIES="$2"; shift 2 ;;
         --ref) SOURCE_REF="$2"; shift 2 ;;
         --head) FORCE_HEAD=1; shift ;;
+        --skip-deps) SKIP_DEPS=1; shift ;;
         -y|--yes) ASSUME_YES=1; shift ;;
         -h|--help) print_help; exit 0 ;;
         *) echo "Unknown option: $1" >&2; print_help; exit 1 ;;
     esac
 done
 
-# Interactive vs not: -y forces non-interactive; otherwise we're non-interactive
-# when there's no controlling terminal to prompt on (e.g. curl | sh in CI).
-if [ "$ASSUME_YES" = "1" ] || ! ( : < /dev/tty ) 2>/dev/null; then
-    NON_INTERACTIVE=1
-else
-    NON_INTERACTIVE=0
-fi
+if [ "$(id -u)" = "0" ]; then SUDO=""; else SUDO="sudo"; fi
 
-if [ "$(id -u)" = "0" ]; then
-    SUDO=""
-else
-    SUDO="sudo"
-fi
-
-log()  { printf "===> %s\n" "$*"; }
-warn() { printf "WARNING: %s\n" "$*" >&2; }
-die()  { printf "ERROR: %s\n" "$*" >&2; exit 1; }
-
-# Prompt with a default; echoes the chosen value on stdout.
-# Reads from /dev/tty so prompts work even when stdin is a pipe (curl | sh).
-# Falls back to the default with -y or when no controlling terminal exists.
+# Prompt only when no flag was given and a terminal is available.
 ask() {
-    # ask <prompt> <default>  -> echoes chosen value
-    if [ "$NON_INTERACTIVE" = "1" ]; then
+    if [ "$ASSUME_YES" = "1" ] || ! ( : < /dev/tty ) 2>/dev/null; then
         printf '%s' "$2"
         return
     fi
-    printf "%s [%s]: " "$1" "$2" > /dev/tty
-    read -r reply < /dev/tty
-    [ -z "$reply" ] && reply="$2"
-    printf '%s' "$reply"
+    printf '%s [%s]: ' "$1" "$2" > /dev/tty
+    read -r _reply < /dev/tty
+    [ -z "$_reply" ] && _reply="$2"
+    printf '%s' "$_reply"
 }
 
-# True if the value looks like an http(s) URL (scheme check only, not validation).
-valid_url() {
-    case "$1" in
-        http://?*|https://?*) return 0 ;;
-        *) return 1 ;;
-    esac
-}
-
-# Like ask, but requires an http(s):// value. Re-prompts interactively; with no
-# usable terminal (-y or curl | sh) a bad value is fatal rather than silently kept.
-ask_url() {
-    # ask_url <prompt> <default>  -> echoes a validated URL
-    while :; do
-        _url=$(ask "$1" "$2")
-        valid_url "$_url" && { printf '%s' "$_url"; return 0; }
-        if [ "$NON_INTERACTIVE" = "1" ]; then
-            die "$1 must start with http:// or https:// (got: '$_url')"
-        fi
-        printf "  '%s' is not a URL - it must start with http:// or https://.\n" "$_url" > /dev/tty
-    done
-}
+# --- system packages (Linux only) -------------------------------------------
 
 OS_FAMILY=""
 OS_ID=""
@@ -146,14 +114,6 @@ detect_os() {
     log "Detected OS: $ID ($OS_FAMILY)"
 }
 
-pkg_update() {
-    if [ "$OS_FAMILY" = "debian" ]; then
-        $SUDO apt-get update -qq -y
-    else
-        $SUDO dnf makecache -q -y || true
-    fi
-}
-
 pkg_install() {
     if [ "$OS_FAMILY" = "debian" ]; then
         export DEBIAN_FRONTEND=noninteractive
@@ -165,21 +125,17 @@ pkg_install() {
 
 install_base_packages() {
     log "Installing base packages: git, openssl, jq, ca-certificates"
-    pkg_update
     if [ "$OS_FAMILY" = "debian" ]; then
-        pkg_install git openssl jq ca-certificates \
-            apt-transport-https gnupg lsb-release
+        $SUDO apt-get update -qq -y
+        pkg_install git openssl jq ca-certificates curl gnupg lsb-release
     else
-        pkg_install git openssl jq ca-certificates dnf-plugins-core
+        $SUDO dnf makecache -q -y || true
+        pkg_install git openssl jq ca-certificates curl dnf-plugins-core
     fi
 }
 
-docker_present() {
-    command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1
-}
-
 install_docker() {
-    if docker_present; then
+    if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
         log "Docker already installed: $(docker --version)"
         return 0
     fi
@@ -193,280 +149,150 @@ install_docker() {
         codename="${OS_CODENAME:-$(lsb_release -cs 2>/dev/null || echo stable)}"
         echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/${OS_ID} ${codename} stable" \
             | $SUDO tee /etc/apt/sources.list.d/docker.list >/dev/null
-        $SUDO apt-get update -y
+        $SUDO apt-get update -qq -y
         pkg_install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
     else
-        # Amazon Linux
-        if [ "$OS_ID" = "amzn" ]; then
-            # Install Docker from the repo
-            pkg_install docker
-            # Install Docker Compose
-            $SUDO mkdir -p /usr/local/lib/docker/cli-plugins && \
-            $SUDO curl -fsSL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)" \
-                       -o /usr/local/lib/docker/cli-plugins/docker-compose && \
-            $SUDO chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-        else
-            repo_distro="centos"
-            case "$OS_ID" in
-                fedora) repo_distro="fedora" ;;
-                rhel)   repo_distro="rhel" ;;
-            esac
-            $SUDO dnf config-manager --add-repo "https://download.docker.com/linux/${repo_distro}/docker-ce.repo" 2>/dev/null \
-                || $SUDO dnf-3 config-manager --add-repo "https://download.docker.com/linux/${repo_distro}/docker-ce.repo"
-            pkg_install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-        fi
+        repo_distro="centos"
+        case "$OS_ID" in
+            fedora) repo_distro="fedora" ;;
+            rhel) repo_distro="rhel" ;;
+        esac
+        $SUDO dnf config-manager --add-repo "https://download.docker.com/linux/${repo_distro}/docker-ce.repo" 2>/dev/null \
+            || $SUDO dnf-3 config-manager --add-repo "https://download.docker.com/linux/${repo_distro}/docker-ce.repo"
+        pkg_install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
     fi
 
-    log "Enabling and starting docker service"
     $SUDO systemctl enable --now docker || warn "Could not enable docker via systemctl; start it manually."
-
-    docker_present || die "Docker installation finished but 'docker compose' is still unavailable."
-}
-
-install_aws() {
-    if command -v aws >/dev/null 2>&1; then
-        log "AWS CLI already installed: $(aws --version 2>&1)"
-        return 0
-    fi
-
-    arch=$(uname -m)
-    case "$arch" in
-        x86_64|amd64)  aws_arch="x86_64" ;;
-        aarch64|arm64) aws_arch="aarch64" ;;
-        *) die "Unsupported architecture for AWS CLI: $arch" ;;
-    esac
-
-    log "Installing AWS CLI v2 (${aws_arch})"
-    command -v unzip >/dev/null 2>&1 || pkg_install unzip
-    tmp=$(mktemp -d)
-    (
-        cd "$tmp"
-        curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${aws_arch}.zip" -o awscliv2.zip
-        unzip -q -o awscliv2.zip
-        $SUDO ./aws/install --bin-dir /usr/local/bin --install-dir /usr/local/aws-cli --update
-    )
-    rm -rf "$tmp"
-}
-
-SRC_DIR=""
-SRC_TMP=""
-RESOLVED_REF=""
-REPO_URL="${SUPABASE_REPO_URL:-https://github.com/supabase/supabase}"
-STAMP_FILE=".supabase-version"
-
-# Highest self-hosted/v* tag on the remote, or empty when the remote has none.
-# Returns non-zero (printing nothing) when the remote can't be reached.
-latest_release_tag() {
-    _refs=$(git ls-remote --tags --refs "$REPO_URL" 2>/dev/null) || return 1
-    printf '%s\n' "$_refs" \
-        | sed 's#^.*refs/tags/##' \
-        | grep -E '^self-hosted/v[0-9]' \
-        | sort -V | tail -n1
-}
-
-# Clone only docker/ from <ref> (empty = default branch) into <dest>.
-sparse_clone() {
-    # sparse_clone <dest> [ref]
-    _dest="$1"
-    _ref="$2"
-    if [ -n "$_ref" ]; then
-        git clone --filter=blob:none --no-checkout --depth=1 --quiet \
-            --branch "$_ref" "$REPO_URL" "$_dest" 2>/dev/null || return 1
-    else
-        git clone --filter=blob:none --no-checkout --depth=1 --quiet \
-            "$REPO_URL" "$_dest" 2>/dev/null || return 1
-    fi
-    ( cd "$_dest" &&
-      git sparse-checkout init --cone &&
-      git sparse-checkout set docker &&
-      git checkout --quiet ) 2>/dev/null || return 1
-}
-
-clone_libre_services(){
-    # create service folder
-    mkdir "$1/service"
-    #copy needed services
-    cp -r -p "$LIBREBEATS_ROOT/service/" "$1"
-    cp -r -p "$LIBREBEATS_ROOT/volumes/" "$1"
-    cp "$LIBREBEATS_ROOT/docker-compose.yml" "$1" # This docker-compose contains the librebeat services, I need to overwrite otherwise migrations and audio will never start 
-}
-
-# Echo the commit the clone resolved to (for stamping HEAD-based checkouts).
-resolved_sha() {
-    git -C "$1" rev-parse HEAD 2>/dev/null || true
-}
-
-prepare_source() {
-    SRC_TMP=$(mktemp -d) || die "Could not create a temporary directory"
-    dest="$SRC_TMP/supabase"
-
-    # Pick the ref to clone; empty means the default branch (HEAD), used only
-    # when no release tag exists yet (or --head). A resolved tag that fails to
-    # clone is an error, not a reason to silently install HEAD instead.
-    if [ -n "$SOURCE_REF" ]; then
-        ref="$SOURCE_REF"
-    elif [ "$FORCE_HEAD" = "1" ]; then
-        ref=""
-    else
-        if ref=$(latest_release_tag); then
-            [ -n "$ref" ] || log "No self-hosted release tag found; using the default branch (HEAD)"
-        else
-            die "Could not reach $REPO_URL to look up release tags. Check your network and retry, or pass --head (default branch) or --ref <tag>."
-        fi
-    fi
-
-    log "Sparse-cloning supabase repo at ${ref:-HEAD}"
-    sparse_clone "$dest" "$ref" || die "Could not clone '${ref:-HEAD}' from $REPO_URL"
-
-    # Stamp the tag name for a release tag, else the exact commit SHA.
-    case "$ref" in
-        self-hosted/v*) RESOLVED_REF="$ref" ;;
-        *)              RESOLVED_REF=$(resolved_sha "$dest") ;;
-    esac
-
-    SRC_DIR="$dest/docker"
-}
-
-cleanup_src_tmp() {
-    if [ -n "$SRC_TMP" ] && [ -d "$SRC_TMP" ]; then
-        rm -rf "$SRC_TMP"
+    if [ -n "$SUDO" ]; then
+        $SUDO usermod -aG docker "$(id -un)" 2>/dev/null \
+            && warn "Added $(id -un) to the docker group. Log out and back in before running docker without sudo."
     fi
 }
-trap cleanup_src_tmp EXIT
 
-read_env() {
-    grep "^$1=" .env 2>/dev/null | head -n1 | cut -d= -f2-
-}
+# --- main ---------------------------------------------------------------------
 
-# Record the base version this deployment was set up from, so update.sh can
-# 3-way merge future upgrades against it: it fetches the snapshot at this ref
-# as the merge base, and derives the base version from the ref itself. Just the
-# ref - per-deployment state, not vendor content: gitignored.
-write_version_stamp() {
-    [ -n "$1" ] || { warn "Could not resolve a base ref; skipping $STAMP_FILE"; return 0; }
-    {
-        echo "# Supabase self-hosted version stamp. Managed by setup.sh / update.sh."
-        echo "# Do not commit or edit by hand. Records the ref this deployment was based on."
-        echo "ref=$1"
-    } > "$STAMP_FILE"
-    log "Recorded base version in $STAMP_FILE (ref=$1)"
-}
-
-# --- Main ---
-
-log "Setup starting in $(pwd)"
-log "This may take several minutes..."
+log "Setup starting"
 
 if [ "$SKIP_DEPS" = "1" ]; then
-    log "Skipping system-package installation (--skip-deps)"
+    log "Skipping system packages (--skip-deps)"
 else
     detect_os
     install_base_packages
     install_docker
 fi
 
-if [ "$WITH_AWS" = "1" ]; then
-    install_aws
+if [ -z "$PUBLIC_URL" ]; then
+    PUBLIC_URL=$(ask "Public https URL of the stack (e.g. https://beats.example.com)" "")
 fi
-
-# Idempotent re-run: if CWD is already a set-up project, skip bootstrap.
-# A clone has docker-compose.yml + utils/ but only .env.example;
-# a set-up project also has a real .env.
-if [ -f .env ] && [ -f docker-compose.yml ] && [ -d utils ]; then
-    log "Already in a Supabase project directory; skipping bootstrap."
-    exit 0
-fi
-
-prepare_source
-
-# target="$(pwd)/$PROJECT_DIR"
-target="$PROJECT_DIR"
-if [ -e "$target" ]; then
-    die "Target $target already exists. Pick a different name with --project-dir"
-fi
-
-log "Creating project at $target"
-mkdir -p "$target"
-cp -rf "$SRC_DIR/." "$target/"
-
-if [ -f "$LIBREBEATS_ROOT/.env.example" ] && [ ! -f "$target/.env" ]; then
-    # Use the LibreBeats template (exposes the `librebeats` schema to
-    # PostgREST) instead of the stock Supabase one cloned into $target.
-    cp "$LIBREBEATS_ROOT/.env.example" "$target/.env"
-fi
-
-cd "$target"
-
-current_public_url=$(read_env SUPABASE_PUBLIC_URL)
-current_site_url=$(read_env SITE_URL)
-
-[ -z "$current_public_url" ] && current_public_url="http://localhost:8000"
-[ -z "$current_site_url" ]   && current_site_url="http://localhost:3000"
-
-if [ "$NON_INTERACTIVE" = "1" ]; then
-    log "Non-interactive: using default URLs (edit .env to change)"
-else
-    echo ""
-    echo "Configure the main URLs (press Enter to accept the default)."
-    echo ""
-fi
-
-public_url=$(ask_url "SUPABASE_PUBLIC_URL (Studio + APIs)" "$current_public_url")
-api_url=$(ask_url   "API_EXTERNAL_URL (Auth callbacks)"   "$public_url/auth/v1")
-site_url=$(ask_url  "SITE_URL (default Auth redirect)"    "$current_site_url")
-
-# Suggest PROXY_DOMAIN from the public_url host (unless it's localhost-ish)
-public_host=$(printf '%s' "$public_url" | sed -e 's|^https*://||' -e 's|/.*$||' -e 's|:.*$||')
-case "$public_host" in
-    localhost|127.*|"") current_proxy_domain=$(read_env PROXY_DOMAIN) ;;
-    *)                  current_proxy_domain="$public_host" ;;
+case "$PUBLIC_URL" in
+    https://*) ;;
+    *) die "--public-url must be an https:// URL (got: '${PUBLIC_URL:-empty}')" ;;
 esac
-[ -z "$current_proxy_domain" ] && current_proxy_domain="your-domain.example.com"
 
-proxy_domain=$(ask "PROXY_DOMAIN (for nginx/caddy HTTPS proxy)" "$current_proxy_domain")
+if [ -z "$PROXY" ]; then
+    PROXY=$(ask "Proxy: 'host' (nginx already on this server) or 'docker' (bundled nginx-certbot)" "host")
+fi
+case "$PROXY" in
+    host|docker) ;;
+    *) die "--proxy must be 'host' or 'docker' (got: '$PROXY')" ;;
+esac
 
-# Derive CERTBOT_EMAIL = admin@<last-two-labels-of-proxy-domain>.
-# Naive: doesn't handle ccTLDs like .co.uk; user can edit .env after.
-domain_root=$(printf '%s' "$proxy_domain" | awk -F. 'NF>=2 { print $(NF-1)"."$NF; next } { print }')
-certbot_email="admin@${domain_root}"
-log "Setting CERTBOT_EMAIL=${certbot_email}"
+_default_domain=$(printf '%s' "$PUBLIC_URL" | sed -e 's|^https*://||' -e 's|[/:].*$||')
+[ -n "$PROXY_DOMAIN" ] || PROXY_DOMAIN=$(ask "Certificate domain" "$_default_domain")
 
-sed -i.old \
-    -e "s|^SUPABASE_PUBLIC_URL=.*$|SUPABASE_PUBLIC_URL=${public_url}|" \
-    -e "s|^API_EXTERNAL_URL=.*$|API_EXTERNAL_URL=${api_url}|" \
-    -e "s|^SITE_URL=.*$|SITE_URL=${site_url}|" \
-    -e "s|^PROXY_DOMAIN=.*$|PROXY_DOMAIN=${proxy_domain}|" \
-    -e "s|^CERTBOT_EMAIL=.*$|CERTBOT_EMAIL=${certbot_email}|" \
-    .env
-rm -f .env.old
+if [ "$PROXY" = docker ]; then
+    if [ -z "$CERTBOT_EMAIL" ]; then
+        CERTBOT_EMAIL=$(ask "Let's Encrypt contact email" "")
+    fi
+    [ -n "$CERTBOT_EMAIL" ] || die "--certbot-email is required with --proxy docker"
+fi
 
-log "Copying LibreBeats services to project"
-clone_libre_services "$(pwd)"
-
-log "Generating secrets and legacy API keys"
-sh utils/generate-keys.sh --update-env
-
-log "Generating asymmetric key pair and opaque API keys"
-sh utils/add-new-auth-keys.sh --update-env
-
-write_version_stamp "$RESOLVED_REF"
-
-log "Pulling Docker images"
-if [ "$NON_INTERACTIVE" = "1" ]; then
-    docker compose --progress quiet pull || warn "docker compose pull failed; you can retry later."
+if [ -n "$COOKIES" ]; then
+    [ -f "$COOKIES" ] || die "--cookies file not found: $COOKIES"
+    COOKIES_SRC="$COOKIES"
+elif [ -f "$SCRIPT_DIR/service/audio/cookies.txt" ]; then
+    COOKIES_SRC="$SCRIPT_DIR/service/audio/cookies.txt"
 else
-    docker compose pull || warn "docker compose pull failed; you can retry later."
+    COOKIES_SRC=""
+    warn "No cookies file given (--cookies). The preflight will fail until service/audio/cookies.txt exists."
+fi
+
+[ ! -e "$PROJECT_DIR" ] || die "$PROJECT_DIR already exists. Pick another name with --project-dir."
+
+if [ -n "$SOURCE_REF" ]; then
+    REF="$SOURCE_REF"
+elif [ "$FORCE_HEAD" = "1" ]; then
+    REF="HEAD"
+else
+    REF=$(lb_latest_upstream_tag "$REPO_URL") \
+        || die "Could not reach $REPO_URL to look up release tags. Check the network, or pass --ref <tag> or --head."
+    if [ -z "$REF" ]; then
+        warn "No self-hosted/v* release tag exists yet; using the default branch"
+        REF="HEAD"
+    fi
+fi
+
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+log "Fetching Supabase self-hosted files at $REF"
+lb_fetch "$REPO_URL" "$REF" docker "$TMP/upstream" \
+    || die "Could not fetch '$REF' from $REPO_URL"
+UPSTREAM_COMMIT="$LB_FETCHED_COMMIT"
+
+log "Creating deployment in $PROJECT_DIR"
+mkdir -p "$PROJECT_DIR/.librebeats"
+cd "$PROJECT_DIR"
+lb_expand "$SCRIPT_DIR" > "$LB_MANIFEST_FILE"
+lb_copy_upstream "$TMP/upstream" "$LB_MANIFEST_FILE"
+log "Installing the LibreBeats layer"
+lb_install "$SCRIPT_DIR"
+
+if [ -n "$COOKIES_SRC" ]; then
+    cp -f "$COOKIES_SRC" service/audio/cookies.txt
+fi
+
+log "Writing .env"
+cp .env.example .env
+env_set SUPABASE_PUBLIC_URL "$PUBLIC_URL"
+env_set API_EXTERNAL_URL "$PUBLIC_URL/auth/v1"
+env_set SITE_URL "$PUBLIC_URL"
+env_set PGRST_DB_SCHEMAS "public,librebeats"
+env_set PROXY_DOMAIN "$PROXY_DOMAIN"
+env_set CERTBOT_EMAIL "$CERTBOT_EMAIL"
+if [ "$PROXY" = docker ]; then
+    env_set COMPOSE_FILE "docker-compose.yml:docker-compose.nginx.yml"
+else
+    env_set COMPOSE_FILE "docker-compose.yml"
+    env_set API_GW_HTTP_PORT "127.0.0.1:8000"
+fi
+
+log "Generating secrets and API keys"
+lb_generate_keys
+
+LB_SOURCE_URL="${LIBREBEATS_REPO_URL:-$(git -C "$SCRIPT_DIR" remote get-url origin 2>/dev/null || echo "$LB_DEFAULT_REPO_URL")}"
+LB_COMMIT=$(git -C "$SCRIPT_DIR" rev-parse HEAD 2>/dev/null || echo unknown)
+if [ -n "$(git -C "$SCRIPT_DIR" status --porcelain -- . 2>/dev/null)" ]; then
+    warn "The LibreBeats checkout has uncommitted changes. Updates read the committed '$LB_DEFAULT_REF' branch, so these changes are not part of the recorded version."
+fi
+NGINX_SHA=$(sha256sum librebeats/nginx-host.conf.tpl | cut -d' ' -f1)
+lb_write_stamps "$REF" "$LB_SOURCE_URL" "$LB_DEFAULT_REF" "$LB_COMMIT" "$NGINX_SHA"
+log "Recorded upstream $REF (commit $UPSTREAM_COMMIT) and LibreBeats commit $LB_COMMIT"
+
+if [ "$PROXY" = docker ]; then
+    docker compose --progress quiet pull >/dev/null 2>&1 || warn "docker compose pull failed; retry with: sh run.sh pull"
 fi
 
 echo ""
-echo "Setup complete. Project ready at: $(pwd)"
-echo ""
-echo "Next steps:"
-echo "  cd $(pwd)"
-echo "  sh run.sh config"
-echo "  sh run.sh secrets"
-echo "  sh run.sh start"
-echo ""
-echo "To enable docker-compose overrides (caddy, nginx, logs, rustfs, s3, kong):"
-echo "  sh run.sh config add caddy"
-echo ""
+if lb_preflight; then
+    echo ""
+    log "Setup complete. Deployment: $(pwd)"
+    echo "Next steps:"
+    echo "  cd $(pwd)"
+    if [ "$PROXY" = host ]; then
+        echo "  sh update.sh --nginx-snippet     # server block for your existing nginx"
+    fi
+    echo "  sh run.sh start"
+else
+    echo ""
+    die "Setup finished but the preflight found problems (listed above). Fix them, then run: sh update.sh --check"
+fi

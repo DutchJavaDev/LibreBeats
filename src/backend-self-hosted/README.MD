@@ -49,6 +49,154 @@ The update reads the `librebeats` branch on the repository, so commit and push L
 
 Put your own compose changes in `docker-compose.override.yml`, not in `docker-compose.yml`. The LibreBeats copy of that file is replaced when the layer changes.
 
+## Examples
+
+Every command runs from the directory shown. Use `sh setup.sh --help` and `sh update.sh --help` for the full option lists.
+
+### Export the cookies file
+
+The audio worker needs a Netscape-format cookies file. In a browser, use an
+extension such as "Get cookies.txt LOCALLY" while logged in to YouTube and
+export the cookies for `youtube.com`. Check the first line before you use it:
+
+```bash
+head -n1 cookies.txt
+# expected: # Netscape HTTP Cookie File
+```
+
+Setup refuses JSON, CSV and any other format.
+
+### Install with the host nginx (scenario A)
+
+```bash
+cd LibreBeats/src/backend-self-hosted/docker
+sh setup.sh -p ~/librebeats-prod \
+    --public-url https://beats.example.com \
+    --proxy host \
+    --proxy-domain beats.example.com \
+    --cookies ./cookies.txt
+```
+
+The gateway binds to `127.0.0.1:8000`. Add the server block from
+`sh update.sh --nginx-snippet` to your nginx (see
+[hosting-with-existing-nginx.md](hosting-with-existing-nginx.md)).
+
+### Install with the bundled nginx (scenario B)
+
+```bash
+cd LibreBeats/src/backend-self-hosted/docker
+sh setup.sh -p ~/librebeats-prod \
+    --public-url https://beats.example.com \
+    --proxy docker \
+    --proxy-domain beats.example.com \
+    --certbot-email you@example.org \
+    --cookies ./cookies.txt
+```
+
+Ports 80 and 443 must be free. Use a real mailbox for `--certbot-email`;
+`@example.com` is rejected.
+
+### Pin a release or use the default branch
+
+```bash
+sh setup.sh ... --ref self-hosted/v0.8.1   # a specific Supabase release
+sh setup.sh ... --head                     # Supabase's default branch
+```
+
+Without either flag, setup uses the newest `self-hosted/v*` tag.
+
+### Preflight and start
+
+```bash
+cd ~/librebeats-prod
+sh update.sh --check
+```
+
+Passing output ends with `preflight: ok (host proxy)`. A failing check lists
+each problem and exits non-zero, for example:
+
+```
+FAIL: service/audio/cookies.txt is missing. Copy your yt-dlp cookies file there (it is git-ignored).
+FAIL: PGRST_DB_SCHEMAS must include librebeats, or the app's catalog queries fail
+preflight: 2 problem(s) found
+```
+
+Once it passes, start the stack:
+
+```bash
+sh run.sh start
+sh run.sh status
+```
+
+### Check the public endpoint
+
+```bash
+curl -fsS https://beats.example.com/auth/v1/health
+```
+
+### Print the host nginx server block
+
+```bash
+sh update.sh --nginx-snippet
+```
+
+It prints the block with `PROXY_DOMAIN` filled in. Merge it into your
+configuration, then `sudo nginx -t && sudo systemctl reload nginx`.
+
+### Update
+
+```bash
+sh update.sh --dry-run          # show what would change, write nothing
+sh update.sh                    # apply it
+sh run.sh recreate              # restart the containers with the new config
+```
+
+Pin the release or the LibreBeats branch explicitly when needed:
+
+```bash
+sh update.sh --to self-hosted/v0.8.2
+sh update.sh --librebeats-ref librebeats --librebeats-url https://github.com/DutchJavaDev/LibreBeats.git
+```
+
+If the update exits with code 2, a file has conflict markers. Edit it, remove
+the `<<<<<<<`, `=======` and `>>>>>>>` lines, then run `sh update.sh --check`.
+
+### Convert a deployment from the earlier setup
+
+```bash
+sh update.sh --adopt --dry-run  # lists the files that would be replaced
+sh update.sh --adopt
+```
+
+Adopt backs up the deployment first and rolls back if the compose structure would change.
+
+### Reset
+
+```bash
+sh reset.sh                     # asks you to type "reset"
+sh reset.sh --yes               # no prompt
+sh reset.sh --yes --purge-certs # also delete the Let's Encrypt volumes (scenario B)
+```
+
+The archive goes to `backups/reset-<timestamp>.tgz`. Reset generates new
+secrets and an empty database, and keeps the URLs, proxy mode and cookies file.
+
+### Read the secrets and connect the app
+
+```bash
+sh run.sh secrets               # publishable key and passwords; do not paste the output anywhere
+```
+
+### Run the tests
+
+```bash
+cd src/backend-self-hosted/docker
+sh tests/test-librebeats.sh
+```
+
+The tests need `git`, `jq`, `openssl`, `tar` and `node`. They stub Docker, so
+no containers are started. The last line reports `passed: N  failed: 0`.
+
 ## Connecting the app
 
 The Flutter app reaches this stack the same way it reaches a hosted Supabase

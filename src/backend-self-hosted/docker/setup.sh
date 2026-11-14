@@ -275,7 +275,7 @@ lb_generate_keys
 
 LB_SOURCE_URL="${LIBREBEATS_REPO_URL:-$(git -C "$SCRIPT_DIR" remote get-url origin 2>/dev/null || echo "$LB_DEFAULT_REPO_URL")}"
 LB_COMMIT=$(git -C "$SCRIPT_DIR" rev-parse HEAD 2>/dev/null || echo unknown)
-if [ -n "$(git -C "$SCRIPT_DIR" status --porcelain -- . 2>/dev/null)" ]; then
+if [ -n "$(git -C "$SCRIPT_DIR" -c core.fileMode=false status --porcelain -- . 2>/dev/null)" ]; then
     warn "The LibreBeats checkout has uncommitted changes. Updates read the committed '$LB_DEFAULT_REF' branch, so these changes are not part of the recorded version."
 fi
 NGINX_SHA=$(sha256sum librebeats/nginx-host.conf.tpl | cut -d' ' -f1)

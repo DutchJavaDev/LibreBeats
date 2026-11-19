@@ -96,6 +96,7 @@ TARGET_VER=""
 REPORT_ONLY=0
 
 CHECK_ONLY=0
+REBUILD=0
 ADOPT=0
 NGINX_SNIPPET=0
 LB_URL=""
@@ -767,6 +768,42 @@ warn_librebeats_drift() {
     done < "$LB_NEW_MANIFEST"
 }
 
+# Compose services whose image is built from a LibreBeats file this update
+# changed. Docker does not rebuild a local image on start or recreate, so these
+# need an explicit build.
+rebuild_services() {
+    grep -E '^(new|updated|merged-clean|CONFLICT):service/' "$REPORT" 2>/dev/null \
+        | cut -d: -f2- | while IFS= read -r _p; do
+            case "$_p" in
+                service/audio/*) echo audio ;;
+                service/migration/*) echo migrations ;;
+            esac
+        done | sort -u | tr '\n' ' ' | sed 's/ *$//'
+}
+
+report_rebuild() {
+    _svc=$(rebuild_services)
+    [ -n "$_svc" ] || return 0
+    if [ "$DRY_RUN" = "1" ]; then
+        log "A real update would require rebuilding the image(s): $_svc"
+        return 0
+    fi
+    if [ "$REBUILD" != "1" ]; then
+        warn "This update changed files used to build: $_svc. The running containers keep the old image until you rebuild:"
+        warn "  docker compose build $_svc && sh run.sh recreate $_svc"
+        warn "Or re-run the update with --rebuild to do that now."
+        return 0
+    fi
+    command -v docker >/dev/null 2>&1 || die "--rebuild needs docker on PATH"
+    log "Rebuilding image(s): $_svc"
+    # shellcheck disable=SC2086
+    docker compose build $_svc || die "docker compose build failed; the old images are still in use"
+    for _s in $_svc; do
+        docker compose up -d --wait --force-recreate --no-deps "$_s" \
+            || die "could not recreate $_s; check: docker compose logs $_s"
+    done
+}
+
 nginx_snippet() {
     _domain=$(env_get PROXY_DOMAIN)
     [ -n "$_domain" ] || die "PROXY_DOMAIN is not set in .env"
@@ -838,6 +875,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --dry-run)  DRY_RUN=1; shift ;;
         --check)    CHECK_ONLY=1; shift ;;
+        --rebuild)  REBUILD=1; shift ;;
         --adopt)    ADOPT=1; shift ;;
         --nginx-snippet) NGINX_SNIPPET=1; shift ;;
         --librebeats-url) [ $# -ge 2 ] || die "--librebeats-url requires a value."; LB_URL="$2"; shift 2 ;;
@@ -909,6 +947,7 @@ sync_librebeats
 print_summary
 
 if [ "$DRY_RUN" = "1" ]; then
+    report_rebuild
     echo ""
     log "Dry run complete. Re-run without --dry-run to apply."
     exit 0
@@ -927,6 +966,7 @@ fi
 
 write_stamp
 lb_apply_deferred
+report_rebuild
 print_next_steps
 if ! lb_preflight; then
     die "Update applied, but the preflight found problems (listed above). Fix them, then run: sh update.sh --check"

@@ -598,6 +598,12 @@ print_summary() {
         log "Files merged cleanly (review recommended):"
         list_status merged-clean
     fi
+    if [ "$(count_status user-kept)" != "0" ]; then
+        echo ""
+        warn "Kept your local edits. The LibreBeats branch still has the version this deployment was installed from, so the update did not replace these files. Your copy is the one in use:"
+        list_status user-kept
+        warn "To discard your edit, copy .librebeats/base/<file> over the file. To keep it, leave it as is; a later branch change to that file will be merged with it."
+    fi
     if [ "$(count_status removed-upstream)" != "0" ]; then
         echo ""
         log "Removed upstream but kept in place (you may no longer need these):"

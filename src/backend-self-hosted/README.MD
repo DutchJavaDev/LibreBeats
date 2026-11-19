@@ -41,6 +41,7 @@ The file list lives in `librebeats-lib.sh` (`LB_PATHS`). `.librebeats-version` r
 | `sh update.sh --check` | Preflight only. Changes nothing. |
 | `sh update.sh --dry-run` | Shows what an update would change. |
 | `sh update.sh` | Merges the new Supabase release and syncs the LibreBeats layer from the `librebeats` branch. Your `.env`, `docker-compose.override.yml`, cookies and data are never written. Conflicts exit with 2. |
+| `sh update.sh --rebuild` | As above, and rebuilds and recreates the `audio` and `migrations` images when their source files changed. |
 | `sh update.sh --nginx-snippet` | Prints the host nginx server block for the current domain. |
 | `sh update.sh --adopt` | Converts a deployment made by an earlier `setup.sh` into a managed one. |
 | `sh reset.sh` | Archives the deployment, deletes the database, storage, snippets and secrets, and rebuilds it from the recorded versions. The Let's Encrypt volume is kept unless `--purge-certs`. |
@@ -147,16 +148,27 @@ configuration, then `sudo nginx -t && sudo systemctl reload nginx`.
 
 ```bash
 sh update.sh --dry-run          # show what would change, write nothing
-sh update.sh                    # apply it
+sh update.sh --rebuild          # apply it, rebuild the audio/migration images if their files changed
 sh run.sh recreate              # restart the containers with the new config
 ```
 
-Pin the release or the LibreBeats branch explicitly when needed:
+If the update changed a file under `service/audio` or `service/migration`, the
+image has to be rebuilt. Docker does not rebuild local images on start or
+recreate, so without `--rebuild` the update prints the two commands to run:
+`docker compose build audio` and `sh run.sh recreate audio`.
+
+Pin the release or the LibreBeats branch explicitly when needed. Pass them on
+the command line; the update records them in `.librebeats-version` itself, so
+do not edit that file by hand:
 
 ```bash
 sh update.sh --to self-hosted/v0.8.2
-sh update.sh --librebeats-ref librebeats --librebeats-url https://github.com/DutchJavaDev/LibreBeats.git
+sh update.sh --librebeats-ref feature/hybrid-nh          # a branch
+sh update.sh --librebeats-ref 1125e8261a9186a39d9fbf7614a62660620a54c1   # or a commit
 ```
+
+The update fails with `Could not fetch branch ...` when the name does not exist
+on the remote. Check the names with `git ls-remote --heads <repo-url>`.
 
 If the update exits with code 2, a file has conflict markers. Edit it, remove
 the `<<<<<<<`, `=======` and `>>>>>>>` lines, then run `sh update.sh --check`.

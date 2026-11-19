@@ -362,6 +362,22 @@ check "a conflict exits 2" test "$rc" -eq 2
 check "a conflict leaves markers in the file" grep -qF '<<<<<<<' "$DEP_U/service/audio/storage.go"
 check "a conflict does not move the version stamp" grep -qxF "$stamp_before" "$DEP_U/.librebeats-version"
 
+echo "--- image rebuild"
+echo "# lb dockerfile change" >> "$LBREPO/src/backend-self-hosted/docker/service/audio/Dockerfile"
+(cd "$LBREPO" && git add -A && git commit -qm "lb dockerfile change")
+clean_copy "$DEP_U"
+: > "$STUB_DIR/docker.log"
+(cd "$DEP_U" && sh update.sh --yes --to self-hosted/v0.8.1) >"$T/u6.log" 2>&1
+check "a Dockerfile change reaches the deployment" grep -qF '# lb dockerfile change' "$DEP_U/service/audio/Dockerfile"
+check "without --rebuild the update warns that the image is stale" grep -qF 'docker compose build audio' "$T/u6.log"
+check "without --rebuild nothing is built" sh -c "! grep -qF 'compose build' '$STUB_DIR/docker.log'"
+
+clean_copy "$DEP_U"
+: > "$STUB_DIR/docker.log"
+(cd "$DEP_U" && sh update.sh --yes --to self-hosted/v0.8.1 --rebuild) >"$T/u7.log" 2>&1
+check "--rebuild builds the audio image" grep -qF 'compose build audio' "$STUB_DIR/docker.log"
+check "--rebuild recreates the audio container" grep -qF -- '--no-deps audio' "$STUB_DIR/docker.log"
+
 echo "--- upstream unreachable"
 clean_copy "$DEP_U"
 out=$(cd "$DEP_U" && SUPABASE_REPO_URL="$T/does-not-exist" sh update.sh --yes 2>&1 || true)

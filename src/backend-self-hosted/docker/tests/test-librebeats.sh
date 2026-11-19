@@ -341,6 +341,7 @@ clean_copy "$DEP_U"
 printf '\n# my compose note\n' >> "$DEP_U/docker-compose.yml"
 (cd "$DEP_U" && sh update.sh --yes --to self-hosted/v0.8.1) >"$T/u4.log" 2>&1
 check "a LibreBeats file edited by the user is kept" grep -qF '# my compose note' "$DEP_U/docker-compose.yml"
+check "the update lists the files it kept because of local edits" grep -qF 'Kept your local edits' "$T/u4.log"
 
 echo "--- LibreBeats layer changes"
 echo "// lb change 2" >> "$LBREPO/src/backend-self-hosted/docker/service/audio/storage.go"

@@ -11,7 +11,7 @@ FROM alpine:latest
 WORKDIR /app
 
 # Install required system packages
-RUN apk add --no-cache aria2 ffmpeg
+RUN apk add --no-cache ffmpeg
 
 # Download and install the OFFICIAL musl-compatible yt-dlp binary
 RUN wget https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_musllinux -O /usr/bin/yt-dlp \

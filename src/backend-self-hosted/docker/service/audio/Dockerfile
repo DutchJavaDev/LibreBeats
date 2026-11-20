@@ -13,8 +13,13 @@ WORKDIR /app
 # Install required system packages
 RUN apk add --no-cache ffmpeg
 
-# Download and install the OFFICIAL musl-compatible yt-dlp binary
-RUN wget https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_musllinux -O /usr/bin/yt-dlp \
+# Download and install the OFFICIAL musl-compatible yt-dlp binary.
+# Pinned on purpose: a "latest" download URL is cached by Docker, so a rebuild
+# keeps the yt-dlp it first fetched. A YouTube 403 is often a stale yt-dlp.
+# To update, set YTDLP_VERSION to a tag from github.com/yt-dlp/yt-dlp/releases
+# (or pass --build-arg YTDLP_VERSION=<tag> to docker compose build).
+ARG YTDLP_VERSION=2026.10.26
+RUN wget https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}/yt-dlp_musllinux -O /usr/bin/yt-dlp \
     && chmod +x /usr/bin/yt-dlp
     
 # Install deno (using Alpine's package or musl build)

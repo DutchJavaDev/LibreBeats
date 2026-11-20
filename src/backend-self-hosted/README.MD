@@ -193,6 +193,21 @@ sh reset.sh --yes --purge-certs # also delete the Let's Encrypt volumes (scenari
 The archive goes to `backups/reset-<timestamp>.tgz`. Reset generates new
 secrets and an empty database, and keeps the URLs, proxy mode and cookies file.
 
+### Download a track on Windows, the same way the audio service does
+
+`docker/tools/ytdlp-audio.ps1` runs yt-dlp with the audio service's options.
+It needs yt-dlp, ffmpeg and deno on PATH and a Netscape-format cookies file:
+
+```powershell
+cd src\backend-self-hosted\docker\tools
+.\ytdlp-audio.ps1 -Url "https://www.youtube.com/watch?v=dQw4w9WgXcQ" -Cookies "$HOME\cookies.txt"
+.\ytdlp-audio.ps1 -Url "https://www.youtube.com/playlist?list=PLxxxx" -Cookies .\cookies.txt -OutDir D:\beats
+```
+
+Files land in a `run_<time>` folder under `-OutDir`, with the same `ids.txt`,
+`names.txt`, `duration.txt` and `tags.txt` the service writes. A playlist is
+downloaded one track at a time, each in its own numbered folder.
+
 ### Read the secrets and connect the app
 
 ```bash

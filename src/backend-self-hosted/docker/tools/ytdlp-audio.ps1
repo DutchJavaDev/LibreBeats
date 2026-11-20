@@ -70,6 +70,7 @@ function Get-SingleArgs([string]$Dir, [string]$Target, [string]$Ids, [string]$Na
     @(
         "--write-thumbnail",
         "--extract-audio",
+        "-f", "ba/b",
         "--audio-quality=0",
         "--audio-format=$Format",
         "--convert-thumbnails=jpg",

@@ -39,6 +39,7 @@ func singleArgs(outputLocation, idsFileName, namesFileName, durationFileName, ur
 		"yt-dlp",
 		"--write-thumbnail",
 		"--extract-audio",
+		"-f", "ba/b",
 		"--audio-quality=0",
 		fmt.Sprintf("--audio-format=%s", fileExtension),
 		"--convert-thumbnails=jpg",

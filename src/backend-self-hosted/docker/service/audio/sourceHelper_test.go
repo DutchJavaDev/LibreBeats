@@ -64,7 +64,7 @@ func TestSingleArgsMatchCli(t *testing.T) {
 	for _, arg := range args {
 		count[arg]++
 	}
-	for _, once := range []string{"--force-ipv4", "--js-runtimes=deno", "--remote-components=ejs:npm", "--audio-format=opus"} {
+	for _, once := range []string{"--force-ipv4", "--js-runtimes=deno", "--remote-components=ejs:npm", "--audio-format=opus", "-f"} {
 		if count[once] != 1 {
 			t.Fatalf("%s appears %d times, want 1", once, count[once])
 		}

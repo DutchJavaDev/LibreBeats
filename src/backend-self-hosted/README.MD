@@ -208,6 +208,34 @@ Files land in a `run_<time>` folder under `-OutDir`, with the same `ids.txt`,
 `names.txt`, `duration.txt` and `tags.txt` the service writes. A playlist is
 downloaded one track at a time, each in its own numbered folder.
 
+### Troubleshoot `HTTP Error 403: Forbidden` in the audio service
+
+Run these from the deployment directory. They don't download anything.
+
+```bash
+# 1. Versions inside the image. yt-dlp should be 2026.10.26 or newer; deno 2.3.0 or newer.
+docker compose run --rm --no-deps --entrypoint sh audio -c 'yt-dlp --version; deno --version | head -n1'
+
+# 2. Metadata only, with the same cookies the service uses.
+docker compose run --rm --no-deps --entrypoint sh audio \
+    -c 'yt-dlp --cookies /app/cookies.txt --simulate -F "https://www.youtube.com/watch?v=jNQXAC9IVRw"'
+```
+
+- If step 2 fails with 403 on the info request, YouTube is refusing the server's
+  IP address. Updating yt-dlp won't change that. Options: download from a home
+  connection and upload the files, route through a residential proxy, or try a
+  different cookies file from a spare account.
+- If step 2 lists formats but the download still fails with 403, yt-dlp is out of
+  date. Set `YTDLP_VERSION` in `service/audio/Dockerfile` to the newest tag from
+  `github.com/yt-dlp/yt-dlp/releases`, then rebuild: `docker compose build audio && sh run.sh recreate audio`.
+- If deno is older than 2.3.0, rebuild the audio image on a newer base, or install deno
+  from its own release.
+- A server outside a home network has to use cookies. Without them YouTube answers
+  "Sign in to confirm you're not a bot". Export a fresh cookies file when downloads start failing.
+- The service and `tools/ytdlp-audio.ps1` download only the audio stream (`-f "ba/b"`).
+  That is about a third of the data a combined video and audio download fetches, and it
+  avoids the video requests.
+
 ### Read the secrets and connect the app
 
 ```bash

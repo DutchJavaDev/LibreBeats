@@ -235,6 +235,13 @@ docker compose run --rm --no-deps --entrypoint sh audio \
 - The service and `tools/ytdlp-audio.ps1` download only the audio stream (`-f "ba/b"`).
   That is about a third of the data a combined video and audio download fetches, and it
   avoids the video requests.
+- With cookies, yt-dlp's default client list includes `web_embedded`. Some tracks come
+  back from that client with media that needs a GVS PO token, and without one YouTube
+  answers `HTTP Error 403: Forbidden` on the audio download. The service and the CLI
+  script therefore exclude it: `--extractor-args=youtube:player_js_variant=tv;player_client=default,-web_embedded`.
+  Keep the semicolon: yt-dlp treats a comma there as part of the value, so the exclusion
+  would be silently ignored. The debug line `Downloading web embedded client config` should
+  not appear.
 
 ### Read the secrets and connect the app
 

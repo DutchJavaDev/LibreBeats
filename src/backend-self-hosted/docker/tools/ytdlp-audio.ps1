@@ -59,7 +59,7 @@ $session = (Resolve-Path -LiteralPath $session).Path
 function Get-SharedArgs {
     @(
         "--force-ipv4",
-        "--extractor-args=youtube:player_js_variant=tv",
+        "--extractor-args=youtube:player_js_variant=tv;player_client=default,-web_embedded",
         "--cookies=$Cookies",
         "--js-runtimes=deno",
         "--remote-components=ejs:npm"

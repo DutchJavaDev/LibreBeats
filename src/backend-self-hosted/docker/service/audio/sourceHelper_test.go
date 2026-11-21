@@ -69,6 +69,9 @@ func TestSingleArgsMatchCli(t *testing.T) {
 			t.Fatalf("%s appears %d times, want 1", once, count[once])
 		}
 	}
+	if count["--extractor-args=youtube:player_js_variant=tv;player_client=default,-web_embedded"] != 1 {
+		t.Fatal("extractor args must exclude the web_embedded client (needs a PO token, 403 without one)")
+	}
 	for _, arg := range args {
 		if strings.HasPrefix(arg, "--downloader") {
 			t.Fatalf("argv contains %q; aria2c fails on YouTube with exit 22", arg)

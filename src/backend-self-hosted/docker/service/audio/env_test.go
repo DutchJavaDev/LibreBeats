@@ -83,4 +83,11 @@ func TestGetPublicUrlUsesPublicBaseUrl(t *testing.T) {
 	if got := s.GetImagePublicUrl("thumb.jpeg").SignedURL; got != "https://beats.example.com/storage/v1/object/public/image-files/thumb.jpeg?download=true" {
 		t.Fatalf("image url: %q", got)
 	}
+	// upload keys carry the bucket name, the URL must still name it once
+	if got := s.GetAudioPublicUrl("audio-files/abc.opus").SignedURL; got != "https://beats.example.com/storage/v1/object/public/audio-files/abc.opus?download=true" {
+		t.Fatalf("audio url with bucket prefix: %q", got)
+	}
+	if got := s.GetImagePublicUrl("image-files/thumb.jpeg").SignedURL; got != "https://beats.example.com/storage/v1/object/public/image-files/thumb.jpeg?download=true" {
+		t.Fatalf("image url with bucket prefix: %q", got)
+	}
 }

@@ -80,6 +80,9 @@ func (s *StorageService) GetImagePublicUrl(filePath string) storage.SignedUrlRes
 }
 
 func (s *StorageService) getPublicUrl(bucketId string, filePath string) storage.SignedUrlResponse {
+	// Upload keys come back as "<bucket>/<file>", the URL already names the
+	// bucket, so strip it or the URL repeats it.
+	filePath = strings.TrimPrefix(filePath, bucketId+"/")
 	// Public object URLs must point at the externally reachable host
 	// (STORAGE_PUBLIC_URL), not the internal gateway (STORAGE_URL), otherwise
 	// clients outside the Docker network cannot stream audio or load artwork.

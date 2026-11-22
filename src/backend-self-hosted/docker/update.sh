@@ -805,8 +805,15 @@ report_rebuild() {
     # shellcheck disable=SC2086
     docker compose build $_svc || die "docker compose build failed; the old images are still in use"
     for _s in $_svc; do
-        docker compose up -d --wait --force-recreate --no-deps "$_s" \
-            || die "could not recreate $_s; check: docker compose logs $_s"
+        # migrations runs once and exits, so --wait would report its exit as a
+        # failure. Run it in the foreground and take its exit code instead.
+        if [ "$_s" = migrations ]; then
+            docker compose up --no-deps --force-recreate --exit-code-from migrations migrations \
+                || die "migrations failed; check: docker compose logs migrations"
+        else
+            docker compose up -d --wait --force-recreate --no-deps "$_s" \
+                || die "could not recreate $_s; check: docker compose logs $_s"
+        fi
     done
 }
 

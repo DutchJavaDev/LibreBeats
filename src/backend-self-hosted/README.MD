@@ -326,7 +326,7 @@ Per message:
 3. yt-dlp into a per-run scratch dir, audio extracted to opus, thumbnail converted to jpg
 4. upload to Storage with upsert: the opus to `audio-files`, the thumbnail to `image-files` (both buckets get created public on first start, mime restricted)
 5. catalog rows: `rawbeat` then `beat`, playlists get-or-create a `beatmix` by title and link every track through `beatmixbeat`
-6. success deletes the message, a failure leaves it for the visibility timeout to bring back. Poison messages (bad json, no url, empty playlist) and messages that failed `QUEUE_MAX_READ_COUNT` times go to `audiopipe-dlq`, wrapped with the original message, read count and error.
+6. success deletes the message, a failure leaves it for the visibility timeout to bring back. Poison messages (bad json, no url, empty playlist) and messages that failed `QUEUE_MAX_READ_COUNT` times go to `audiopipe-dlq`, wrapped with the original message, read count and error. A single video that YouTube reports as private, removed, terminated or unavailable goes straight to the DLQ without retries. In a playlist that track is skipped and the rest of the playlist continues (the skip is logged, and it doesn't count as a failure).
 
 Failures land in `librebeats.audiooutputlog` with the yt-dlp output. Successful runs write nothing there, the `donwloading`/`completed` states exist but are never used.
 

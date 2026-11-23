@@ -6,6 +6,36 @@ import (
 	"testing"
 )
 
+func TestIsUnavailableTrackLog(t *testing.T) {
+	t.Parallel()
+
+	unavailable := []string{
+		"ERROR: [youtube] LIIHvN_wOa8: Video unavailable. This video is private",
+		"ERROR: [youtube] abc: This video is private",
+		"ERROR: [youtube] abc: Video unavailable",
+		"ERROR: [youtube] abc: This video has been removed by the uploader",
+		"ERROR: [youtube] abc: This video is no longer available because the YouTube account associated with this video has been terminated.",
+	}
+	for _, log := range unavailable {
+		if !isUnavailableTrackLog(log) {
+			t.Errorf("want unavailable: %q", log)
+		}
+	}
+
+	// transient or fixable errors must keep the normal retry path
+	retryable := []string{
+		"ERROR: unable to download video data: HTTP Error 403: Forbidden",
+		"ERROR: [youtube] abc: Sign in to confirm you're not a bot",
+		"yt-dlp exited with exit status 1",
+		"",
+	}
+	for _, log := range retryable {
+		if isUnavailableTrackLog(log) {
+			t.Errorf("must not be treated as unavailable: %q", log)
+		}
+	}
+}
+
 func TestParseAudioPipeURL(t *testing.T) {
 	t.Parallel()
 

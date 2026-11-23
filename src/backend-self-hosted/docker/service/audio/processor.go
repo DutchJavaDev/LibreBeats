@@ -1,9 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 func processQueueMessage(msg *AudioPipeQueueMessage, db LibreDb, storage *StorageService) error {
@@ -37,6 +39,9 @@ func processSingleTrack(msg *AudioPipeQueueMessage, db LibreDb, storage *Storage
 	if err != nil {
 		errorLog, _ := readFile(logOutputError)
 		ErrorLog("FlatSingleDownload had an error", fmt.Sprintf("Failed to download url: %s", sourceURL), errorLog)
+		if isUnavailableTrackLog(errorLog) {
+			return fmt.Errorf("%w: %s", ErrPermanentMessage, strings.TrimSpace(errorLog))
+		}
 		return fmt.Errorf("flat single download: %w", err)
 	}
 
@@ -175,6 +180,10 @@ func processPlaylist(msg *AudioPipeQueueMessage, db LibreDb, storage *StorageSer
 	var trackErrors int
 	for idx := range ids {
 		if err := processPlaylistTrack(msg, db, storage, outputLocation, idx, ids, names, durations, playlistTitles[0]); err != nil {
+			if errors.Is(err, ErrUnavailableTrack) {
+				fmt.Printf("playlist track %d skipped, unavailable: %s\n", idx, ids[idx])
+				continue
+			}
 			fmt.Printf("playlist track %d failed: %v\n", idx, err)
 			trackErrors++
 		}
@@ -213,6 +222,9 @@ func processPlaylistTrack(
 	if err != nil {
 		errorLog, _ := readFile(itemLogOutputError)
 		ErrorLog("FlatSingleDownload had an error", sourceURLItem, errorLog)
+		if isUnavailableTrackLog(errorLog) {
+			return fmt.Errorf("%w: %s", ErrUnavailableTrack, sourceURLItem)
+		}
 		return err
 	}
 

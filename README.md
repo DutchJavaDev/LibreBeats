@@ -38,7 +38,7 @@ flowchart TD
         app["Flutter app<br/>src/frontend<br/>Home · Search · Library · Liked · Settings · player<br/>background playback, multi-server catalog (20 min cache),<br/>offline likes (Android)"]
 
         subgraph backend["Supabase backend, 1..n of these: the self-hosted stack (src/backend-self-hosted) or any instance deployed from the CLI project (src/backend)"]
-            kong["Kong<br/>api gateway, all client traffic"]
+            kong["API gateway (Envoy by default, Kong optional)<br/>all client traffic"]
             svcs["Auth · PostgREST · Realtime · Studio<br/>sign-in, REST access to the catalog, admin UI"]
             menu["menu<br/>edge function (Deno), the catalog api:<br/>BeatMix records with their beats embedded"]
             db[("PostgreSQL<br/>Librebeats schema: catalog,<br/>staging, logs, migrations")]
@@ -173,8 +173,8 @@ More backend detail in [`src/backend-self-hosted/README.md`](src/backend-self-ho
 
 [`src/backend-self-hosted/supabase`](src/backend-self-hosted/supabase) is the official **self-hosted Supabase** Docker Compose setup. See [Self-Hosting with Docker](https://supabase.com/docs/guides/self-hosting/docker).
 
-- Configure via `.env` (copied from `.env.example` on first run of `setup.sh`).
-- Run ``run.sh --secrets` to get the basic secrets (dashboard & postgress password, publish key)
+- `setup.sh` writes `.env` in the deployment directory and fills in the secrets. Edit it there, not in the checkout.
+- `sh run.sh secrets` prints the dashboard and Postgres passwords and the publishable key.
 
 ### Go services
 
@@ -267,16 +267,20 @@ Integration tests against a live Supabase stack are not included yet.
 
 ### Backend, self hosted
 
-From [`src/backend-self-hosted/docker`](src/backend-self-hosted/docker).
+Run the installer from [`src/backend-self-hosted/docker`](src/backend-self-hosted/docker). It creates a separate deployment directory, so the checkout itself never runs Docker.
 
 ```bash
-./setup.sh --project-dir <location for new selfhosted project>         # Sets up and configures new self hosted supabase project
-./run.sh start / stop                                                  # Starts/Stops the new self hosted supabase project
-./reset.sh                                                             # Clears & Deletes self hosted instance (Data will be lost)
-./upgrade                                                              # Upgrade slef hosted to newer version
+sh setup.sh --public-url https://beats.example.com --proxy host --cookies ~/yt-dlp-cookies.txt
+cd supabase-project
+sh update.sh --check     # preflight: fixes listed here must be resolved before the first start
+sh run.sh start
 ```
 
-After startup, use Studio and API URLs from your `.env` / `SUPABASE_PUBLIC_URL`.
+- `--proxy host` means nginx already runs on the server. `--proxy docker` uses the bundled nginx-certbot container. The two guides are [hosting-with-existing-nginx.md](src/backend-self-hosted/hosting-with-existing-nginx.md) and [hosting-with-docker-nginx.md](src/backend-self-hosted/hosting-with-docker-nginx.md).
+- `--cookies` is a yt-dlp cookies file in Netscape format. The audio worker needs it.
+- Later changes go through `sh update.sh` and `sh reset.sh` inside the deployment directory. The [backend README](src/backend-self-hosted/README.MD) lists every command.
+
+After startup, use Studio and the API at the address in `SUPABASE_PUBLIC_URL`.
 
 ### Backend, hosted Supabase project
 

@@ -68,13 +68,13 @@ as described in `hosting-with-existing-nginx.md`, section 5.
 cd supabase-project
 sh update.sh --check
 sh update.sh --dry-run
-sh update.sh
-sh run.sh recreate nginx   # if the proxy files changed
-sh run.sh recreate
+sh update.sh --rebuild
+sh run.sh recreate nginx   # only if the nginx template or override changed
+sh run.sh recreate         # only if compose or .env changed
 ```
 
-- The nginx template and override come from upstream Supabase, so the update
-  merges them like any other upstream file.
+- The nginx template and override are Supabase files, so the update merges them
+  like any other upstream file.
 - Commit and push LibreBeats changes to the `librebeats` branch before updating.
 
 ## 6. Reset

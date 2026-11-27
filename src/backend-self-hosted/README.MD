@@ -1,6 +1,6 @@
-# LibreBeats — Backend
+# LibreBeats backend
 
-Self hosted [Supabase](https://supabase.com/docs/guides/self-hosting/docker) with two Go services on top: **migration** sets up the `librebeats` schema, **audio** turns YouTube urls into streamable beats. The app talks to all of it through Kong: Auth, PostgREST, Storage and the `menu` edge function.
+Self hosted [Supabase](https://supabase.com/docs/guides/self-hosting/docker) with two Go services on top. **migration** sets up the `librebeats` schema and **audio** turns YouTube urls into streamable beats. The app talks to the stack through the API gateway (Envoy by default, Kong if you switch): Auth, PostgREST, Storage and the `menu` edge function.
 
 ## Quick start
 
@@ -149,13 +149,13 @@ configuration, then `sudo nginx -t && sudo systemctl reload nginx`.
 ```bash
 sh update.sh --dry-run          # show what would change, write nothing
 sh update.sh --rebuild          # apply it, rebuild the audio/migration images if their files changed
-sh run.sh recreate              # restart the containers with the new config
+sh run.sh recreate              # only needed when compose or env settings changed
 ```
 
-If the update changed a file under `service/audio` or `service/migration`, the
-image has to be rebuilt. Docker does not rebuild local images on start or
-recreate, so without `--rebuild` the update prints the two commands to run:
-`docker compose build audio` and `sh run.sh recreate audio`.
+If the update changes a file under `service/audio` or `service/migration`, the
+image needs a rebuild. Docker never rebuilds a local image on start or recreate.
+Without `--rebuild`, the update prints the commands to run by hand. With it, the
+update builds the affected images and restarts them.
 
 Pin the release or the LibreBeats branch explicitly when needed. Pass them on
 the command line; the update records them in `.librebeats-version` itself, so
@@ -213,7 +213,7 @@ downloaded one track at a time, each in its own numbered folder.
 Run these from the deployment directory. They don't download anything.
 
 ```bash
-# 1. Versions inside the image. yt-dlp should be 2026.10.26 or newer; deno 2.3.0 or newer.
+# 1. Versions inside the image. The image currently ships yt-dlp 2026.10.26 and deno 2.7.4.
 docker compose run --rm --no-deps --entrypoint sh audio -c 'yt-dlp --version; deno --version | head -n1'
 
 # 2. Metadata only, with the same cookies the service uses.
@@ -228,20 +228,19 @@ docker compose run --rm --no-deps --entrypoint sh audio \
 - If step 2 lists formats but the download still fails with 403, yt-dlp is out of
   date. Set `YTDLP_VERSION` in `service/audio/Dockerfile` to the newest tag from
   `github.com/yt-dlp/yt-dlp/releases`, then rebuild: `docker compose build audio && sh run.sh recreate audio`.
-- If deno is older than 2.3.0, rebuild the audio image on a newer base, or install deno
-  from its own release.
+- If deno is far behind, rebuild the audio image on a newer Alpine base.
 - A server outside a home network has to use cookies. Without them YouTube answers
-  "Sign in to confirm you're not a bot". Export a fresh cookies file when downloads start failing.
-- The service and `tools/ytdlp-audio.ps1` download only the audio stream (`-f "ba/b"`).
-  That is about a third of the data a combined video and audio download fetches, and it
-  avoids the video requests.
-- With cookies, yt-dlp's default client list includes `web_embedded`. Some tracks come
-  back from that client with media that needs a GVS PO token, and without one YouTube
-  answers `HTTP Error 403: Forbidden` on the audio download. The service and the CLI
-  script therefore exclude it: `--extractor-args=youtube:player_js_variant=tv;player_client=default,-web_embedded`.
-  Keep the semicolon: yt-dlp treats a comma there as part of the value, so the exclusion
-  would be silently ignored. The debug line `Downloading web embedded client config` should
-  not appear.
+  "Sign in to confirm you're not a bot". Export a fresh cookies file when downloads
+  start failing.
+- The service and `tools/ytdlp-audio.ps1` only download the audio stream
+  (`-f "ba/b"`). That skips the video streams entirely.
+- With cookies, yt-dlp adds the `web_embedded` client to its defaults. For some
+  tracks that client returns media that needs a GVS PO token; without one the
+  download gets a 403. The service and the CLI script exclude it with
+  `--extractor-args=youtube:player_js_variant=tv;player_client=default,-web_embedded`.
+  The separator has to be a semicolon. With a comma, yt-dlp reads the exclusion as
+  part of the previous value and ignores it. If `Downloading web embedded client
+  config` shows up in the log, the exclusion isn't applied.
 
 ### Read the secrets and connect the app
 
@@ -285,14 +284,14 @@ for the full seed format and the Settings → Servers screen for adding more.
 
 ## What runs
 
-Stock Supabase self host (Postgres, Kong, Auth, PostgREST, Realtime, Storage + imgproxy, Studio, edge runtime, logs) plus the two services in the same compose file:
+Stock Supabase self host (Postgres, the API gateway, Auth, PostgREST, Realtime, Storage with imgproxy, Studio, the edge runtime, logs) plus the two services in the same compose file:
 
 | Service | Container | Runs |
 |---|---|---|
 | `migrations` | `supabase-migrations` | Once, after the db is healthy: applies SQL from `service/migration/scripts` |
 | `audio` | `supabase-audio` | Forever (`restart: unless-stopped`), starts after migrations completed |
 
-Host ports: Kong on `8000`/`8443` (the API the app talks to), Postgres via supavisor on `5432` (session) and `6543` (transaction pooling), analytics on `4000`.
+Host ports: the gateway on `8000` (Envoy by default; with the Kong override Kong also listens on `8443`), Postgres via supavisor on `5432` (session) and `6543` (transaction pooling), analytics on `4000`. In host-proxy mode the installer binds the gateway to `127.0.0.1:8000`.
 
 ## Migration service (`service/migration`)
 
@@ -302,14 +301,32 @@ Scripts are named `<number> <description>.sql`, the space after the number is ho
 
 ```
 scripts/
-├── 0 initial.sql           # Pgmq + librebeats schema, all tables, RLS, the audiopipe-input queue
-├── 1 audiopipe_dlq.sql     # The audiopipe-dlq dead letter queue for failed messages
-├── 2 storage_buckets.sql   # Creates the public storage buckets for storing files
-├── 3 seeb_libre_user.sql   # Create the default user for purely listining (limited rights)
-├── 4 librebeats_worker.sql # Creates a service account for the audio service
+├── 0 initial.sql           # pgmq + librebeats schema, all tables, RLS, the audiopipe-input queue
+├── 1 audiopipe_dlq.sql     # the audiopipe-dlq dead letter queue
+├── 2 storage_buckets.sql   # the public storage buckets
+├── 3 seed_libre_user.sql   # the default listening account (limited rights)
+├── 4 librebeats_worker.sql # the service account the audio worker connects as
+├── 6 fix_public_urls.sql   # repairs stored urls that repeated the bucket name
 ```
 
-Adding one: new `.sql` file in `scripts/`, numbered above the highest `id` in `librebeats.migrations` (that means `4` or higher right now, see [Known quirks](#known-quirks)), then rebuild the image (`docker compose build migrations` from the build dir), the scripts are baked in at build time. Two more rules: nothing but migrations may live in `scripts/` (a stray file aborts the run), and a migration that adds a table has to bring its own grants and policies, the default-privileges block in `0 initial.sql` targets the wrong role so new tables get nothing automatically.
+Number `5` was never used. The next script has to be above the number of
+scripts already applied (see `librebeats.migrations`), so use `7` or higher for
+anything new.
+
+To add one, put a `.sql` file in `scripts/` and rebuild the migrations image,
+because the scripts are copied in at build time:
+
+```sh
+docker compose build migrations && sh run.sh recreate migrations
+```
+
+Nothing but migrations may live in `scripts/`; a stray file aborts the run. A
+migration that adds a table has to bring its own grants and policies, because the
+default-privileges block in `0 initial.sql` targets the wrong role.
+
+Each script runs in one transaction with the others that are still pending. If
+one fails, none of them are recorded, the container exits with status 1, and the
+audio service does not start.
 
 ## Audio service (`service/audio`)
 
@@ -328,6 +345,11 @@ Per message:
 5. catalog rows: `rawbeat` then `beat`, playlists get-or-create a `beatmix` by title and link every track through `beatmixbeat`
 6. success deletes the message, a failure leaves it for the visibility timeout to bring back. Poison messages (bad json, no url, empty playlist) and messages that failed `QUEUE_MAX_READ_COUNT` times go to `audiopipe-dlq`, wrapped with the original message, read count and error. A single video that YouTube reports as private, removed, terminated or unavailable goes straight to the DLQ without retries. In a playlist that track is skipped and the rest of the playlist continues (the skip is logged, and it doesn't count as a failure).
 
+The urls written to `beat` and `beatmix` have one form:
+`STORAGE_PUBLIC_URL/storage/v1/object/public/<bucket>/<file>?download=true`.
+Upload keys already include the bucket name, and the builder strips it first
+(migration 6 repaired rows written before that).
+
 Failures land in `librebeats.audiooutputlog` with the yt-dlp output. Successful runs write nothing there, the `donwloading`/`completed` states exist but are never used.
 
 Clients have no pgmq access, feed the queue from the Studio SQL editor:
@@ -345,7 +367,7 @@ Env vars, all set in the compose file. The worker panics at startup when a requi
 | `QUEUE_DLQ_NAME` | `audiopipe-dlq` | Dead letter queue |
 | `QUEUE_VISIBILITY_TIMEOUT_SEC` | `600` | Claim duration, doubles as the retry delay |
 | `QUEUE_MAX_READ_COUNT` | `5` | Attempts before a message is dead-lettered |
-| `STORAGE_URL` | required, deployed as `http://kong:8000/storage/v1` | Storage API |
+| `STORAGE_URL` | required, deployed as `http://kong:8000/storage/v1` | Storage API. The `kong` name is an alias for whichever gateway is running. |
 | `STORAGE_PUBLIC_URL` | required, deployed as `SUPABASE_PUBLIC_URL` | Public base URL used to build the streaming/thumbnail URLs persisted in the catalog |
 | `STORAGE_KEY` | required, deployed as the service role key | Storage auth |
 | `AUDIO_BUCKET_ID` | required, deployed as `audio-files` | Bucket for opus files |
@@ -368,7 +390,7 @@ The pgmq queues `audiopipe-input` and `audiopipe-dlq` sit next to it, only reach
 
 ## Edge functions (`volumes/functions`)
 
-Served by the edge runtime from the mounted `volumes/functions` folder (the copy in the build dir, see above).
+Served by the edge runtime from the mounted `volumes/functions` folder of the deployment.
 
 - `main`: the router every request passes through. Only verifies JWTs when `FUNCTIONS_VERIFY_JWT=true` (default false, and it is global, there is no per-function setting)
 - `menu`: the one the app calls. Needs a signed-in user, returns every beatmix with its beats embedded (id, title, artist, urls, duration) in one query. This is the whole catalog API of the app.
@@ -382,13 +404,12 @@ cd service/audio && go test ./...
 cd docker && sh tests/test-librebeats.sh   # installer, preflight, update, adopt, reset (needs git, jq, openssl, node)
 ```
 
-No Docker, Postgres or yt-dlp needed. Covered: migration filename parsing and the missing-table detection, queue config defaults and validation, DLQ payload wrapping, url parsing and playlist detection, file helpers, the required-env panics and the progress state strings. Integration tests against a live stack are not included yet.
+No Docker, Postgres or yt-dlp needed. The Go tests cover migration filename parsing and missing-table detection, queue config defaults and validation, DLQ payload wrapping, url parsing and playlist detection, the public storage url builder, the yt-dlp argument lists (including the format selector and the client exclusion), the unavailable-track messages, file helpers, the required-env panics and the progress state strings. Integration tests against a live stack are not included yet.
 
-## Known quirks / bugs I need to resolve
+## Known quirks
 
 - the migration skip check compares file numbers against the tracking table's identity column, which starts at 1 while the files start at 0. A file numbered `2` may or may not run, `3` is the first number that is guaranteed to. Numbering above the count of applied rows keeps you safe.
 - migration files are processed in lexical order, `10 x.sql` sorts before `2 y.sql`. Zero-pad when it gets that far.
-- a failed migration run still exits 0, compose calls that "completed successfully" and starts the audio service anyway. Check the `supabase-migrations` logs after deploying a new script.
 - re-enqueueing an already ingested url doesn't dedupe: the storage upserts absorb the files but the catalog insert hits the unique constraints, so the message fails every attempt (re-downloading each time) and ends in the DLQ. Same when a playlist dies halfway, the committed tracks block the retry and the beatmix stays partial.
 - playlist detection is literally `playlist?` in the url. A `watch?v=…&list=…` link goes down the single-video path, but yt-dlp (no `--no-playlist` flag) still downloads the whole playlist and the single-track code chokes on the result.
 - a yt-dlp download archive file is created at startup while the `--download-archive` flag is commented out, so it is never written.

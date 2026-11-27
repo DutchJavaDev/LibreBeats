@@ -91,17 +91,17 @@ and in that file before the server is reachable from the internet.
 ```sh
 cd supabase-project
 sh update.sh --check
-sh update.sh --dry-run   # shows what would change
-sh update.sh             # applies it, and stops on conflicts with exit code 2
-sh run.sh recreate
+sh update.sh --dry-run                # what would change
+sh update.sh --rebuild                # apply it; rebuilds the audio and migration images if their code changed
+sh run.sh recreate                    # only if compose or .env changed
 ```
 
 - The update reads the `librebeats` branch of the repository. Commit and push
   your LibreBeats changes first, or the update will not see them.
+- A conflict exits with status 2 and leaves markers in the file.
 - If the server block changed, the update prints a warning. Run
   `sh update.sh --nginx-snippet`, apply it, and reload nginx.
-- Conflicts leave markers in the file. Resolve them, then run
-  `sh update.sh --check` before starting the stack.
+- Resolve the markers, then run `sh update.sh --check` before starting the stack.
 
 ## 7. Reset
 

@@ -23,7 +23,7 @@ func playlistArgs(idsFileName, namesFileName, durationFileName, playlistTitleFil
 		"--print-to-file", "%(playlist_id)s", playlistIdFileName,
 		"--print-to-file", "%(playlist_title)s", playlistTitleFileName,
 		"--ignore-errors",
-		"--extractor-args=youtube:player_js_variant=tv",
+		"--extractor-args=youtube:player_js_variant=tv;player_client=default,-web_embedded",
 		fmt.Sprintf("--cookies=%s", cookiesPath),
 		"--js-runtimes=deno:/usr/bin",
 		"--remote-components=ejs:npm",
@@ -32,19 +32,18 @@ func playlistArgs(idsFileName, namesFileName, durationFileName, playlistTitleFil
 	}
 }
 
+// Same options, in the same order, as the Windows CLI tools/ytdlp-audio.ps1
+// (Get-SingleArgs and Get-SharedArgs). Keep the two in step.
 func singleArgs(outputLocation, idsFileName, namesFileName, durationFileName, url, tagsFileName, fileExtension string) []string {
 	return []string{
 		"yt-dlp",
-		"--force-ipv4",
 		"--write-thumbnail",
 		"--extract-audio",
+		"-f", "ba/b",
 		"--audio-quality=0",
 		fmt.Sprintf("--audio-format=%s", fileExtension),
 		"--convert-thumbnails=jpg",
-		"--force-ipv4",
-		"--downloader=aria2c",
 		"--no-keep-video",
-		"--downloader-args=aria2c:-x 16 -s 16 -j 16",
 		"--print-to-file", "%(id)s", idsFileName,
 		"--print-to-file", "%(title)s", namesFileName,
 		"--print-to-file", "%(duration)s", durationFileName,
@@ -52,10 +51,10 @@ func singleArgs(outputLocation, idsFileName, namesFileName, durationFileName, ur
 		"--output", outputLocation + "/%(id)s.%(ext)s",
 		"--concurrent-fragments=20",
 		"--ignore-errors",
-		//fmt.Sprintf("--download-archive=%s", archiveFileName), // not needed for now of toch wel
-		"--extractor-args=youtube:player_js_variant=tv",
+		"--force-ipv4",
+		"--extractor-args=youtube:player_js_variant=tv;player_client=default,-web_embedded",
 		fmt.Sprintf("--cookies=%s", cookiesPath),
-		"--js-runtimes=deno:/usr/bin/",
+		"--js-runtimes=deno",
 		"--remote-components=ejs:npm",
 		"--",
 		url,

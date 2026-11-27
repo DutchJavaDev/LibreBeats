@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -50,5 +51,30 @@ func TestSingleArgs(t *testing.T) {
 	for _, url := range urls {
 		args := singleArgs("/tmp/out", "ids.txt", "names.txt", "durations.txt", url, "tags.txt", "opus")
 		checkArgvShape(t, "singleArgs", args, url)
+	}
+}
+
+// Pins the options the Windows CLI relies on too, so the two stay in step.
+func TestSingleArgsMatchCli(t *testing.T) {
+	t.Parallel()
+
+	args := singleArgs("/tmp/out", "ids.txt", "names.txt", "durations.txt", "https://www.youtube.com/watch?v=abc123", "tags.txt", "opus")
+
+	count := map[string]int{}
+	for _, arg := range args {
+		count[arg]++
+	}
+	for _, once := range []string{"--force-ipv4", "--js-runtimes=deno", "--remote-components=ejs:npm", "--audio-format=opus", "-f"} {
+		if count[once] != 1 {
+			t.Fatalf("%s appears %d times, want 1", once, count[once])
+		}
+	}
+	if count["--extractor-args=youtube:player_js_variant=tv;player_client=default,-web_embedded"] != 1 {
+		t.Fatal("extractor args must exclude the web_embedded client (needs a PO token, 403 without one)")
+	}
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "--downloader") {
+			t.Fatalf("argv contains %q; aria2c fails on YouTube with exit 22", arg)
+		}
 	}
 }

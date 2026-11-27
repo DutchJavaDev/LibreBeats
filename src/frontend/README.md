@@ -230,7 +230,7 @@ On a fresh install, [`main.dart`](lib/main.dart) seeds servers from the `LIBREBE
 
 Sign-in credentials: **no login ships in the app.** On first run, the first-run screen shows a "Set your login" button and the line "No login set yet, servers need one to sign in". The Default login row under Settings → Servers shows "Not set, servers need this to sign in" until you save one. Logins can also arrive via a QR scan. Each server can have its own login in its detail sheet (Login button). Saved logins are stored in plain text in `shared_preferences` on the device.
 
-For local development you can bake values into your own builds with a git-ignored `env.json`. The file is read with `--dart-define-from-file`:
+For local development you can bake values into your own builds with a git-ignored `env.json` (copy [`env.json.example`](env.json.example) as a starting point). The file is read with `--dart-define-from-file`:
 
 ```json
 {
@@ -247,6 +247,7 @@ flutter run --dart-define-from-file=env.json
 
 - `LIBREBEATS_DEV_EMAIL` and `LIBREBEATS_DEV_PASSWORD` are read in `lib/data/server_registry.dart` with `String.fromEnvironment`. They are the default login until you save one on the device. A saved default login replaces them.
 - `LIBREBEATS_SEED_URLS` and `LIBREBEATS_SEED_KEYS` are read in `lib/main.dart` and used as the seed servers.
+- Against the self-hosted backend, `LIBREBEATS_SEED_URLS` is the stack's `SUPABASE_PUBLIC_URL` (your reverse-proxied domain) and `LIBREBEATS_SEED_KEYS` is its `SUPABASE_PUBLISHABLE_KEY` (`sh run.sh secrets` in [`src/backend-self-hosted`](../backend-self-hosted/)).
 
 > Keep `env.json` out of git (it is in `.gitignore`). Values baked in this way do end up in that build's binary, so treat dev builds accordingly. Point the seed values at your own self-hosted stack from [`src/backend-self-hosted`](../backend-self-hosted/).
 
